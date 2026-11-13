@@ -1,0 +1,139 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/goal-mode-apply-continuation",
+  "plan_sha256": "4f47f868e5a847fbcb219b605efc919119329e53ec88f56a571ec302eb75a004",
+  "reviewed_sha": "91fe15db099bf63a095cd8669d1f3fcb3cc66ce6",
+  "diff_base": "e967d39338dc6fa6d8e81a17d2865026419aec40",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Depth risky (planning boundary, the owner-authorization point); Risk tier product by owner agreement 2026-11-13; wave 1 FAIL (unexercised continuation branch) fixed by 5.1, wave 2 PASS",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "R1 A request that asks to build",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/build-request.md",
+      "artifact_sha256": "6062e80a45c594200402487a3fc987a799e2c3702ef678a3ced1c42664d98521"
+    },
+    {
+      "name": "R1 Planning inside goal mode",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/goal-planning-turn.md",
+      "artifact_sha256": "b66701ba35dab66156cab0b99db5663b7c19cc0b4c3be72ece3defec4e708936"
+    },
+    {
+      "name": "R1 negative control (same turn), owner-accepted on intent",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/same-turn-nc.md",
+      "artifact_sha256": "77ef50d13fb70dd434c64b4e0b76703829f2da28246e313399b3d5d7ecda485f"
+    },
+    {
+      "name": "R2 Authorized continuation",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/authorized.md",
+      "artifact_sha256": "cfe86b9064b87053f5c76ebdd40f27968d57ef95aa9b6d8552833c841f6face3"
+    },
+    {
+      "name": "R2 Review stale",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/stale-review.md",
+      "artifact_sha256": "61ab9776c0372372d14513e201526bb76b2072d953d9292225b35cc5651e1992"
+    },
+    {
+      "name": "R2 No goal active",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/no-goal.md",
+      "artifact_sha256": "87df5363d7a7fa149e8426216896d60dd7293ab297a0ce02a1b4c3eae7ffdc07"
+    },
+    {
+      "name": "R2 negative control (planning-only objective), owner-accepted on intent",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/planonly-nc.md",
+      "artifact_sha256": "11bed45746aaff84e598b3734870a020c2451a037b2cbddfdb89425bc0895f4b"
+    },
+    {
+      "name": "R3 Owner objects",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/owner-objects.md",
+      "artifact_sha256": "8eaf10b101a7af909ff7302cf35eaee6df7e4ad045949d927c9aaad1586f9a5b"
+    },
+    {
+      "name": "R3 negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/veto-nc.md",
+      "artifact_sha256": "d035c350a97b6f9970d9efdbf59c57273ee2eb39566c8c8b2f688f829501636d"
+    },
+    {
+      "name": "R4 Notice under goal mode",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/notice.md",
+      "artifact_sha256": "1571aeb7b4862d607a6426e47948d47762dd365b5ec66b0ad1a4f447aec16005"
+    },
+    {
+      "name": "R4 negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/notice-nc.md",
+      "artifact_sha256": "836399353632e0632d0d00db68f7f95113b9a648c84694d3d149cdce49891fb9"
+    },
+    {
+      "name": "review-follow-ups Bump after this change",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/bump.md",
+      "artifact_sha256": "450465b51002124112329bf18a65ca835b58f5fb74e2cbda66d089538c4aae03"
+    },
+    {
+      "name": "review-follow-ups negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/bump-nc.md",
+      "artifact_sha256": "17b4b391f5db7fb866bbc45f1ca2de82ab45b12c5c9bc28fa5eb03e83f07c10c"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-implementation-audit.txt",
+      "trailer_sha256": "bf6ec0a68606a1097dd75852ead844b38975eafece12c07da6431e06e95e9afc",
+      "note": "F2 wave 2, .omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-implementation-audit.txt"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "c9d7c476e5607f8004d87af8e1e97d2c341cfd7978f850d36bb3d1e5e801c481",
+      "note": "F2 wave 2, .omp/team-config/evidence/gate/goal-mode-apply-continuation/wave-2/trailer-strategic-risk-review.txt"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B1",
+      "severity": "medium",
+      "location": ".omp/team-config/evidence/gate/goal-mode-apply-continuation/f1/planonly-nc.md:13",
+      "coverage": "not-testable:manual QA capture of continuation turns (sessions planonly-later, veto-log)",
+      "fix_sha": "5637380d47c6e121f3e0ce651746da9d0fa5282e"
+    }
+  ]
+}

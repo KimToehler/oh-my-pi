@@ -376,6 +376,239 @@ test("#given commits to review #when patch writes artifacts #then each commit ge
   assert.equal(s.ledger().at(-1).fix_shas.length, 3)
 })
 
+// Evidence-elided fix-delta patches. The sandbox ignores `.omp/`, so evidence files are added with -f, as a real
+// repository does through its un-ignore rules for `.omp/team-config/evidence/gate/`.
+const EVIDENCE = ".omp/team-config/evidence/"
+const hash = (bytes) => createHash("sha256").update(bytes).digest("hex")
+const commitFiles = (s, files, message) => {
+  for (const [file, content] of Object.entries(files)) {
+    const full = path.join(s.repo, file)
+    mkdirSync(path.dirname(full), { recursive: true })
+    writeFileSync(full, content)
+    s.git("add", "-f", "--", file)
+  }
+  s.git("commit", "-q", "-m", message)
+  return s.head()
+}
+const show = (s, ...args) => execFileSync("git", ["-C", s.repo, "show", ...args])
+const fullPatch = (s, sha) => show(s, "--format=fuller", "--no-renames", "--patch", sha)
+const listingHead = (n) => `Left out by GC patch: the hunks of files under ${EVIDENCE}, in ${n}.evidence.patch beside this patch\n`
+const readManifest = (dir) => JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8"))
+const writable = (file) => chmodSync(file, 0o644)
+const rewriteManifest = (dir, change) => {
+  const file = path.join(dir, "manifest.json")
+  const manifest = readManifest(dir)
+  change(manifest)
+  writable(file)
+  writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+const rejectVerdict = JSON.stringify({ verdict: "REJECT", summary: "no", blockers: [{ area: "a", defect: "d", evidence: "e", change: "c" }] })
+
+// A range of a source-only commit and a commit that mixes a fix with a capture, written by `patch`.
+function mixedRange(s, out) {
+  s.gc("baseline", "--sha", "HEAD")
+  const base = s.head()
+  s.commit("src/a.ts", "line one\nline two fixed\nline three\n", "fix a")
+  const head = commitFiles(s, { "src/engine.kt": "fun stop() = deadline()\n", [`${EVIDENCE}gate/demo/f1/logcat.txt`]: "I/WebView: start\nE/WebView: renderer busy\n" }, "fix engine with its capture")
+  const result = s.run("patch", "--base", base, "--head", head, "--out", out)
+  assert.equal(result.status, 0, result.stderr)
+  return { base, head, dir: path.join(s.repo, out) }
+}
+
+test("delta patch: #given a commit that mixes a fix with a capture #when patch runs #then the patch keeps the fix, its evidence file keeps the capture, and the listing names both", (t) => {
+  const s = sandbox(t)
+  const base = s.head()
+  const logcat = `${EVIDENCE}gate/demo/f1/logcat.txt`
+  const sha = commitFiles(s, { "src/engine.kt": "fun stop() = deadline()\n", [logcat]: "I/WebView: start\nE/WebView: renderer busy\nI/WebView: stop\n" }, "fix engine with its capture")
+  const out = ".omp/team-config/gate-deltas/mixed"
+  const result = s.run("patch", "--base", base, "--head", sha, "--out", out)
+  assert.equal(result.status, 0, result.stderr)
+  const dir = path.join(s.repo, out)
+  assert.deepEqual(readdirSync(dir).sort(), ["001.evidence.patch", "001.patch", "manifest.json"])
+  const patch = readFileSync(path.join(dir, "001.patch"), "utf8")
+  assert.ok(patch.startsWith(`commit ${sha}\n`), patch)
+  assert.match(patch, /^\+fun stop\(\) = deadline\(\)$/m)
+  assert.doesNotMatch(patch, /WebView/)
+  assert.ok(patch.endsWith(`${listingHead("001")}1 files, +3 -0\t${EVIDENCE}gate/demo/f1/\n`), patch)
+  const evidence = readFileSync(path.join(dir, "001.evidence.patch"))
+  assert.match(evidence.toString(), /^\+E\/WebView: renderer busy$/m)
+  assert.doesNotMatch(evidence.toString(), /deadline/)
+  const manifest = readManifest(dir)
+  assert.equal(manifest.left_out, EVIDENCE)
+  assert.equal(manifest.commits[0].evidence, "001.evidence.patch")
+  assert.equal(manifest.commits[0].evidence_sha256, hash(evidence))
+  assert.equal(statSync(path.join(dir, "001.evidence.patch")).mode & 0o222, 0)
+})
+
+test("delta patch: #given an evidence-only commit with a binary capture #when patch runs #then its patch is the header and the listing, and its evidence file holds every hunk", (t) => {
+  const s = sandbox(t)
+  const base = s.head()
+  const sha = commitFiles(s, { [`${EVIDENCE}gate/demo/f1/row.md`]: "Head: x\nVerdict: PASS\n", [`${EVIDENCE}gate/demo/f1/captures/shot.png`]: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 1, 2, 0]) }, "evidence only")
+  const out = ".omp/team-config/gate-deltas/evidence-only"
+  const result = s.run("patch", "--base", base, "--head", sha, "--out", out)
+  assert.equal(result.status, 0, result.stderr)
+  const dir = path.join(s.repo, out)
+  const header = show(s, "-s", "--format=fuller", sha).toString()
+  assert.equal(readFileSync(path.join(dir, "001.patch"), "utf8"), `${header}\n${listingHead("001")}1 files, +2 -0\t${EVIDENCE}gate/demo/f1/\n1 files, +0 -0\t${EVIDENCE}gate/demo/f1/captures/\n`)
+  const evidence = readFileSync(path.join(dir, "001.evidence.patch"))
+  assert.deepEqual(evidence, show(s, "--format=", "--no-renames", "--patch", sha, "--", `:(top)${EVIDENCE}`))
+  assert.match(evidence.toString(), /^Binary files .*shot\.png differ$/m)
+  assert.match(evidence.toString(), /^\+Verdict: PASS$/m)
+  assert.deepEqual(readManifest(dir).commits.map((c) => [c.sha, c.patch]), [[sha, "001.patch"]])
+})
+
+// Preservation guard: starts green on the unchanged script.
+test("delta patch: #given a range without evidence, a merge included #when patch runs #then every patch is today's git show bytes and no evidence file is written", (t) => {
+  const s = sandbox(t)
+  const base = s.head()
+  s.commit("src/a.ts", "line one\nchanged\nline three\n", "fix a")
+  s.git("checkout", "-q", "-b", "side", base)
+  s.commit("src/c.ts", "side\n", "side work")
+  s.git("checkout", "-q", "main")
+  s.git("merge", "-q", "--no-ff", "-m", "merge side", "side")
+  const out = ".omp/team-config/gate-deltas/plain"
+  const result = s.run("patch", "--base", base, "--head", s.head(), "--out", out)
+  assert.equal(result.status, 0, result.stderr)
+  const dir = path.join(s.repo, out)
+  const manifest = readManifest(dir)
+  assert.equal(manifest.commits.length, 3)
+  for (const entry of manifest.commits) {
+    assert.deepEqual(readFileSync(path.join(dir, entry.patch)), fullPatch(s, entry.sha))
+    assert.equal(entry.evidence, undefined)
+  }
+  assert.deepEqual(readdirSync(dir).filter((f) => f.endsWith(".evidence.patch")), [])
+})
+
+test("delta patch: #given a directory written by the new patch #when delta records a REJECT and accept runs #then both are recorded", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const base = s.head()
+  commitFiles(s, { "src/engine.kt": "fun stop() = deadline()\n", [`${EVIDENCE}gate/demo/f1/logcat.txt`]: "E/WebView: renderer busy\n" }, "fix engine with its capture")
+  const head = commitFiles(s, { [`${EVIDENCE}gate/demo/f1/row.md`]: "Verdict: PASS\n" }, "F1 row")
+  const reviewed = s.delta("F2", base, head, "REJECT")
+  assert.equal(reviewed.result.status, 0, reviewed.result.stderr)
+  assert.equal(readManifest(path.join(s.repo, reviewed.dir)).left_out, EVIDENCE)
+  const recorded = s.ledger().at(-1)
+  assert.equal(recorded.event, "fix_delta_review")
+  assert.equal(recorded.verdict, "REJECT")
+  assert.equal(recorded.fix_shas.length, 2)
+  const accepted = s.gc("accept", "--lane", "F2", "--dir", reviewed.dir, "--by", "tim", "--reason", "residual")
+  assert.equal(accepted.status, 0, accepted.stderr)
+  assert.equal(s.ledger().at(-1).verdict, "accepted-risk")
+})
+
+// Preservation guard: a directory in the form `patch` wrote before evidence elision, written by hand.
+test("delta patch: #given a delta directory written before the change #when delta records a REJECT and accept runs #then its full patches verify and both are recorded", (t) => {
+  const s = sandbox(t)
+  s.gc("baseline", "--sha", "HEAD")
+  const base = s.head()
+  s.commit("src/a.ts", "line one\nline two fixed\nline three\n", "fix a")
+  const head = commitFiles(s, { "src/engine.kt": "fun stop() = deadline()\n", [`${EVIDENCE}gate/demo/f1/logcat.txt`]: "E/WebView: renderer busy\n" }, "fix engine with its capture")
+  const out = ".omp/team-config/gate-deltas/old-form"
+  const dir = path.join(s.repo, out)
+  mkdirSync(dir, { recursive: true })
+  const commits = s.git("rev-list", "--reverse", `${base}..${head}`).split("\n").map((sha, index) => {
+    const name = `${String(index + 1).padStart(3, "0")}.patch`
+    const bytes = fullPatch(s, sha)
+    writeFileSync(path.join(dir, name), bytes)
+    return { sha, subject: s.git("log", "-1", "--format=%s", sha), patch: name, sha256: hash(bytes) }
+  })
+  writeFileSync(path.join(dir, "manifest.json"), `${JSON.stringify({ base_sha: base, head_sha: head, commits }, null, 2)}\n`)
+  writeFileSync(path.join(dir, "verdict.json"), rejectVerdict)
+  const reviewed = s.gc("delta", "--lane", "F2", "--dir", out, "--row", "R1")
+  assert.equal(reviewed.status, 0, reviewed.stderr)
+  assert.equal(s.ledger().at(-1).verdict, "REJECT")
+  const accepted = s.gc("accept", "--lane", "F2", "--dir", out, "--by", "tim", "--reason", "residual")
+  assert.equal(accepted.status, 0, accepted.stderr)
+  assert.equal(s.ledger().at(-1).verdict, "accepted-risk")
+})
+
+test("delta patch: #given a new-form directory changed after patch wrote it #when delta runs #then it refuses and the ledger is unchanged", (t) => {
+  const cases = {
+    "patch edited": (dir) => {
+      writable(path.join(dir, "002.patch"))
+      writeFileSync(path.join(dir, "002.patch"), "tampered\n")
+    },
+    "evidence file edited": (dir) => {
+      writable(path.join(dir, "002.evidence.patch"))
+      writeFileSync(path.join(dir, "002.evidence.patch"), "tampered\n")
+    },
+    "evidence file removed": (dir) => rmSync(path.join(dir, "002.evidence.patch")),
+    "evidence file for a commit without evidence": (dir) => {
+      const bytes = Buffer.from("+invented\n")
+      writeFileSync(path.join(dir, "001.evidence.patch"), bytes)
+      rewriteManifest(dir, (m) => Object.assign(m.commits[0], { evidence: "001.evidence.patch", evidence_sha256: hash(bytes) }))
+    },
+  }
+  for (const [name, change] of Object.entries(cases)) {
+    const s = sandbox(t)
+    const out = ".omp/team-config/gate-deltas/edited"
+    const { dir } = mixedRange(s, out)
+    assert.ok(existsSync(path.join(dir, "002.evidence.patch")), `${name}: patch wrote no evidence file`)
+    change(dir)
+    writeFileSync(path.join(dir, "verdict.json"), JSON.stringify({ verdict: "OKAY", summary: "ok" }))
+    const before = readFileSync(s.ledgerPath)
+    const result = s.gc("delta", "--lane", "F2", "--dir", out, "--row", "R1")
+    assert.equal(result.status, 1, `${name}: ${result.stdout}`)
+    assert.match(result.stderr, /changed since dispatch/, name)
+    assert.deepEqual(readFileSync(s.ledgerPath), before, name)
+  }
+})
+
+// What a verifier that trusted the manifest's directory would recompute for `dir`: the evidence-elided form with
+// `dir` in place of the evidence directory.
+function elidedFor(s, sha, dir, n) {
+  const numstat = show(s, "--numstat", "--format=", sha, "--", `:(top)${dir}`).toString().split("\n").filter(Boolean)
+  if (numstat.length === 0) return { patch: fullPatch(s, sha) }
+  const byDir = new Map()
+  for (const line of numstat) {
+    const [added, removed, file] = line.split("\t")
+    const key = `${path.posix.dirname(file)}/`
+    const sum = byDir.get(key) ?? { files: 0, added: 0, removed: 0 }
+    sum.files += 1
+    sum.added += Number(added) || 0
+    sum.removed += Number(removed) || 0
+    byDir.set(key, sum)
+  }
+  const lines = [...byDir].sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, sum]) => `${sum.files} files, +${sum.added} -${sum.removed}\t${key}\n`)
+  const listing = `Left out by GC patch: the hunks of files under ${dir}, in ${n}.evidence.patch beside this patch\n${lines.join("")}`
+  const patch = Buffer.concat([show(s, "-s", "--format=fuller", sha), Buffer.from("\n"), show(s, "--format=", "--no-renames", "--patch", sha, "--", ":(top)", `:(top,exclude)${dir}`), Buffer.from(listing)])
+  return { patch, evidence: show(s, "--format=", "--no-renames", "--patch", sha, "--", `:(top)${dir}`) }
+}
+
+test("delta patch: #given a manifest naming another left-out value #when delta or accept runs #then each refuses the manifest and the ledger is unchanged", (t) => {
+  for (const value of ["src/", ".omp/team-config/evidence", null]) {
+    const s = sandbox(t)
+    const out = ".omp/team-config/gate-deltas/foreign"
+    const { dir } = mixedRange(s, out)
+    rewriteManifest(dir, (manifest) => {
+      manifest.left_out = value
+      if (value !== "src/") return
+      manifest.commits.forEach((entry, index) => {
+        const n = String(index + 1).padStart(3, "0")
+        const form = elidedFor(s, entry.sha, value, n)
+        for (const file of [`${n}.patch`, `${n}.evidence.patch`]) if (existsSync(path.join(dir, file))) rmSync(path.join(dir, file))
+        writeFileSync(path.join(dir, `${n}.patch`), form.patch)
+        entry.sha256 = hash(form.patch)
+        delete entry.evidence
+        delete entry.evidence_sha256
+        if (form.evidence) {
+          writeFileSync(path.join(dir, `${n}.evidence.patch`), form.evidence)
+          Object.assign(entry, { evidence: `${n}.evidence.patch`, evidence_sha256: hash(form.evidence) })
+        }
+      })
+    })
+    writeFileSync(path.join(dir, "verdict.json"), rejectVerdict)
+    const before = readFileSync(s.ledgerPath)
+    for (const args of [["delta", "--lane", "F2", "--dir", out, "--row", "R1"], ["accept", "--lane", "F2", "--dir", out, "--by", "tim", "--reason", "r"]]) {
+      const result = s.gc(...args)
+      assert.equal(result.status, 1, `${value} ${args[0]}: ${result.stdout}`)
+      assert.match(result.stderr, /patch artifacts changed since dispatch: manifest\.json/, `${value} ${args[0]}`)
+      assert.deepEqual(readFileSync(s.ledgerPath), before, `${value} ${args[0]}`)
+    }
+  }
+})
+
 test("#given a ledger without a trailing newline #when an event is appended #then both lines stay intact", (t) => {
   const s = sandbox(t)
   mkdirSync(path.dirname(s.ledgerPath), { recursive: true })

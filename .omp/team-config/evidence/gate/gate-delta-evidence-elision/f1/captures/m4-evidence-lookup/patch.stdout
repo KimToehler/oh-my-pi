@@ -1,0 +1,3 @@
+node ~/.omp/agent/skills/review-work/scripts/gate-convergence.mjs patch --repo /tmp/f1-m4-NR6V --base f189717632cf345f27c09771a15c68a5f2ad2b02 --head HEAD --out /tmp/f1-m4-NR6V/.omp/team-config/gate-deltas/F2-1.1-m4
+/tmp/f1-m4-NR6V/.omp/team-config/gate-deltas/F2-1.1-m4/manifest.json
+exit 0

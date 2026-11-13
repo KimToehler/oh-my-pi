@@ -1,0 +1,7 @@
+before: the earlier whole-commit dispatch of the same range, /Users/tim/git/weaver/.worktrees/m5-app-design-workspace/.omp/team-config/gate-deltas/F2-4.22-32dc8c5ddd6a-20261112232657-cum
+jq -c '{base_sha,head_sha,left_out:(has("left_out")),n:(.commits|length)}' manifest.json
+{"base_sha":"3e180e65f9eeed3cecccd2aa55dc430921cc2653","head_sha":"32dc8c5ddd6a85796250d17ea120bda8ddba780f","left_out":false,"n":60}
+(cat manifest.json; jq -r '.commits[].patch' manifest.json | xargs cat) | wc -c
+10743031
+wc -c 045.patch
+4793936 045.patch

@@ -1,0 +1,60 @@
+## 1. Architecture and cross-module seams
+
+No substantiated blocker found. The change puts the exception where the existing restriction lives, rather than introducing a competing authorization convention in goal-runtime prompts.
+
+The relevant seams are coherent:
+
+- **Runtime → command:** `opsx-propose.md:11–13` distinguishes a runtime-started continuation from user input and separately requires an explicitly authorizing objective. The existing controller checks that the goal remains active and that no submission is queued before admitting its hidden continuation (`packages/coding-agent/src/goals/host-controller.ts:600–620`).
+- **Proposal → review → apply:** `opsx-propose.md:14–16` requires current reviewed validation before entering the existing apply workflow. The schema independently checks reviewed validation before source edits (`openspec/schemas/omp-gated/schema.yaml:687–691`). These checks protect different handoff points; they are not needless duplication.
+- **Command → regeneration:** `team-config/README.md:298–316` identifies the new paragraph and all four accompanying sentence additions, reducing the chance that regeneration silently restores the previous boundary.
+
+The delivered change modifies local workflow consent, not credential authentication or access control over a protected asset.
+
+## 2. Consistency, duplication, and simplification
+
+The repeated planning-boundary statements consistently name the exception while preserving the prohibition on same-turn implementation. Keeping those short cross-references is preferable to duplicating the full eligibility rules.
+
+**Note — known diagnostic deviation:** `f1/planonly-nc.md:17` records that the qualifying planning-only continuation did not name the failed authorization condition in its own reply, despite `opsx-propose.md:16` requiring that explanation. The earlier planning reply did explain it. This does not block because apply remained prohibited and the owner explicitly accepted the timing deviation (`planonly-nc.md:24`).
+
+**Note — QA proxies are stricter than the actual boundary:** `f1/same-turn-nc.md:3,13–15` shows that “no read of the apply file” and “no write outside the change directory” also reject harmless comparison and schema-required review-delta output. The owner accepted the observed behavior on intent. This does not block because neither operation started implementation; future criteria would be clearer if they directly distinguished apply execution and project-code edits from planning support activity.
+
+## 3. Highest-consequence failure mode
+
+The most damaging failure here would be an autonomous continuation applying a reviewed proposal **after the owner withdrew permission**, particularly if revising and re-reviewing the proposal accidentally restored permission.
+
+The text handles that distinction: a successful review does not erase an intervening user message (`opsx-propose.md:13–14`). The replacement `veto-log` evidence exercises it meaningfully: the agent revised the TTL, obtained another passing review, and still refused apply in two actual continuation turns (`f1/owner-objects.md:11–15`). The stale-review capture also shows a failing current digest check followed by refusal, rather than entry into apply (`sessions/stale/screen.txt:549–575`).
+
+This remains prompt-mediated compliance, not a mechanically enforced authorization state. A message arriving after a continuation has started can arrive too late to prevent initial work; `gate.md:8` explicitly accepts that residual risk. The reviewed evidence establishes representative behavior, not a compliance rate or production-data safety guarantee.
+
+## 4. What line-level reading would miss
+
+The important result is not merely that the command contains guards, but that eligible continuation turns actually execute and ineligible ones actually encounter those guards.
+
+The additional sessions repair the earlier vacuous evidence: `planonly-later` contains a real continuation, and `veto-log` contains two despite runtime suppression after tool-free continuations.
+
+Two evidence limits remain:
+
+- **Note — combined no-goal build scenario is partial:** `f1/build-request.md:16` records that both exact build-request runs stopped for clarification before presenting artifacts. Adjacent sessions prove no-goal presentation and the same-turn boundary separately, but not that complete combined interaction. This does not block because no changed-behavior failure was observed, and the limitation is disclosed.
+- **Note — complete apply-command compliance is not established:** `f1/authorized.md:14–16` records the omitted status step. This does not block this change: the continuation performed real implementation, while the unchanged apply workflow is explicitly outside the blocking scope.
+
+I reviewed the supplied diff and matrix, the proposal/design/spec/gate documents, relevant command and schema seams, QA row artifacts, and selected retained screen evidence. No commands, network requests, modifications, or delegated reviews were performed.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Repairing and successfully re-reviewing a proposal must not renew automation permission withdrawn during its creation.
+  positive_witness: The revised 30-second proposal passes review, but both subsequent veto-log continuations refuse implementation.
+  negative_control: A continuation treats the repaired review as clearing the owner's objection and starts implementation.
+  observable: Delivered user-message order, passing review, continuation boundaries, refusal replies, and absence of apply execution or source edits.
+  boundary: Proposal-history interpretation at the continuation-to-apply handoff.
+- invariant: A negative execution witness must reach the candidate decision point rather than succeed because no continuation occurred.
+  positive_witness: Planning-only and objection fixtures contain actual runtime continuation turns that perform independent work without applying the proposal.
+  negative_control: A goal completes during planning and its lack of later implementation is presented as proof of continuation rejection.
+  observable: Goal-continuation custom messages followed by completed assistant turns and their recorded tool activity.
+  boundary: F1 evidence evaluation across runtime admission and model behavior.
+END-REVIEW-TRAILER

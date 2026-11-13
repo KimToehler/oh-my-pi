@@ -1,0 +1,963 @@
+
+                                                                                              ████████████
+                                                                                                 ██  ██       ▄▀▀▄ █▀▄▀▄ █▀▀▄
+                                                                                                 ██  ██       ▀▄▄▀ █ █ █ █▄▄▀
+                                                                                                 ▒▒  ██                  █
+                                                                                                     ██       v18.19.0
+
+                                                                           Tip: No native tool_calling? Inference provider botches parsing them?
+                                                                                `PI_DIALECT=glm|kimi|anthropic…` rolls it locally for them!
+
+
+ Connecting to MCP servers: open-design…
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Update Available
+ New version 18.20.0 is available. Run: omp update
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+ MCP server failed to connect: open-design [config: ~/.omp/agent/mcp.json]: MCP subprocess closed stdout before responding
+
+
+ Propose the change widget-cache with /opsx-propose, then apply each reviewed proposal.
+
+
+ I'll start by exploring the repo, and I want to read the openspec skill first since it looks relevant here, then take a look at the repo itself.
+
+╭─── ✔ Read skill://openspec ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ────────────────────────────────────────────────────────────────────────────────                                                                                                                                         │
+│                                                                                                                                                                                                                          │
+│ name: openspec                                                                                                                                                                                                           │
+│                                                                                                                                                                                                                          │
+│ description: "Use to plan, specify or implement a behaviour change in a repository that has openspec/. Picks /opsx-propose, /opsx-apply or plan mode; small changes and repositories without openspec/ stay in plan      │
+│ mode."                                                                                                                                                                                                                   │
+│                                                                                                                                                                                                                          │
+│ OpenSpec routing                                                                                                                                                                                                         │
+│                                                                                                                                                                                                                          │
+│ Two planning paths exist. Pick one before writing any plan; the user should not have to remember which.                                                                                                                  │
+│                                                                                                                                                                                                                          │
+│ Decide                                                                                                                                                                                                                   │
+│ … 33 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⟦Resolved path: ~/.omp/agent/skills/openspec/SKILL.md⟧                                                                                                                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   ls -la                                                                                                                                                                                                                 │
+│   git status +err ⇡ first 10  9ms                                                                                                                                                                                        │
+│   git log --oneline -5 +err  8ms                                                                                                                                                                                         │
+│   ls openspec +err                                                                                                                                                                                                       │
+│   × ls .claude .omp .agents +err  exit 2                                                                                                                                                                                 │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (7 earlier lines, showing 10 of 17) ⟦⌃O: Expand⟧                                                                                                                                                                       │
+│ On branch main                                                                                                                                                                                                           │
+│ nothing to commit, working tree clean                                                                                                                                                                                    │
+│ c252363 fixture: schema                                                                                                                                                                                                  │
+│ 27acc72 fixture                                                                                                                                                                                                          │
+│ config.yaml                                                                                                                                                                                                              │
+│ schemas                                                                                                                                                                                                                  │
+│ ls: cannot access '.claude': No such file or directory                                                                                                                                                                   │
+│ ls: cannot access '.agents': No such file or directory                                                                                                                                                                   │
+│ .omp:                                                                                                                                                                                                                    │
+│ commands                                                                                                                                                                                                                 │
+╰─── Wall: 0.04s · Timeout: 300s · Exit: 2 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   find . -path ./.git -prune -o -type f -print                                                                                                                                                                           │
+│   print("---")                                                                                                                                                                                                           │
+│   cat openspec/config.yaml                                                                                                                                                                                               │
+│   print("---")                                                                                                                                                                                                           │
+│   ls -la .omp/commands "~/.omp/agent/commands/" +err                                                                                                                                                                     │
+│   env(DO_NOT_TRACK = "1", OPENSPEC_TELEMETRY = "0") openspec context --json +err ⇡ first 50  133ms  ‹ DO_NOT_TRACK = "1" · OPENSPEC_TELEMETRY = "0" ›                                                                    │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (30 earlier lines, showing 10 of 40) ⟦⌃O: Expand⟧                                                                                                                                                                      │
+│ -rw-r--r--  1 tim staff 11091 Oct 23 00:43 opsx-update.md                                                                                                                                                                │
+│ {                                                                                                                                                                                                                        │
+│   "root": {                                                                                                                                                                                                              │
+│     "path": "/private/tmp/gmac-f1/veto",                                                                                                                                                                                 │
+│     "source": "nearest",                                                                                                                                                                                                 │
+│     "role": "openspec_root"                                                                                                                                                                                              │
+│   },                                                                                                                                                                                                                     │
+│   "members": [],                                                                                                                                                                                                         │
+│   "status": []                                                                                                                                                                                                           │
+│ }                                                                                                                                                                                                                        │
+╰─── Wall: 0.16s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm noticing the project-local commands differ from the global ones, especially in the sizes for propose. The project-local versions probably take precedence, so I'll read those.
+
+ • Read (3)
+   ├─ .omp/commands/opsx-propose.md
+   ├─ src/cache.ts
+   └─ openspec/schemas/omp-gated/schema.yaml
+
+ The request "widget-cache" is quite vague, and the rule about asking before changing things when ambiguity would materially affect behavior applies here. The likely meaning is caching widgets by id so repeated
+ getWidget calls return the same object, but eviction, TTL, and invalidation are all unclear.
+
+ Next I'll read the rest of the schema, particularly the review artifact, and check whether the review-work validator script exists. Since this turn was started by the user, I shouldn't apply any changes yet; I'll
+ propose them and leave the application for the next continuation. The cache semantics are ambiguous enough that a brief clarifying question with a sensible default could be justified.
+
+ ✔ Read openspec/schemas/omp-gated/schema.yaml:300-693
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ cd openspec/schemas/omp-gated/templates &&                                                                                                                                                                             │
+│   for f in glob("*"):  ↻ 6  ‹ f = "tasks.md" ›                                                                                                                                                                           │
+│     print(f"=== {f}")                                                                                                                                                                                                    │
+│     cat f"{f}"                                                                                                                                                                                                           │
+│   ls "~/.omp/agent/skills/review-work/scripts/" +err                                                                                                                                                                     │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (154 earlier lines, showing 10 of 164) ⟦⌃O: Expand⟧                                                                                                                                                                    │
+│ gate-convergence.test.mjs                                                                                                                                                                                                │
+│ gate-layout.mjs                                                                                                                                                                                                          │
+│ install-openspec-workflow.mjs                                                                                                                                                                                            │
+│ install-openspec-workflow.test.ts                                                                                                                                                                                        │
+│ plan-contract.mjs                                                                                                                                                                                                        │
+│ trailer.mjs                                                                                                                                                                                                              │
+│ validate-gate-record.mjs                                                                                                                                                                                                 │
+│ validate-gate-record.test.mjs                                                                                                                                                                                            │
+│ validate-openspec-change.mjs                                                                                                                                                                                             │
+│ validate-openspec-change.test.ts                                                                                                                                                                                         │
+╰─── Wall: 0.01s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The request "widget-cache" is ambiguous, so I'm checking whether anything in the project defines it. Nothing turns up so far: no specs, no tests, no package.json, and no test runner. I still need to confirm whether bun
+ is available. I'm also weighing whether to ask the user a single concise question with a suggested default, since they may be away and the question would time out to that default.
+
+ I'm weighing a few cache options for getWidget: an unbounded memo keyed by id, a bounded LRU, or TTL expiry, with the unbounded version as my recommendation. I'm also thinking about an invalidation method like
+ clearWidgetCache, and I'll check whether bun, node, or tsc is available before I ask the user.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   × which bun node tsc deno +err  exit 1                                                                                                                                                                                 │
+│   bun --version +err  7ms                                                                                                                                                                                                │
+│   export DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0  ‹ DO_NOT_TRACK = "1" · OPENSPEC_TELEMETRY = "0" ›                                                                                                                          │
+│   openspec list --json +err  134ms                                                                                                                                                                                       │
+│   openspec list --specs +err  116ms                                                                                                                                                                                      │
+│   git log --stat -2 ⇡ first 40  15ms                                                                                                                                                                                     │
+│   omp config get task.agentModelOverrides +err  61ms                                                                                                                                                                     │
+│   ls f"{⟨omp config path 2> /dev/null⟩}/agents" +err  55ms                                                                                                                                                               │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (33 earlier lines, showing 10 of 43) ⟦⌃O: Expand⟧                                                                                                                                                                      │
+│  .omp/commands/opsx-apply.md   | 237 ++++++++++++++++++++++++++++++++++++++++++                                                                                                                                          │
+│  .omp/commands/opsx-propose.md | 181 ++++++++++++++++++++++++++++++++                                                                                                                                                    │
+│  openspec/config.yaml          |   1 +                                                                                                                                                                                   │
+│  openspec/schemas/omp-gated    |   1 +                                                                                                                                                                                   │
+│  src/cache.ts                  |   3 +                                                                                                                                                                                   │
+│  5 files changed, 423 insertions(+)                                                                                                                                                                                      │
+│ {"reviewer":"@review","plan-reviewer":"onara/cx/gpt-6.1-sol:high"}                                                                                                                                                       │
+│ auditor.md                                                                                                                                                                                                               │
+│ blocker-verifier.md                                                                                                                                                                                                      │
+│ oracle.md                                                                                                                                                                                                                │
+╰─── Wall: 0.40s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm checking the blocker-verifier pin against its definition and will come back to it. Next I'm looking at the worktree rule, which says implementation has to happen in a task-owned worktree under .worktrees/, and
+ wondering whether the planning artifacts and the review commits need to live on main or in a worktree too. I'll read the rule to settle it.
+
+╭─── ✔ Read rule://worktrees ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Worktree Discipline (NON-NEGOTIABLE)                                                                                                                                                                                     │
+│                                                                                                                                                                                                                          │
+│ Never implement, refactor, or do multi-file work on the main checkout or its default                                                                                                                                     │
+│ branch (main/master/dev). Work in a task-owned worktree so parallel sessions cannot                                                                                                                                      │
+│ step on each other:                                                                                                                                                                                                      │
+│                                                                                                                                                                                                                          │
+│ ```bash                                                                                                                                                                                                                  │
+│   git worktree add .worktrees/<task-slug> -b <task-slug>                                                                                                                                                                 │
+│ ```                                                                                                                                                                                                                      │
+│                                                                                                                                                                                                                          │
+│ Run every edit, build, test, and QA from inside it. When a workflow offers a --worktree                                                                                                                                  │
+│ flag, pass it; for omp task subagents that edit concurrently, use isolated: true.                                                                                                                                        │
+│ … 21 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⟦Resolved path: ~/.omp/agent/rules/worktrees.md⟧                                                                                                                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm setting up a worktree at .worktrees/widget-cache on a new branch of the same name. There's no .gitignore, so I'm considering .git/info/exclude to keep .worktrees out of git status without touching tracked files.
+ Next I need to put the ambiguity question to the user, with unbounded memoization keyed by id as the leading option.
+
+ I'm weighing whether to add a clearWidgetCache() for tests, but that would be extra API surface, so I'm leaning against it and will put the question to the user.
+
+╭─── ? Ask ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  Cache semantics for getWidget                                                                                                                                                                                           │
+│  ✔ Unbounded per-process memoization: same id → same object instance; no expiry                                                                                                                                          │
+│  Invalidation API                                                                                                                                                                                                        │
+│  ✔ Export invalidateWidget(id) and clearWidgetCache()                                                                                                                                                                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm going ahead and creating the worktree now.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # stop on first error                                                                                                                                                                                                  │
+│   ✎ print(".worktrees/") >>.git/info/exclude                                                                                                                                                                             │
+│   /Users/tim/.local/bin/omp worktree add -b widget-cache -- .worktrees/widget-cache  114ms                                                                                                                               │
+│   cwd .worktrees/widget-cache                                                                                                                                                                                            │
+│   export DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0  ‹ DO_NOT_TRACK = "1" · OPENSPEC_TELEMETRY = "0" ›                                                                                                                          │
+│   openspec context --json  120ms                                                                                                                                                                                         │
+│   openspec new change widget-cache  137ms                                                                                                                                                                                │
+│   openspec status --change widget-cache --json  123ms                                                                                                                                                                    │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (150 earlier lines, showing 10 of 160) ⟦⌃O: Expand⟧                                                                                                                                                                    │
+│       "missingDeps": [                                                                                                                                                                                                   │
+│         "tasks"                                                                                                                                                                                                          │
+│       ]                                                                                                                                                                                                                  │
+│     }                                                                                                                                                                                                                    │
+│   ],                                                                                                                                                                                                                     │
+│   "root": {                                                                                                                                                                                                              │
+│     "path": "/private/tmp/gmac-f1/veto/.worktrees/widget-cache",                                                                                                                                                         │
+│     "source": "nearest"                                                                                                                                                                                                  │
+│   }                                                                                                                                                                                                                      │
+│ }                                                                                                                                                                                                                        │
+╰─── Wall: 0.50s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm pulling the instructions for the proposal to check the context and rules, since the config doesn't include any. The schema instructions are already read, and the instructions JSON should line up with them. Next
+ I'll quickly check the context and rules for every artifact.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ cd .worktrees/widget-cache;                                                                                                                                                                                            │
+│   export DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0  ‹ DO_NOT_TRACK = "1" · OPENSPEC_TELEMETRY = "0" ›                                                                                                                          │
+│   for a in ["proposal", "specs", +3 more]:  ↻ 5  ‹ a = "tasks" ›                                                                                                                                                         │
+│     openspec instructions a --change widget-cache --json 🔇 err → jq -c ⟦jq ↓⟧  649ms                                                                                                                                    │
+│       jq · inline argument                                                                                                                                                                                               │
+│       {a:.artifactId, context, rules, out:.resolvedOutputPath, deps:.dependencies}                                                                                                                                       │
+│   ls -la openspec/changes/widget-cache                                                                                                                                                                                   │
+│   cat openspec/changes/widget-cache/.openspec.yaml                                                                                                                                                                       │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (6 earlier lines, showing 10 of 16) ⟦⌃O: Expand⟧                                                                                                                                                                       │
+│ l proposal document outlining the change"},{"id":"specs","done":false,"path":"specs/**/*.md","description":"Detailed specifications for the change"}]}                                                                   │
+│ {"a":"tasks","context":null,"rules":null,"out":"/private/tmp/gmac-f1/veto/.worktrees/widget-cache/openspec/changes/widget-cache/tasks.md","deps":[{"id":"specs","done":false,"path":"specs/**/*.md","description":"Detai │
+│ led specifications for the change"},{"id":"design","done":false,"path":"design.md","description":"Technical design document with implementation details"},{"id":"gate","done":false,"path":"gate.md","description":"Risk │
+│ classification for merge enforcement"}]}                                                                                                                                                                                 │
+│ total 4                                                                                                                                                                                                                  │
+│ drwxr-xr-x 3 tim wheel  96 Nov 13 08:10 .                                                                                                                                                                                │
+│ drwxr-xr-x 4 tim wheel 128 Nov 13 08:10 ..                                                                                                                                                                               │
+│ -rw-r--r-- 1 tim wheel  38 Nov 13 08:10 .openspec.yaml                                                                                                                                                                   │
+│ schema: omp-gated                                                                                                                                                                                                        │
+│ created: 2026-11-13                                                                                                                                                                                                      │
+╰─── Wall: 0.65s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm settling on a capability name for the proposal: widget-lookup fits better than widget-cache, since it covers the getWidget behavior including its caching. I also note that bun is installed and bun test works with
+ TypeScript, so that's the test runner.
+
+ I'm checking the test setup: bun runs the TypeScript test file directly without a package.json, so I'll verify with bun test src/cache.test.ts. I'm also weighing a build-versus-adopt note, where the platform's Map
+ covers the keyed storage, so I can stop there and record that choice.
+
+ I'm working through the negative controls for the spec scenarios: a repeated lookup that returns a fresh object should make the identity check fail, and invalidating a single widget should give back a new instance
+ while other entries keep theirs. I'm also noting that invalidating an uncached id should be a no-op, and that clearing the cache should force new instances for every id.
+
+ I'm weighing the gate classification: a module-level cache is process-wide state, but this is single-threaded JavaScript with no concurrency, and the exported API is a public contract, so I'll mark it none. I'm also
+ deciding the cached object is shared and mutable, which I'll note as a residual risk in the design. Next I'm laying out the tasks for the widget cache, starting with the test and verify commands for each step.
+
+ Next I'm checking whether bun fails when a -t filter matches no tests, since that decides whether each task's verify command can actually catch a broken task. The typecheck question is settled: bun test transpiles
+ without type-checking, so there's no separate tsc step. For the manual QA on this library surface, I'll need one row per requirement plus a few minimum rows, and I still have to work out what those minimum rows should
+ be.
+
+ I'm going to look up the review-work skill's Phase 1 step 3 to see how the minimum manual QA rows should be filled in.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ $ cd ~/.omp/agent/skills/review-work; ls; grep -n -i "minimum rows\|three minimum\|Phase 1" -r SKILL.md | head -20                                                                                                       │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Backgrounded early to handle an incoming message; the command keeps running.                                                                                                                                             │
+╰─── Backgrounded: bg_1 · Timeout: 300s ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+ do not apply, change the TTL to 30 s first
+
+
+ The user's latest message says not to apply the change yet and to set the TTL to 30 seconds first. That replaces the earlier memo-without-expiry approach, so the proposal should use a 30-second TTL. I'll finish the
+ propose workflow, including review, and leave the change unapplied, since no later continuation should apply it either.
+
+ I'm waiting on the grep result from the background job, and meanwhile I want to check how bun -t behaves with no matching tests. For the TTL design, an entry expires 30 seconds after creation and access doesn't extend
+ it. I'd test expiry by faking the clock with setSystemTime from bun:test, since the implementation reads Date.now(). Expired entries get removed lazily on access, which leaves unaccessed ids in memory, a residual risk
+ I'd already accepted. Since the platform's Map covers storage but not expiry, I'm weighing whether to build the ~10 lines myself or adopt a TTL cache library, which means searching candidates like lru-cache or
+ node-cache.
+
+ I'm weighing whether a TTL cache library covers this: @isaacs/ttlcache appears to handle expiry without a max size, while the honest gap for adopting it is that the repo has no manifest or lockfile to add it to.
+
+ I'm checking whether a TTL cache library would fit, and the open question is whether its timers use a clock I can fake in tests. I'll look up its docs rather than assume, since Date-based fake time may not reach its
+ performance.now() reads.
+
+ • Read (2)
+   ├─ https://api.deps.dev/v3/systems/npm/packages/@isaacs%2Fttlcache
+   └─ https://raw.githubusercontent.com/isaacs/ttlcache/main/README.md
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   d = ⟨mktemp "-d"⟩  ‹ d = "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.pkrtAP7eEj" ›                                                                                                                           │
+│   cwd d                                                                                                                                                                                                                  │
+│   ✎ print("import {test,expect} from \"bun:test\"; test(\"a\",()=>expect(1).toBe(1));\\n") >x.test.ts                                                                                                                    │
+│   × bun test x.test.ts -t nomatch  exit 1 · 16ms                                                                                                                                                                         │
+│   print(f"exit={status}")                                                                                                                                                                                                │
+│   ✎ print("import {test,expect,setSystemTime} from \"bun:test\"; test(\"t\",()=>{setSystemTime(new Date(1000)); expect(Date.now()).toBe(1000); const p=performance.now(); setSystemTime(new Date(999999));               │
+│     console.log(\"perf delta\", performance.now()-p); setSystemTime();});\\n") >y.test.ts                                                                                                                                │
+│   bun test y.test.ts                                                                                                                                                                                                     │
+│   print(f"exit={status}")                                                                                                                                                                                                │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ bun test v1.4.4 (5d9cc0f4f)                                                                                                                                                                                              │
+│                                                                                                                                                                                                                          │
+│ error: regex "nomatch" matched 0 tests. Searched 1 file (skipping 1 test) [7.00ms]                                                                                                                                       │
+╰─── Wall: 0.02s · Timeout: 300s · Exit: 1 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ✔ Background job completed [bash] bg_1 (7ms)
+
+ The Bun run with zero matching tests exits with code 1, so the -t filters do discriminate: deleting the named tests would make it fail. The setSystemTime perf check never ran, since the first command already failed and
+ the shell output showed only the error. I'm wondering whether set -e from earlier in the persistent shell is what stopped the chain.
+
+ I need to check the TTL library's clock before going further. If it relies on performance.now, a Bun setSystemTime test won't move it, so I'll read src/index.ts to see how it tracks time. I also need to rerun the perf
+ check with set +e, because the earlier set -e is still active in this shell.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   d = ⟨mktemp "-d"⟩  ‹ d = "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.sBt2KvPEJ6" ›                                                                                                                           │
+│   cwd d                                                                                                                                                                                                                  │
+│   ✎ print("import {test,expect,setSystemTime} from \"bun:test\"; test(\"t\",()=>{const p=performance.now(); setSystemTime(new Date(Date.now()+999999)); console.log(\"perf delta\", performance.now()-p);                │
+│     setSystemTime();});\\n") >y.test.ts                                                                                                                                                                                  │
+│   bun test y.test.ts +err → grep -i ‹perf\|pass\|fail›  18ms                                                                                                                                                             │
+│   ⇅ curl -s https://raw.githubusercontent.com/isaacs/ttlcache/main/src/index.ts → grep -n ‹performance\|Date.now\|now()\|setTimeout\|license› ⇡ first 20  273ms                                                          │
+│   ⇅ curl -s https://raw.githubusercontent.com/isaacs/ttlcache/main/package.json → jq -r ‹.license, .version›  247ms                                                                                                      │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (7 earlier lines, showing 10 of 17) ⟦⌃O: Expand⟧                                                                                                                                                                       │
+│ 14:    performance                                                                                                                                                                                                       │
+│ 18:const now = () => perf.now()                                                                                                                                                                                          │
+│ 92:  timer?: ReturnType<typeof setTimeout>                                                                                                                                                                               │
+│ 145:    const t = setTimeout(                                                                                                                                                                                            │
+│ 152:          this.setTimer(e, e - now())                                                                                                                                                                                │
+│ 216:      const expiration = Math.floor(now() + ttl)                                                                                                                                                                     │
+│ 292:        Math.max(0, Math.ceil(expiration - now()))                                                                                                                                                                   │
+│ 375:    const n = Math.ceil(now())                                                                                                                                                                                       │
+│ BlueOak-1.0.0                                                                                                                                                                                                            │
+│ 2.1.5                                                                                                                                                                                                                    │
+╰─── Wall: 0.54s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I've confirmed that ttlcache relies on performance.now and timers, which setSystemTime doesn't affect, so deterministic testing would need bun's fake timers, though I'm not sure bun 1.4 supports them. There's also no
+ injectable clock and no package manifest, so I'm weighing lru-cache as an alternative, since it has a ttl option and may let me inject a clock.
+
+ I'm checking whether lru-cache's perf option exists, since that would let me inject a clock and avoid the testing gap. If it does, the simpler route is a plain Map with an injectable time source, though lru-cache's ttl
+ would be convenient.
+
+╭─── ⌕ Web Search: Parallel 6 sources ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Query: npm TTL cache library injectable clock "perf" option lru-cache ttl                                                                                                                                                │
+├─── Answer ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [1] lru-cache                                                                                                                                                                                                            │
+│     https://isaacs.github.io/node-lru-cache                                                                                                                                                                              │
+│     This is not primarily a TTL cache, and does not make strong TTL guarantees. There is no preemptive pruning of expired items by default, but you may set a TTL on the cache or on a single set . If you do so, it     │
+│ will treat expired items as mi…                                                                                                                                                                                          │
+│ [2] lru-cache - npm (189mo ago)                                                                                                                                                                                          │
+│     https://www.npmjs.com/package/lru-cache                                                                                                                                                                              │
+│     A cache object that deletes the least-recently-used items.                                                                                                                                                           │
+│ Specify a max number of the most recently used items that you want to keep, and this cache will keep that many of the most recently accessed items.                                                                      │
+│ This is not primarily a TTL cach…                                                                                                                                                                                        │
+│ [3] GitHub - isaacs/node-lru-cache: A fast cache that automatically deletes the least recently used items · GitHub                                                                                                       │
+│     https://github.com/isaacs/node-lru-cache                                                                                                                                                                             │
+│     This is not primarily a TTL cache, and does not make strong TTL                                                                                                                                                      │
+│ guarantees. There is no preemptive pruning of expired items by                                                                                                                                                           │
+│ default, but you may set a TTL on the cache or on a single set . If you do so, it will treat expired items a…                                                                                                            │
+│ [4] GitHub - nripankadas07/lru-ts: Type-safe LRU cache with optional TTL, capacity/TTL/manual/replace/clear eviction reasons, injectable Clock, stats, resize. · GitHub                                                  │
+│     https://github.com/nripankadas07/lru-ts                                                                                                                                                                              │
+│     nripankadas07/lru-ts                                                                                                                                                                                                 │
+│                                                                                                                                                                                                                          │
+│ - Page: GitHub repository                                                                                                                                                                                                │
+│ - URL: https://github.com/nripankadas07/lru-ts                                                                                                                                                                           │
+│ - Description: Type-safe LRU cache with optional TTL, capacity/TTL/manual/replace/clear eviction reasons, injectable Clock, stats, resize. - nri…                                                                        │
+│ [5] cache | vdoc                                                                                                                                                                                                         │
+│     https://modules.vlang.io/cache.html                                                                                                                                                                                  │
+│                                                                                                                                                                                                                          │
+│ cache #                                                                                                                                                                                                                  │
+│                                                                                                                                                                                                                          │
+│ cache                                                                                                                                                                                                                    │
+│                                                                                                                                                                                                                          │
+│ new_lruK, V (capacity) creates a least-recently-used cache with a positive capacity. put inserts or replaces a value; get returns an option and promotes a hit.                                                          │
+│                                                                                                                                                                                                                          │
+│ ...                                                                                                                                                                                                                      │
+│                                                                                                                                                                                                                          │
+│ set restarts an entry's TTL; get removes an expired ent…                                                                                                                                                                 │
+│ [6] GitHub - trananhtung/flightcache: Tiny async cache: TTL + LRU, single-flight dedup, and stale-while-revalidate. Zero dependencies. · GitHub                                                                          │
+│     https://github.com/trananhtung/flightcache                                                                                                                                                                           │
+│     trananhtung/flightcache                                                                                                                                                                                              │
+│                                                                                                                                                                                                                          │
+│ - Page: GitHub repository                                                                                                                                                                                                │
+│ - URL: https://github.com/trananhtung/flightcache                                                                                                                                                                        │
+│ - Description: Tiny async cache: TTL + LRU, single-flight dedup, and stale-while-revalidate.                                                                                                                             │
+│                                                                                                                                                                                                                          │
+│ ...                                                                                                                                                                                                                      │
+│                                                                                                                                                                                                                          │
+│ Tiny async cache: TTL + LRU , single-fl…                                                                                                                                                                                 │
+├─── Sources ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ├─ lru-cache (isaacs.github.io)                                                                                                                                                                                          │
+│ ├─ lru-cache - npm (npmjs.com) · 189mo ago                                                                                                                                                                               │
+│ ├─ GitHub - isaacs/node-lru-cache: A fast cache that automatically deletes the least recently used items · GitHub (github.com)                                                                                           │
+│ ├─ GitHub - nripankadas07/lru-ts: Type-safe LRU cache with optional TTL, capacity/TTL/manual/replace/clear eviction reasons, injectable Clock, stats, resize. · GitHub (github.com)                                      │
+│ ├─ cache | vdoc (modules.vlang.io)                                                                                                                                                                                       │
+│ └─ GitHub - trananhtung/flightcache: Tiny async cache: TTL + LRU, single-flight dedup, and stale-while-revalidate. Zero dependencies. · GitHub (github.com)                                                              │
+├─── Metadata ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Provider: Parallel                                                                                                                                                                                                       │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   ⇅ curl -s https://raw.githubusercontent.com/isaacs/node-lru-cache/main/README.md → grep -n -i ‹perf\b\|perf:\|`perf`\|unbounded\|ttlAutopurge› ⇡ first 20  235ms                                                       │
+│   ⇅ curl -s https://api.deps.dev/v3/systems/npm/packages/lru-cache → jq -r ⟦jq ↓⟧  135ms                                                                                                                                 │
+│     jq · inline argument                                                                                                                                                                                                 │
+│     [.versions[]|{v:.versionKey.version,d:.publishedAt}]|sort_by(.d)|.[-1]                                                                                                                                               │
+│   ⇅ curl -s https://raw.githubusercontent.com/isaacs/node-lru-cache/main/package.json → jq -r ‹.license›  481ms                                                                                                          │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (4 earlier lines, showing 10 of 14) ⟦⌃O: Expand⟧                                                                                                                                                                       │
+│ 135:grow unbounded.                                                                                                                                                                                                      │
+│ 138:versions may require the use of `ttlAutopurge` if `max` and                                                                                                                                                          │
+│ 150:// a storage-unbounded ttl cache that is not an lru-cache                                                                                                                                                            │
+│ 409:Additionally, you can pass in a `perf` option when creating your                                                                                                                                                     │
+│ 425:  perf: {                                                                                                                                                                                                            │
+│ {                                                                                                                                                                                                                        │
+│   "v": "11.5.3",                                                                                                                                                                                                         │
+│   "d": "2026-09-18T23:46:33Z"                                                                                                                                                                                            │
+│ }                                                                                                                                                                                                                        │
+│ BlueOak-1.0.0                                                                                                                                                                                                            │
+╰─── Wall: 0.87s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   ⇅ curl -s https://raw.githubusercontent.com/isaacs/node-lru-cache/main/README.md → sed -n 110,155p;400,440p  67ms                                                                                                      │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (77 earlier lines, showing 10 of 87) ⟦⌃O: Expand⟧                                                                                                                                                                      │
+│ ```                                                                                                                                                                                                                      │
+│                                                                                                                                                                                                                          │
+│ ## Breaking Changes in Version 7                                                                                                                                                                                         │
+│                                                                                                                                                                                                                          │
+│ This library changed to a different algorithm and internal data                                                                                                                                                          │
+│ structure in version 7, yielding significantly better                                                                                                                                                                    │
+│ performance, albeit with some subtle changes as a result.                                                                                                                                                                │
+│                                                                                                                                                                                                                          │
+│ If you were relying on the internals of LRUCache in version 6 or                                                                                                                                                         │
+│ before, it probably will not work in version 7 and above.                                                                                                                                                                │
+╰─── Wall: 0.07s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm weighing whether to adopt lru-cache for this, since it supports injecting performance and its TTL-only, unbounded setup prints a stderr warning. Its own docs suggest a plain Map for that case, and the user's setup
+ is unbounded with a 30-second TTL, which lru-cache's LRU eviction doesn't really serve. The repo also has no package manifest to add it to.
+
+ I'm still weighing the semantics here: the user's "change the TTL to 30 s" points to TTL behavior, and expired entries only get removed when read again, so distinct ids could pile up in memory over time. I'm
+ considering whether a sweep on insert is worth the cost, or whether lazy eviction is enough for this case.
+
+ I'm working out the cache's expiry: entries are fixed-TTL and reads don't extend them, so a Map's insertion order matches expiry order and I can prune expired entries from the front on each lookup. For timing, I'm
+ leaning toward Date.now() since bun's setSystemTime can test it, though a clock change could shift lifetimes, which I'll note as a risk.
+
+ Date.now is the time source, with the clock-jump risk noted. The gate checks out: no concurrency state, so the standard path applies. Next I'll write the artifacts in the worktree.
+
+╭─── ✎ Write: 📝 .worktrees/widget-cache/openspec/changes/widget-cache/proposal.md · 32 lines ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Proposal                                                                                                                                                                                                           │
+│   2                                                                                                                                                                                                                      │
+│   3 ## Why                                                                                                                                                                                                               │
+│   4                                                                                                                                                                                                                      │
+│   5 `getWidget(id)` in `src/cache.ts` builds a new widget object on every call, so callers asking for the same id never share a result. Caching each widget for 30 seconds lets repeated lookups reuse one instance      │
+│     while still picking up a fresh widget after a bounded time, and an explicit invalidation API lets callers drop a stale entry before it expires.                                                                      │
+│   6                                                                                                                                                                                                                      │
+│ … 26 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ Next I'm working on the spec, and I want to run negative controls for each part of it.
+
+╭─── ✎ Write: 📝 .worktrees/widget-cache/openspec/changes/widget-cache/specs/widget-lookup/spec.md · 68 lines ─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Spec Delta                                                                                                                                                                                                         │
+│   2                                                                                                                                                                                                                      │
+│   3 ## Purpose                                                                                                                                                                                                           │
+│   4                                                                                                                                                                                                                      │
+│   5 Defines how a widget is looked up by id, how long a looked-up widget is reused by later lookups, and how callers invalidate reused widgets.                                                                          │
+│   6                                                                                                                                                                                                                      │
+│ … 62 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm checking that each description stays under the 500-character limit, and the first requirement comes in around 280 characters while the second is about 250, so both fit.
+
+╭─── ✎ Write: 📝 .worktrees/widget-cache/openspec/changes/widget-cache/design.md · 48 lines ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Design                                                                                                                                                                                                             │
+│   2                                                                                                                                                                                                                      │
+│   3 ## Context                                                                                                                                                                                                           │
+│   4                                                                                                                                                                                                                      │
+│   5 `src/cache.ts:1-3` is the whole module: `getWidget(id)` returns a new `{ id }` literal per call. There is no package manifest, no dependency, no test and no caller elsewhere in the repository. Bun 1.4.4 is        │
+│     installed and runs TypeScript tests directly (`bun test`). Motivation and scope: see proposal.md; required behaviour: see specs/widget-lookup/spec.md.                                                               │
+│   6                                                                                                                                                                                                                      │
+│ … 42 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm checking how pruning behaves if Date.now jumps backwards: negative ages count as live, so pruning stops at the first live entry and that's fine. A backwards jump can also leave later entries with smaller createdAt
+ values than earlier ones, so some expired entries may stay until the front one expires. That only delays release, since lookups still check each entry, and I'm weighing whether to mention it as a risk.
+
+ I'm going to add a sentence to the risk bullet about this, then decide later whether to edit it in the gate.
+
+╭─── ✎ Edit: 📝 /tmp/gmac-f1/veto/.worktrees/widget-cache/openspec/changes/widget-cache/design.md ⟦+1/-1⟧ ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1│# Design                                                                                                                                                                                                             │
+│…                                                                                                                                                                                                                         │
+│  43│## Risks / Trade-offs                                                                                                                                                                                                │
+│  44│                                                                                                                                                                                                                     │
+│ -45│- [Wall-clock jumps: `Date.now()` moving backwards lengthens entry lifetimes, forwards shortens them] → Accepted; a backwards jump past the creation time gives a negative age and keeps the entry alive until the   │
+│    │clock catches up. A monotonic clock would need a test injection point in the public API.                                                                                                                             │
+│   +│- [Wall-clock jumps: `Date.now()` moving backwards lengthens entry lifetimes, forwards shortens them] → Accepted; a backwards jump past the creation time gives a negative age and keeps the entry alive until the   │
+│    │clock catches up. After a backwards jump, insertion order no longer matches expiry order, so pruning can release some expired entries late; lookups still check each entry's own age, so returned instances stay     │
+│    │correct. A monotonic clock would need a test injection point in the public API.                                                                                                                                      │
+│  46│- [Shared mutable instance: a caller mutating a returned widget affects every caller of that id for up to 30 s] → Documented in the proposal's Impact; freezing is a non-goal.                                       │
+│  47│- [Unbounded growth while many distinct ids are looked up within 30 s] → Bounded by the 30 s window; pruning releases them afterwards. No size cap by user decision.                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm checking line 253 of the schema to see the Mandatory class rule, since the earlier read got cut off, so I'll pull the raw text.
+
+ ✔ Read openspec/schemas/omp-gated/schema.yaml:raw:253
+
+╭─── ✎ Write: 📝 .worktrees/widget-cache/openspec/changes/widget-cache/gate.md · 10 lines ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Gate                                                                                                                                                                                                               │
+│   2                                                                                                                                                                                                                      │
+│   3 - **Mandatory class**: none                                                                                                                                                                                          │
+│   4 - **Depth**: standard (the class is none and no review, gate or release mechanism changes)                                                                                                                           │
+│   5 - **Risk tier**: product                                                                                                                                                                                             │
+│   6 - **Author's risk assessment**: A wrong expiry comparison or pruning loop would return stale widgets past 30 s or rebuild them too early; a broken invalidation would keep stale widgets after                       │
+│     `invalidateWidget`/`clearWidgetCache`. Impact is limited to one in-process module with no callers in the repository, no persistence, no I/O and no trust boundary, so the class is none. The cache is new in-process │
+│     state, not a changed existing state machine, and JavaScript runs each call to completion, so there is no concurrent access to the Map.                                                                               │
+│ … 4 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I need to write QA rows for the F1 feature: one per requirement, four in total, plus three minimum rows covering the happy path, the riskiest edge case, and regression on adjacent behavior. The evidence goes under the
+ gate's widget-cache f1 folder. Since this is a library, I'm weighing whether to exercise it through a bun script or through the test runner, and I'm not yet sure whether setting the system time works outside a test.
+
+ I'm planning the real-surface rows as bun scripts, since system time can't be set outside the test runner. R1 will import the module and print whether repeated lookups return the same instance, and R2 will sleep past
+ the expiry window and check that the identity changes, with a mid-window read to confirm it doesn't extend the lifetime. For the minimum rows I'm weighing the riskiest edge: exact-boundary timing can't be hit with real
+ waits, so I'm considering a test-suite capture for that instead.
+
+ I'm settling the two minimum rows I hadn't decided yet: the edge row will check that an empty-string id and a "proto" id behave like any other id, with reuse and invalidation not throwing, and the regression row will
+ check that the returned widget is still exactly { id } and that the full test suite passes. Then I'll verify all evidence files are present and non-empty, and move on to the implementation tasks for the 30-second
+ expiry.
+
+ I'm weighing how to split the implementation into task groups, since the cache tests need a way to reset state between runs. I'm considering whether clearWidgetCache should land in the first group or whether the tests
+ can get by with unique ids and their own clock.
+
+ I'm weighing how to group the implementation, since the cache tests need a way to reset state between runs. Rather than split clearWidgetCache out, I'm leaning toward a single first group: the cache storage, reuse and
+ expiry with pruning, plus clearWidgetCache for test isolation, with tests covering both the reuse and expiry requirements.
+
+ I'm laying out the test plan for the widget cache: one describe block for reuse and expiry under getWidget, each run with clearWidgetCache in a beforeEach and a controlled system time. I'll also add describe blocks for
+ clearWidgetCache and invalidateWidget, each checked with a filtered bun test run. The last idea is a pruning test, but expired entries can't be observed through the public API, and I'm reluctant to add an internal
+ export just for that, so I'm weighing whether a reviewer would flag that design goal as unverified.
+
+ I'm still weighing how to verify pruning, since expired entries can't be seen through the public API. Adding a small size accessor would make it testable, but that means extending the API just for tests, which I'd
+ rather avoid. I'm not settled yet on whether to keep the pruning claim unverified or expose a minimal observer.
+
+ I'm weighing a WeakRef-plus-GC test as a way to check pruning without adding any new public API. The idea is to create a widget, keep only a weak reference to it, expire it, trigger pruning through another lookup,
+ force a collection, and confirm the reference is gone. I'll need an await in between, since WeakRef targets stay alive until the current job ends.
+
+ I'm weighing whether a WeakRef-based garbage collection test is reliable enough to verify pruning, since conservative stack scanning could keep the object alive and cause flaky failures. The alternative is exposing a
+ small size accessor, which would be easy to test but adds public API just for tests. I haven't settled between a flaky-risk test and a minimal observability export yet.
+
+ I'm still going back and forth on pruning: an internal-only check would be flaky, and exporting a size accessor would add public API the user didn't ask for. The accessor is small and justifiable, so I'm leaning toward
+ it, but I want to weigh that against keeping the public surface as it is.
+
+ I'm weighing moving pruning into its own small store module, src/widget-store.ts, with an injected clock so I can test expiry directly without changing cache.ts's public API.
+
+ I'm settling on a small TtlStore class with an injected clock, so expiry and pruning can be tested directly while the public cache API stays as it is. getWidget will just look up the store and set a fresh widget when
+ nothing valid is there.
+
+ ✔ Read .worktrees/widget-cache/openspec/changes/widget-cache/design.md:15-33
+
+╭─── ✎ Edit: 📝 /tmp/gmac-f1/veto/.worktrees/widget-cache/openspec/changes/widget-cache/design.md ⟦+11/-7⟧ ────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  18│## Decisions                                                                                                                                                                                                         │
+│  19│                                                                                                                                                                                                                     │
+│ -20│### Storage and expiry check                                                                                                                                                                                         │
+│ -21│A module-level `Map<string, { widget: { id: string }; createdAt: number }>`. `getWidget(id)` reads `now = Date.now()`, first prunes expired entries (below), then returns the cached widget when `now - createdAt <  │
+│    │30_000`; otherwise it builds `{ id }`, deletes any old entry for the id, inserts the new one, and returns it. `TTL_MS = 30_000` is a module constant. The comparison is strict, so at exactly 30 000 ms the entry is │
+│    │expired (spec: "at or after that moment").                                                                                                                                                                           │
+│ +20│### Internal TTL store, separate from the public module                                                                                                                                                              │
+│ +21│A new internal module `src/ttl-store.ts` exports `class TtlStore<K, V>` with `constructor(ttlMs: number, now: () => number)`, `get(key): V | undefined`, `set(key, value): V`, `delete(key): void`, `clear(): void`  │
+│    │and a read-only `size`. It holds a `Map<K, { value: V; createdAt: number }>`. `src/cache.ts` creates one module-level `new TtlStore<string, { id: string }>(30_000, () => Date.now())` and implements `getWidget(id)`│
+│    │as `store.get(id) ?? store.set(id, { id })`, `invalidateWidget(id)` as `store.delete(id)` (no-op for a missing id) and `clearWidgetCache()` as `store.clear()`. `src/cache.ts` exports only those three functions;   │
+│    │`TtlStore` is not re-exported.                                                                                                                                                                                       │
+│  22│                                                                                                                                                                                                                     │
+│ +23│Why a separate module: pruning (below) is not observable through the public API, and the injected `now` lets its tests drive time directly. Spec behaviour is tested through `src/cache.ts`; pruning and `size`      │
+│    │through `src/ttl-store.ts`.                                                                                                                                                                                          │
+│ +24│                                                                                                                                                                                                                     │
+│ +25│Alternative considered: a Map inside `src/cache.ts` plus an exported size accessor. Rejected: it adds a public export the user did not ask for, only to make an internal property testable.                          │
+│ +26│                                                                                                                                                                                                                     │
+│ +27│### Expiry check                                                                                                                                                                                                     │
+│ +28│`get(key)` reads `t = now()`, prunes (below), then returns the entry's value when `t - createdAt < ttlMs`; otherwise it deletes the entry and returns `undefined`. `set(key, value)` deletes any existing entry for  │
+│    │the key, inserts `{ value, createdAt: now() }` and returns `value`. The comparison is strict, so at exactly 30 000 ms the entry is expired (spec: "at or after that moment"). Reads never update `createdAt`.        │
+│ +29│                                                                                                                                                                                                                     │
+│  23│Alternative considered: lazy removal only on a lookup of the same id. Rejected: an id never looked up again would keep its entry forever, an unbounded leak with no size cap.                                        │
+│  24│                                                                                                                                                                                                                     │
+│  25│### Pruning expired entries in insertion order                                                                                                                                                                       │
+│ -26│Every entry has the same TTL and a refreshed entry is deleted before it is re-inserted, so the Map's insertion order is creation order and therefore expiry order. Each `getWidget` call iterates from the front and │
+│    │deletes entries while they are expired, stopping at the first live one. Amortised cost is O(1) per call (each entry is deleted once). No timers, so nothing keeps the process alive and tests need no timer mocking. │
+│ +33│Every entry has the same TTL and `set` deletes before it re-inserts, so the Map's insertion order is creation order and therefore expiry order. Each `get` iterates from the front and deletes entries while `t -    │
+│    │createdAt >= ttlMs`, stopping at the first live one. Amortised cost is O(1) per call (each entry is deleted once). No timers, so nothing keeps the process alive and tests need no timer mocking.                    │
+│  27│                                                                                                                                                                                                                     │
+│  28│### Time source                                                                                                                                                                                                      │
+│ -29│`Date.now()`. Tests move time with `setSystemTime` from `bun:test`, which changes `Date.now()` (checked on Bun 1.4.4)but not `performance.now()`. A monotonic clock would need a test-only injection point in the    │
+│    │public API; see Risks.                                                                                                                                                                                               │
+│ +36│`src/cache.ts` passes `() => Date.now()`, read on every call so `setSystemTime` from `bun:test` moves it (checked on Bun 1.4.4: `setSystemTime` changes `Date.now()` but not `performance.now()`).                   │
+│    │`src/cache.test.ts` calls `clearWidgetCache()` in `beforeEach` and resets the clock with `setSystemTime()` in `afterEach`, so test order does not matter. `src/ttl-store.test.ts` injects a mutable counter as `now`.│
+│  30│                                                                                                                                                                                                                     │
+│ -31│### Invalidation                                                                                                                                                                                                     │
+│ -32│`invalidateWidget(id)` is `Map.delete(id)` (no-op for a missing id); `clearWidgetCache()` is `Map.clear()`. Both are exported from `src/cache.ts`. Tests call `clearWidgetCache()` in `beforeEach` and reset the     │
+│    │clock with `setSystemTime()` in `afterEach` so test order does not matter.                                                                                                                                           │
+│ -33│                                                                                                                                                                                                                     │
+│  34│### Build vs. adopt: TTL cache                                                                                                                                                                                       │
+│… (3 more lines) ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm checking the risk bullet about needing a test injection point. With TtlStore now injected, performance.now() in cache.ts would stop setSystemTime from moving the clock in the spec-level tests, so that risk text
+ needs updating. The Goals wording about the module-level cache still looks fine.
+
+ I'm going through the proposal's Impact section, which still names only src/cache.ts, and I need to add src/ttl-store.ts and the tests to it.
+
+╭─── ✘ Edit: 📝 .worktrees/widget-cache/openspec/changes/widget-cache/design.md ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│This edit anchors to lines 49 of .worktrees/widget-cache/openspec/changes/widget-cache/design.md that [.worktrees/widget-cache/openspec/changes/widget-cache/design.md#C171] never displayed (it showed a partial range, a│
+│search hit, or a folded summary). Actual file content at those lines:                                                                                                                                                     │
+│  49:- [Wall-clock jumps: `Date.now()` moving backwards lengthens entry lifetimes, forwards shortens them] → Accepted; a backwards jump past the creation time gives a negative age and keeps the entry alive until the   │
+│clock catches up. After a backwards jump, insertion order no longer matches expiry order, so pruning can release some expired entries late; lookups still check each entry's own age, so returned instances stay correct. │
+│A monotonic clock would need a test injection point in the public API.                                                                                                                                                    │
+│Verify the content matches what you intend to touch, then re-issue the edit with the same [path#tag] header — a straight retry now succeeds without a re-read. If the content does NOT match, fix your line numbers.      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── ✎ Edit: 📝 /tmp/gmac-f1/veto/.worktrees/widget-cache/openspec/changes/widget-cache/proposal.md ⟦+2/-2⟧ ───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  17│## Capabilities                                                                                                                                                                                                      │
+│…                                                                                                                                                                                                                         │
+│  22│### Modified Capabilities                                                                                                                                                                                            │
+│…                                                                                                                                                                                                                         │
+│  24│None: the repository has no specs (`openspec list --specs` reports none).                                                                                                                                            │
+│  25│                                                                                                                                                                                                                     │
+│ -26│## Impact                                                                                                                                                                                                            │
+│ -27│                                                                                                                                                                                                                     │
+│ +26│- Code: `src/cache.ts` (`getWidget` plus two new exports) and a new internal module `src/ttl-store.ts` holding the expiring store.                                                                                   │
+│ +27│- Tests: new `src/cache.test.ts` and `src/ttl-store.test.ts`, run with `bun test` (Bun 1.4.4 is installed; the repository has no package manifest and gains none).                                                   │
+│  28│- Code: `src/cache.ts` (cache state, `getWidget`, two new exports).                                                                                                                                                  │
+│  29│- Tests: new `src/cache.test.ts`, run with `bun test` (Bun 1.4.4 is installed; the repository has no package manifest and gains none).                                                                               │
+│…                                                                                                                                                                                                                         │
+│  31│- Dependencies: none added.                                                                                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I think my line numbers for the proposed edit were off, so I replaced lines 26-27 when they were actually the "## Impact" heading and the blank line after it. That left the file without that heading and with some
+ duplicated content. I need to read the file again and fix it.
+
+ ✔ Read .worktrees/widget-cache/openspec/changes/widget-cache/proposal.md:20-32
+
+╭─── ✎ Edit: 📝 /tmp/gmac-f1/veto/.worktrees/widget-cache/openspec/changes/widget-cache/proposal.md ⟦+2/-2⟧ ───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1│# Proposal                                                                                                                                                                                                           │
+│…                                                                                                                                                                                                                         │
+│  17│## Capabilities                                                                                                                                                                                                      │
+│…                                                                                                                                                                                                                         │
+│  22│### Modified Capabilities                                                                                                                                                                                            │
+│…                                                                                                                                                                                                                         │
+│  24│None: the repository has no specs (`openspec list --specs` reports none).                                                                                                                                            │
+│  25│                                                                                                                                                                                                                     │
+│ +26│## Impact                                                                                                                                                                                                            │
+│ +27│                                                                                                                                                                                                                     │
+│  26│- Code: `src/cache.ts` (`getWidget` plus two new exports) and a new internal module `src/ttl-store.ts` holding the expiring store.                                                                                   │
+│  27│- Tests: new `src/cache.test.ts` and `src/ttl-store.test.ts`, run with `bun test` (Bun 1.4.4 is installed; the repository has no package manifest and gains none).                                                   │
+│ -28│- Code: `src/cache.ts` (cache state, `getWidget`, two new exports).                                                                                                                                                  │
+│ -29│- Tests: new `src/cache.test.ts`, run with `bun test` (Bun 1.4.4 is installed; the repository has no package manifest and gains none).                                                                               │
+│  30│- Callers: none inside the repository; external callers of `getWidget` now receive a shared instance for 30 s, so mutating a returned widget is visible to other callers of the same id within that window.          │
+│  31│- Dependencies: none added.                                                                                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── ✎ Edit: 📝 /tmp/gmac-f1/veto/.worktrees/widget-cache/openspec/changes/widget-cache/design.md ⟦+1/-1⟧ ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1│# Design                                                                                                                                                                                                             │
+│…                                                                                                                                                                                                                         │
+│  47│## Risks / Trade-offs                                                                                                                                                                                                │
+│  48│                                                                                                                                                                                                                     │
+│ -49│- [Wall-clock jumps: `Date.now()` moving backwards lengthens entry lifetimes, forwards shortens them] → Accepted; a backwards jump past the creation time gives a negative age and keeps the entry alive until the   │
+│    │clock catches up. After a backwards jump, insertion order no longer matches expiry order, so pruning can release some expired entries late; lookups still check each entry's own age, so returned instances stay     │
+│    │correct. A monotonic clock would need a test injection point in the public API.                                                                                                                                      │
+│   +│- [Wall-clock jumps: `Date.now()` moving backwards lengthens entry lifetimes, forwards shortens them] → Accepted; a backwards jump past the creation time gives a negative age and keeps the entry alive until the   │
+│    │clock catches up. After a backwards jump, insertion order no longer matches expiry order, so pruning can release some expired entries late; lookups still check each entry's own age, so returned instances stay     │
+│    │correct. Passing `performance.now()` instead would stop `setSystemTime` from moving the clock in the spec-level tests of `src/cache.ts`.                                                                             │
+│  50│- [Shared mutable instance: a caller mutating a returned widget affects every caller of that id for up to 30 s] → Documented in the proposal's Impact; freezing is a non-goal.                                       │
+│  51│- [Unbounded growth while many distinct ids are looked up within 30 s] → Bounded by the 30 s window; pruning releases them afterwards. No size cap by user decision.                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I've confirmed the design doc's context and build-versus-adopt notes are fine, and now I'm moving on to the tasks file. The evidence should go in the F1 folder under the widget-cache gate, and the F1 rows will run
+ real-surface QA scripts, so I need to spell out those commands. The first task group is the expiring store, and I'm starting on task 1.1, creating the TTL store module.
+
+ I'm working through the task list now, starting with the expiring store: a TTL store module and its test file covering expiry, read behavior, refresh on set, deletion, and pruning of stale entries. Then the widget
+ lookup group, where I'll rewrite the getWidget path on top of the store, with tests for each timing boundary. I also realize clearWidgetCache has to land in task 2.1 rather than 2.3, since the beforeEach isolation
+ depends on it.
+
+ I'm checking the verification command for the widget tests: I'll combine the getWidget and clearWidgetCache runs into one command, since a -t filter that matches only one describe would otherwise pass silently. I'm
+ also confirming whether Bun's name filter matches the parent describe label.
+
+ Now I'm writing out the last rows of the F1 table: r1-reuse runs a real bun -e script that calls getWidget twice on "a" and once on "b", then checks reuse and distinctness, with evidence saved to f1/r1-reuse.txt.
+ r2-expiry uses real wall-clock sleeps to check the 30-second boundary and the 59-second mark against the same cache entry, which will take roughly a minute.
+
+ Next I'm covering the last three F1 rows: m1-happy runs a thousand lookups across ten ids and checks that each id returns one stable instance, and m2-edge exercises the odd ids like the empty string, "proto" and
+ "constructor" for reuse and invalidation. The m3-regression row checks the widget's exact shape and that the module exports only the three public functions.
+
+ I'm finishing the verification list for the F1 rows, with an evidence-file check that fails if any of the seven outputs is missing or empty. I also want to confirm how Bun's -t filter treats describe labels.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   d = ⟨mktemp "-d"⟩  ‹ d = "/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.NqPTnI72fA" ›                                                                                                                           │
+│   cwd d                                                                                                                                                                                                                  │
+│   ✎ print("import {test,expect,describe} from \"bun:test\"; describe(\"getWidget\",()=>{test(\"reuses within ttl\",()=>expect(1).toBe(1));});\\n") >x.test.ts                                                            │
+│   bun test x.test.ts -t getWidget +err ⇣ last 3  11ms                                                                                                                                                                    │
+│   print(f"exit={PIPESTATUS["0"]}")                                                                                                                                                                                       │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  0 fail                                                                                                                                                                                                                  │
+│  1 expect() calls                                                                                                                                                                                                        │
+│ Ran 1 test across 1 file. [7.00ms]                                                                                                                                                                                       │
+│ exit=0                                                                                                                                                                                                                   │
+╰─── Wall: 0.02s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─── ✎ Write: 📝 .worktrees/widget-cache/openspec/changes/widget-cache/tasks.md · 29 lines ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Tasks                                                                                                                                                                                                              │
+│   2                                                                                                                                                                                                                      │
+│   3 ## 1. Expiring store                                                                                                                                                                                                 │
+│   4                                                                                                                                                                                                                      │
+│   5 - [ ] 1.1 Create `src/ttl-store.ts` with `TtlStore<K, V>` as design.md ("Internal TTL store", "Expiry check", "Pruning") describes, and `src/ttl-store.test.ts` with a `describe("TtlStore")` block driving an       │
+│     injected counter clock (ttl 30 000) that covers: `get` returns the value at 29 999 ms and `undefined` at 30 000 ms; a `get` at 20 000 ms does not extend the lifetime; `set` on an existing key restarts its         │
+│     lifetime; `delete` of a missing key does not throw; `clear` empties the store (`size` 0); pruning: after `set("a")` and `set("b")` at 0 and `set("c")` at 10, a `get("c")` at 30 005 leaves `size` 1 without `a` or  │
+│     `b` being read. Verify: `bun test src/ttl-store.test.ts -t "TtlStore"`                                                                                                                                               │
+│   6                                                                                                                                                                                                                      │
+│ … 23 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm checking the pruning logic: with a and b expired at age 30005 and c still live, calling get("c") should drop a and b and leave size 1, versus 3 without pruning, which holds. Next I'm validating the change
+ directory.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   cwd .worktrees/widget-cache                                                                                                                                                                                            │
+│   export DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0  ‹ DO_NOT_TRACK = "1" · OPENSPEC_TELEMETRY = "0" ›                                                                                                                          │
+│   V = f"node {HOME}/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs"  ‹ V = "node /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs" ›                                    │
+│   × V openspec/changes/widget-cache  exit 1 · 82ms                                                                                                                                                                       │
+│   print(f"exit={status}")                                                                                                                                                                                                │
+│   openspec validate widget-cache --strict  138ms                                                                                                                                                                         │
+│   openspec status --change widget-cache --json → jq -c ‹[.artifacts[]|{id,status}]›  131ms                                                                                                                               │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ task 1.1: placeholder text is forbidden                                                                                                                                                                                  │
+│ task 2.1: placeholder text is forbidden                                                                                                                                                                                  │
+│ task 3.1: expected trailing Verify: `<deterministic command>`                                                                                                                                                            │
+│ exit=1                                                                                                                                                                                                                   │
+│ Change 'widget-cache' is valid                                                                                                                                                                                           │
+│ [{"id":"proposal","status":"done"},{"id":"specs","status":"done"},{"id":"design","status":"done"},{"id":"gate","status":"done"},{"id":"tasks","status":"done"},{"id":"review","status":"ready"}]                         │
+╰─── Wall: 0.35s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ Wondering whether the angle brackets in TtlStore<K, V> might be mistaken for placeholder text, so I'm going to check the validator regex.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   grep -n -i ‹placeholder\|trailing Verify› "~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs" "~/.omp/agent/skills/review-work/scripts/plan-contract.mjs" ⇡ first 30                                │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (1 earlier lines, showing 10 of 11) ⟦⌃O: Expand⟧                                                                                                                                                                       │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:104:         if (!control.some(line => /^- \*\*WHEN\*\*:?[ \t]+\S/.test(line) && !PLACEHOLDER.test(line)))                                 │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:106:         if (!control.some(line => /^- \*\*THEN\*\*:?[ \t]+[^\n]*\bMUST fail\b/i.test(line) && !PLACEHOLDER.test(line)))               │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:135:         errors.push(`task ${numbered[1]}: expected trailing Verify: \`<deterministic command>\``);                                    │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:136:      else if (PLACEHOLDER.test(description)) errors.push(`task ${numbered[1]}: placeholder text is forbidden`);                       │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:156:      if (field !== "Author's risk assessment" && PLACEHOLDER.test(found.value))                                                       │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:157:         errors.push(`${field}: placeholder text is forbidden`);                                                                       │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:270:         if (PLACEHOLDER.test(body)) errors.push(`proposal ${name}: placeholder text is forbidden`);                                   │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:431:   if (overridden && (valueDefect(override) || PLACEHOLDER.test(override)))                                                            │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:436:      errors.push(`${REVIEW_FILE} Blockers: replace the template placeholder with the reviewer's blockers verbatim, or none`);         │
+│ /Users/tim/.omp/agent/skills/review-work/scripts/plan-contract.mjs:145:  if (/^[\s\p{P}\p{S}]*$/u.test(residue) && residue !== value.trim()) return "template placeholder"                                               │
+╰─── Wall: 0.00s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ✔ Read ~/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs:115-140
+
+ I'm making the task line a single line that ends with "Verify", since the sub-bullets in step 3.1 break that format. I also need to rephrase the descriptions so they don't contain angle-bracket generics like
+ TtlStore<K, V>, and check the spec and gate for any stray "<" characters, which I don't find. Then I'll rewrite the tasks.
+
+╭─── ✎ Write: 📝 .worktrees/widget-cache/openspec/changes/widget-cache/tasks.md · 21 lines ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Tasks                                                                                                                                                                                                              │
+│   2                                                                                                                                                                                                                      │
+│   3 ## 1. Expiring store                                                                                                                                                                                                 │
+│   4                                                                                                                                                                                                                      │
+│   5 - [ ] 1.1 Create `src/ttl-store.ts` with the generic `TtlStore` class as design.md ("Internal TTL store", "Expiry check", "Pruning") describes, and `src/ttl-store.test.ts` with a `describe("TtlStore")` block      │
+│     driving an injected counter clock (ttl 30 000) that covers: `get` returns the value at 29 999 ms and `undefined` at 30 000 ms; a `get` at 20 000 ms does not extend the lifetime; `set` on an existing key restarts  │
+│     its lifetime; `delete` of a missing key does not throw; `clear` empties the store (`size` 0); pruning: after `set("a")` and `set("b")` at 0 and `set("c")` at 10, a `get("c")` at 30 005 leaves `size` 1 without `a` │
+│     or `b` being read. Verify: `bun test src/ttl-store.test.ts -t "TtlStore"`                                                                                                                                            │
+│   6                                                                                                                                                                                                                      │
+│ … 15 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The design doc also includes a TtlStore type, and the placeholder check only covers proposal sections, so I'll leave design alone there. The proposal checks out, so next I'll run the validation step.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   cwd .worktrees/widget-cache                                                                                                                                                                                            │
+│   export DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0  ‹ DO_NOT_TRACK = "1" · OPENSPEC_TELEMETRY = "0" ›                                                                                                                          │
+│   V = f"node {HOME}/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs"  ‹ V = "node /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs" ›                                    │
+│   V openspec/changes/widget-cache  198ms                                                                                                                                                                                 │
+│   print(f"exit={status}")                                                                                                                                                                                                │
+│   openspec validate widget-cache --strict  179ms                                                                                                                                                                         │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ passed                                                                                                                                                                                                                   │
+│ exit=0                                                                                                                                                                                                                   │
+│ Change 'widget-cache' is valid                                                                                                                                                                                           │
+╰─── Wall: 0.38s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I'm going through the steps in order: first the depth standard, then committing the change folder and running the digest. After that I'll check the models config for the plan-reviewer pin, then the blocker-verifier pin
+ in its agent file, and commit at the end.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   cwd .worktrees/widget-cache                                                                                                                                                                                            │
+│   ✎ git add openspec/changes/widget-cache  16ms                                                                                                                                                                          │
+│     ✎ and git commit -q -m openspec: propose widget-cache (30 s TTL widget cache)  18ms                                                                                                                                  │
+│     and git log --oneline -1  8ms                                                                                                                                                                                        │
+│   git status --porcelain -- openspec/changes/widget-cache  8ms                                                                                                                                                           │
+│   print("porcelain-done")                                                                                                                                                                                                │
+│   node f"{HOME}/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs" --digest openspec/changes/widget-cache  82ms                                                                                         │
+│   grep -n ‹^model› f"{⟨omp "config" "path"⟩}/agents/blocker-verifier.md"  75ms                                                                                                                                           │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ede0303 openspec: propose widget-cache (30 s TTL widget cache)                                                                                                                                                           │
+│ porcelain-done                                                                                                                                                                                                           │
+│ f8ea9235ce8db7a01a9b55386a8c08c3d32cb6b247d221db3c307fca9cec9c41                                                                                                                                                         │
+│ 5:model: onara/cx/gpt-6.1-sol:medium                                                                                                                                                                                     │
+╰─── Wall: 0.21s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ Dispatching the standard review round.
+
+
+ ⚠ Injecting rule: delegation  ↶
+
+ Before spawning subagents with the task tool - pick the agent by reasoning difficulty, serialize overlapping file-sets, isolate concurrent editing tasks, never touch files a running subagent owns, keep reviews small
+ and fresh
+
+
+ I'm handing the plan review to a reviewer at standard depth, since the omp-gated review sends its fixed brief word for word. That covers one item with the all-scopes paragraph and the context as specified, with no
+ model override.
+
+╭─── ✔ Task 1 agent ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Independent review of an OpenSpec change (planning artifacts only; nothing is implemented yet).                                                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ✔ ◒ onara/cx/gpt-6.1-sol WidgetCachePlanReview ⟦plan-reviewer⟧ · 28 🛠 · 28 req · 11.1%/500K · $0.27                                                                                                                      │
+│   yield[result]: {"verdict":"OKAY","summary":"No substantiated blocking defect found. …                                                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ Nothing else left to do, apart from maybe checking the state of the main checkout. I'll hold off for now and wait.
+
+✔ WidgetCachePlanReview done · 5m52s
+
+ I need to check which model the dispatch is using, and I'll pull the session file path from the WidgetCachePlanReview history.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   f = ⟨find ~/.omp/agent/sessions -name '*.jsonl' -newer /private/tmp/gmac-f1/veto/.worktrees/widget-cache/openspec/changes/widget-cache/tasks.md 2> /dev/null | xargs grep -l "WidgetCachePlanReview\|Independent       │
+│   review of an OpenSpec change" 2> /dev/null | head "-5"⟩  730ms  ‹ f =                                                                                                                                                  │
+│   "/Users/tim/.omp/agent/sessions/-git-onara-.worktrees-retire-legacy-plan-strategies/2026-11-12T23-02-41-138Z_01a1d1ff-bef2-75e2-abff-4aa44a4e91b3.jsonl\n/Users/tim/.omp/agent/sessions/-git-oh-my-pi-.worktrees-plan- │
+│   architecture-consultation/2026-11-12T12-23-1"… ›                                                                                                                                                                       │
+│   print(f"{f}")                                                                                                                                                                                                          │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ /Users/tim/.omp/agent/sessions/-git-onara-.worktrees-retire-legacy-plan-strategies/2026-11-12T23-02-41-138Z_01a1d1ff-bef2-75e2-abff-4aa44a4e91b3.jsonl                                                                   │
+│ /Users/tim/.omp/agent/sessions/-git-oh-my-pi-.worktrees-plan-architecture-consultation/2026-11-12T12-23-17-931Z_01a1cfb6-5eab-71e3-8350-30b0c0bc44d9.jsonl                                                               │
+│ /Users/tim/.omp/agent/sessions/-git-oh-my-pi-.worktrees-plan-architecture-consultation/2026-11-12T12-23-17-931Z_01a1cfb6-5eab-71e3-8350-30b0c0bc44d9/InstructionReviewF1F-2.jsonl                                        │
+│ /Users/tim/.omp/agent/sessions/--private-tmp-gmac-f1-auth-.worktrees-widget-cache--/2026-11-13T07-07-24-474Z_01a1d3bb-85ba-72c8-a428-1bba03f296b9/WidgetCacheDelta1.jsonl                                                │
+│ /Users/tim/.omp/agent/sessions/--private-tmp-gmac-f1-auth-.worktrees-widget-cache--/2026-11-13T07-07-24-474Z_01a1d3bb-85ba-72c8-a428-1bba03f296b9/WidgetCacheTriage1.jsonl                                               │
+╰─── Wall: 0.73s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The instruction points to history:// for the other sessions, so I'll check there before going further.
+
+╭─── ✔ Read history://WidgetCachePlanReview:1-5 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ WidgetCachePlanReview (idle)                                                                                                                                                                                             │
+│                                                                                                                                                                                                                          │
+│ user                                                                                                                                                                                                                     │
+│                                                                                                                                                                                                                          │
+│ Complete assignment thoroughly:                                                                                                                                                                                          │
+│                                                                                                                                                                                                                          │
+│ Repository root: /private/tmp/gmac-f1/veto/.worktrees/widget-cache                                                                                                                                                       │
+│ Change directory: /private/tmp/gmac-f1/veto/.worktrees/widget-cache/openspec/changes/widget-cache                                                                                                                        │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ⟦Resolved path: /tmp/gmac-f1-sessions/veto/2026-11-13T07-08-50-622Z_01a1d3bc-d63e-71c0-a474-d25672115ea4/WidgetCachePlanReview.jsonl⟧                                                                                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   jq -r ⟦jq ↓⟧ /tmp/gmac-f1-sessions/veto/2026-11-13T07-08-50-622Z_01a1d3bc-d63e-71c0-a474-d25672115ea4/WidgetCachePlanReview.jsonl → sort -u                                                                            │
+│     jq · inline argument                                                                                                                                                                                                 │
+│     select(.type=="message" and .message.role=="assistant") | .message.provider + "/" + .message.model                                                                                                                   │
+│   omp config get task.agentModelOverrides  85ms                                                                                                                                                                          │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ onara/cx/gpt-6.1-sol                                                                                                                                                                                                     │
+│ {"reviewer":"@review","plan-reviewer":"onara/cx/gpt-6.1-sol:high"}                                                                                                                                                       │
+╰─── Wall: 0.09s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ The review came back clean with no blockers, so it goes to step 7 with no verifier needed. The one nonblocking note is a question about whether it belongs in residuals. I'd list it there as not a blocker and skip
+ triage. I won't edit design.md, since that would make the digest stale, so the next move is writing review.md.
+
+╭─── ✎ Write: 📝 .worktrees/widget-cache/openspec/changes/widget-cache/review.md · 20 lines ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   1 # Review                                                                                                                                                                                                             │
+│   2                                                                                                                                                                                                                      │
+│   3 - **Verdict**: OKAY                                                                                                                                                                                                  │
+│   4 - **Reviewed digest**: f8ea9235ce8db7a01a9b55386a8c08c3d32cb6b247d221db3c307fca9cec9c41                                                                                                                              │
+│   5 - **Depth**: standard                                                                                                                                                                                                │
+│   6 - **Reviewer**: plan-reviewer, WidgetCachePlanReview                                                                                                                                                                 │
+│ … 14 more lines ⟦⌃O: Expand⟧                                                                                                                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   # keep going on errors                                                                                                                                                                                                 │
+│   cwd .worktrees/widget-cache                                                                                                                                                                                            │
+│   export DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0  ‹ DO_NOT_TRACK = "1" · OPENSPEC_TELEMETRY = "0" ›                                                                                                                          │
+│   V = f"node {HOME}/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs"  ‹ V = "node /Users/tim/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs" ›                                    │
+│   V --reviewed openspec/changes/widget-cache  92ms                                                                                                                                                                       │
+│   print(f"exit={status}")                                                                                                                                                                                                │
+│   ✎ git add openspec/changes/widget-cache/review.md  9ms                                                                                                                                                                 │
+│     ✎ and git commit -q -m openspec: record widget-cache review (OKAY, round 1)  18ms                                                                                                                                    │
+│     and git log --oneline -3  8ms                                                                                                                                                                                        │
+│   V --reviewed openspec/changes/widget-cache  78ms                                                                                                                                                                       │
+│   print(f"exit={status}")                                                                                                                                                                                                │
+│   openspec status --change widget-cache  162ms                                                                                                                                                                           │
+│   git -C /private/tmp/gmac-f1/veto status --short  9ms                                                                                                                                                                   │
+│   git -C /private/tmp/gmac-f1/veto reflog main -3  8ms                                                                                                                                                                   │
+│   ✎ git worktree list  8ms                                                                                                                                                                                               │
+├─── Output ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ … (16 earlier lines, showing 10 of 26) ⟦⌃O: Expand⟧                                                                                                                                                                      │
+│ [x] gate                                                                                                                                                                                                                 │
+│ [x] tasks                                                                                                                                                                                                                │
+│ [x] review                                                                                                                                                                                                               │
+│                                                                                                                                                                                                                          │
+│ All planning artifacts complete!                                                                                                                                                                                         │
+│ Next: openspec instructions apply --change "widget-cache" --json                                                                                                                                                         │
+│ c252363 main@{0}: commit: fixture: schema                                                                                                                                                                                │
+│ 27acc72 main@{1}: commit (initial): fixture                                                                                                                                                                              │
+│ /private/tmp/gmac-f1/veto                         c252363 [main]                                                                                                                                                         │
+│ /private/tmp/gmac-f1/veto/.worktrees/widget-cache c29fe83 [widget-cache]                                                                                                                                                 │
+╰─── Wall: 0.40s · Timeout: 300s ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ I've finished with the proposal, and the user said not to apply it, so the goal can't be completed yet. I'll leave it active and report back. I won't claim the next goal continuation will run; it won't, and the user
+ would have to explicitly ask for the apply step. I also want to note the TTL change the user corrected, since that's worth keeping in mind.
+
+ I'm weighing whether anything from this stretch is worth keeping, and the set -e detail in bash is too minor to matter, so I'll drop it.
+
+ I've proposed widget-cache with the 30 s TTL. It passed review, and nothing has been applied, as you asked.
+
+ Change: openspec/changes/widget-cache/, in worktree .worktrees/widget-cache on branch widget-cache. There are two commits on that branch; main is untouched.
+
+ Artifacts:
+ - proposal.md: why the cache is needed, and the TTL-only, no-size-cap and invalidation decisions you made. Your TTL correction replaced the earlier no-expiry choice. No follow-ups were taken.
+ - specs/widget-lookup/spec.md: four requirements, each with a negative-control scenario:
+   - The same widget is returned for an id for less than 30 000 ms.
+   - It expires at exactly 30 000 ms, and lookups don't extend that time.
+   - invalidateWidget(id) drops one widget; an id with nothing cached is ignored.
+   - clearWidgetCache() drops everything.
+ - design.md:
+   - The cache lives in a new internal src/ttl-store.ts with the clock passed in.
+   - Expired entries are removed in order on each lookup, with no timers.
+   - It uses Date.now(), which lets the tests move time with setSystemTime (I checked this works on Bun 1.4.4).
+   - Build vs. adopt: I'm writing it rather than using a library. lru-cache 11.5.3 advises against itself for a cache bounded only by TTL. @isaacs/ttlcache 2.1.5 has a fixed performance.now() clock and returns stale
+     items until its timer fires.
+ - gate.md: risk class none, depth standard, product tier.
+ - tasks.md: three implementation tasks, each checked by bun test … -t "<block name>". I confirmed Bun exits 1 when no test matches, so a missing test fails the check. A final manual QA task has seven rows run against
+   the real clock.
+ - review.md: one plan reviewer, verdict OKAY in round 1 with no blockers. The reviewer ran on its configured model, onara/cx/gpt-6.1-sol. validate-openspec-change.mjs --reviewed prints reviewed: OKAY in round 1.
+
+ The reviewer left one non-blocking note, recorded under Residuals: design.md says memory is bounded by the 30 s window, but an idle cache keeps expired entries until the next lookup. I didn't fix the wording, because
+ any edit would invalidate the review.
+
+ Apply is on hold. You sent "do not apply" while the planning turn was running, so per opsx-propose.md your message replaces the goal's "apply each reviewed proposal" for this change. No later goal turn will apply it.
+ That leaves the goal unfinished, so I've left it active rather than marking it complete. When you want it built, ask for /opsx-apply widget-cache.
+
+ I'm checking whether the goal's conditions hold. A user message asking me to change the TTL to 30 s first came in during planning, and the third condition says that kind of message overrides any later continuation. So
+ I won't apply the change, and I'll say which condition failed. I can't pause through a tool, so the goal stays active rather than being dropped.
+
+ I'm deciding not to verify the current state, since the earlier review already passed and I just need to reply.
+
+ I haven't applied widget-cache, and I'm stopping here.
+
+ Applying on a goal continuation requires that no user message arrived after the change's proposal workflow started. Yours did: "do not apply, change the TTL to 30 s first" came in while the proposal was being written.
+ The proposal workflow (opsx-propose.md) counts that message as your new request for this change, and no goal continuation may apply the change against it. The proposal already includes the 30 s TTL and its review
+ passed, but your instruction not to apply still stands.
+
+ The goal needs this apply step, so it is unfinished. I've left it active rather than marking it complete or dropping it. Nothing else in it can move forward without that step.
+
+ To build it, send a new message such as /opsx-apply widget-cache. The change is in .worktrees/widget-cache/openspec/changes/widget-cache/ on branch widget-cache.
+
+ ※ recap: The widget-cache proposal with the 30 s TTL is written and passed review, but nothing is applied because you said not to. To build it, send `/opsx-apply widget-cache`.
+
+ π > ◒ Opus 5.5 (onara) > 🎯 Goal 121K > 🗑 gmac-f1/veto > ⑂ main > $1.93 (+0.27) ▶────────────────12%──────────────────────┃─────────────────────────────────────────────────────────────────────────────────────────────1M─
+╰─

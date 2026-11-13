@@ -1,0 +1,43 @@
+08:11:24 auth: U E:aborted m:ttsr-injection
+08:11:24 control-old: U
+08:11:24 nogoal-continue: U
+08:11:24 planonly: U
+08:11:24 stale: U E:aborted m:ttsr-injection
+08:11:24 veto: U U m:async-result
+08:11:34 control-old: U m:mid-run-todo-nudge
+08:11:45 planonly: U m:mid-run-todo-nudge
+08:11:55 nogoal-continue: U E:aborted m:ttsr-injection
+08:11:58 nogoal-continue: operator sent 'Continue active goal.'
+08:12:09 control-old: U m:mid-run-todo-nudge E:aborted m:ttsr-injection
+08:12:09 STOP control-old: planning turn ended (proposal output)
+08:12:09 nogoal-continue: U E:aborted m:ttsr-injection U
+08:12:39 planonly: U m:mid-run-todo-nudge E:aborted m:ttsr-injection
+08:14:30 veto: U U m:async-result E:aborted m:ttsr-injection
+08:15:41 stale: U E:aborted m:ttsr-injection E:stop C
+08:15:51 stale: U E:aborted m:ttsr-injection E:stop C E:stop C
+08:15:51 STOP stale: first turn after the proposal ended
+08:16:18 auth: U m:ttsr-injection
+08:16:18 control-old: 
+08:16:18 nogoal-continue: 
+08:16:18 planonly: U m:mid-run-todo-nudge m:ttsr-injection
+08:16:18 veto: U U m:async-result m:ttsr-injection
+08:16:28 control-old: U
+08:16:28 nogoal-continue: U
+08:19:19 control-old: U m:ttsr-injection
+08:20:10 auth: U m:ttsr-injection E:stop C
+08:20:30 auth: 
+08:21:11 veto: U U m:async-result m:ttsr-injection E:stop C E:stop
+08:21:21 nogoal-continue: U m:ttsr-injection
+08:23:23 planonly: U m:mid-run-todo-nudge m:ttsr-injection m:mid-run-todo-nudge
+08:25:14 planonly: U m:mid-run-todo-nudge m:ttsr-injection m:mid-run-todo-nudge E:stop
+08:25:18 STOP auth (manual): goal complete after continuation turn applied widget-cache; transcript from moved session file
+08:25:24 planonly: U m:mid-run-todo-nudge m:ttsr-injection m:mid-run-todo-nudge E:stop E:stop g:goal-completed
+08:27:19 STOP veto (manual): continuation 1 had no tool activity; runtime suppresses further continuations, goal still active. STOP planonly (manual): goal completed in planning turn, no continuation
+08:29:03 control-old: submitted form defaults
+08:30:39 nogoal-continue: U m:ttsr-injection E:stop
+08:30:43 nogoal-continue: operator sent 'Continue active goal.'
+08:30:53 nogoal-continue: U m:ttsr-injection E:stop U E:stop
+08:30:53 STOP nogoal-continue: first turn after the proposal ended
+08:32:34 control-old: submitted form defaults
+08:32:45 control-old: 
+08:35:07 STOP control-old (manual): session moved and idle; transcript from moved session file

@@ -1,0 +1,14 @@
+001.patch 616 bytes 19 lines: 1 read(s) ['001.patch'] result bytes [615] cut=[False] whole-read=True
+002.patch 491 bytes 17 lines: 1 read(s) ['002.patch'] result bytes [490] cut=[False] whole-read=True
+003.patch 401 bytes 10 lines: 1 read(s) ['003.patch'] result bytes [400] cut=[False] whole-read=True
+evidence 001.evidence.patch: ['001.evidence.patch']
+evidence 003.evidence.patch: ['003.evidence.patch']
+manifest reads: 1
+patch files never read: none
+other tool calls: 6
+  read {"i": "Reading verification review guidance", "path": "skill://review-work"}
+  read {"i": "Reading plan and workspace", "path": "/tmp/f1-m4-NR6V/.omp/plans/demo.md"}
+  grep {"i": "Locating deadline implementation", "pattern": "drainUntil|drainAll|stopsWithinDeadline", "path": "/tmp/f1-m4-NR6V", "case": true, "gitignore": false, "sk
+  read {"i": "Inspecting workspace file inventory", "path": "/tmp/f1-m4-NR6V"}
+  read {"i": "Reading evidence discipline rule", "path": "rule://evidence-discipline"}
+  yield {"type": "result", "data": {"verdict": "REJECT", "summary": "The RED record reports an unfixed stop time of 7867 ms against a 250 ms limit. The cumulative delta

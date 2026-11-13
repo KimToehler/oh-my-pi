@@ -1,0 +1,21 @@
+{
+  "verdict": "REJECT",
+  "summary": "The RED record reports an unfixed stop time of 7867 ms against a 250 ms limit. The cumulative delta deletes that required record and leaves the deadline implementation unresolved.",
+  "blockers": [
+    {
+      "area": "Correctness — task 1.1",
+      "defect": "The delivered Engine.stop delegates to drainUntil, but the workspace contains no implementation or import resolving that function. On ordinary compilation, the new engine cannot provide the promised deadline-bounded stop. This is a reversible source defect.",
+      "evidence": "002.patch replaces drainAll() with drainUntil(deadlineMs = 250); the final src/engine.kt:1–3 contains only the Engine class and that call. A workspace-wide search finds no drainUntil definition. Neither later patch supplies one.",
+      "change": "Provide the actual deadline-bounded drain implementation and a committed EngineTest.stopsWithinDeadline exercising Engine.stop. Have the main agent verify the real implementation rather than treating the delegation alone as the fix."
+    },
+    {
+      "area": "PROCESS 4 — removed protection, task 1.1 RED evidence",
+      "defect": "The last commit deletes the RED record explicitly required by the completed TODO, without a named replacement or a reason that its evidentiary protection is obsolete. At the reviewed head, a consumer following the plan's evidence path cannot inspect the claimed regression proof. The deletion is reversible, but it breaks the delivered evidence contract.",
+      "evidence": ".omp/plans/demo.md:5–6 says .omp/team-config/evidence/gate/demo/red/1.1.txt holds the failing assertion. 001.evidence.patch adds it; 003.evidence.patch deletes all four lines, including '-    AssertionError: stop took 7867 ms, expected at most 250 ms'. No subsequent commit restores or replaces it. Historical visibility in the supplied patch does not restore the plan's cited artifact at the final head.",
+      "change": "Restore the RED capture at the cited tracked path and retain it in the final tree. Ensure its named test is committed and its unfixed-engine failure is supported by genuine command output."
+    }
+  ],
+  "notes": [
+    "No builds or tests were run; this was a read-only review of all three commit patches, both relevant evidence patches, the plan, and the final workspace."
+  ]
+}

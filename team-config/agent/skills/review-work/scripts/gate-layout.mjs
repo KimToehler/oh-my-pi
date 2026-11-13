@@ -18,6 +18,9 @@ export const STATE_DIR = path.join(".omp", "team-config")
 // Ignored local scratch and reviewer trailers, one directory per plan basename. QA artifacts a
 // record cites live below the record's evidence directory (the record path without `.json`).
 export const EVIDENCE_DIR = path.join(STATE_DIR, "evidence")
+// The directory whose hunks `gate-convergence.mjs patch` leaves out of fix-delta patches, in the one spelling the
+// delta manifest stores and the verifier accepts: forward slashes and a trailing slash, as a git pathspec reads it.
+export const LEFT_OUT_DIR = `${EVIDENCE_DIR.split(path.sep).join("/")}/`
 // Default home of gate records; the validator accepts a record at any tracked path.
 export const GATE_RECORD_DIR = path.join(EVIDENCE_DIR, "gate")
 export const LEDGER_PATH = path.join(STATE_DIR, "ledger.jsonl")

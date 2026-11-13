@@ -1,0 +1,6 @@
+grep -rn -- '7867' /tmp/f1-m4-NR6V (working tree, .git excluded, delta directory excluded)
+exit 1
+grep -ln -- '7867' in the delta directory
+/tmp/f1-m4-NR6V/.omp/team-config/gate-deltas/F2-1.1-m4/001.evidence.patch
+/tmp/f1-m4-NR6V/.omp/team-config/gate-deltas/F2-1.1-m4/003.evidence.patch
+exit 0

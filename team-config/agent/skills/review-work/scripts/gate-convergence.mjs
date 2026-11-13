@@ -9,7 +9,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, statSyn
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { buildBundle, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
-import { GATE_DELTAS_DIR, LEDGER_PATH, MAX_ARTIFACT_BYTES } from "./gate-layout.mjs"
+import { GATE_DELTAS_DIR, LEDGER_PATH, LEFT_OUT_DIR, MAX_ARTIFACT_BYTES } from "./gate-layout.mjs"
 import { mergeGateSection, planContent, readRiskTier, scanMarkdown } from "./plan-contract.mjs"
 import { checkTrailer, TrailerError } from "./trailer.mjs"
 
@@ -216,9 +216,38 @@ function trackedChanges(repo) {
   return git(repo, ["status", "--porcelain", "--untracked-files=no"])
 }
 
-function showPatch(repo, sha) {
-  return git(repo, ["show", "--format=fuller", "--no-renames", "--patch", sha], { raw: true })
+// One commit's fix-delta artifacts. Without `leftOut` (a delta directory written before evidence elision) the patch
+// is the whole commit. With it, a commit that changes files under `leftOut` gets its header, the rest of its diff and a
+// listing of the left-out directories; the left-out hunks, as of that commit, go to the evidence file `<n>.evidence.patch`
+// that the reviewer reads on demand. A commit without such files, merges included (numstat lists no combined diff),
+// keeps the whole-commit bytes.
+function deltaArtifacts(repo, sha, n, leftOut) {
+  const whole = () => git(repo, ["show", "--format=fuller", "--no-renames", "--patch", sha], { raw: true })
+  if (leftOut === undefined) return { patch: whole() }
+  const numstat = git(repo, ["show", "--numstat", "--no-renames", "-z", "--format=", sha, "--", `:(top)${leftOut}`])
+  const changed = numstat.split("\0").filter((entry) => entry.trim() !== "")
+  if (changed.length === 0) return { patch: whole() }
+  const byDir = new Map()
+  for (const entry of changed) {
+    const [added, removed, file] = entry.trim().split("\t")
+    const dir = `${path.posix.dirname(file)}/`
+    const sum = byDir.get(dir) ?? { files: 0, added: 0, removed: 0 }
+    sum.files += 1
+    // A binary file's numstat is "-": a file with no lines.
+    sum.added += added === "-" ? 0 : Number(added)
+    sum.removed += removed === "-" ? 0 : Number(removed)
+    byDir.set(dir, sum)
+  }
+  const lines = [...byDir].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([dir, sum]) => `${sum.files} files, +${sum.added} -${sum.removed}\t${dir}\n`)
+  const listing = `Left out by GC patch: the hunks of files under ${leftOut}, in ${n}.evidence.patch beside this patch\n${lines.join("")}`
+  // `git show` with a pathspec prints no header for a commit whose diff the pathspec empties, so the header comes apart.
+  const header = git(repo, ["show", "-s", "--format=fuller", sha], { raw: true })
+  const rest = git(repo, ["show", "--format=", "--no-renames", "--patch", sha, "--", ":(top)", `:(top,exclude)${leftOut}`], { raw: true })
+  const evidence = git(repo, ["show", "--format=", "--no-renames", "--patch", sha, "--", `:(top)${leftOut}`], { raw: true })
+  return { patch: Buffer.concat([header, Buffer.from("\n"), rest, Buffer.from(listing)]), evidence }
 }
+
+const patchNumber = (index) => String(index + 1).padStart(3, "0")
 
 function verifyDeltaDir(repo, dirArg) {
   const dir = path.resolve(repo, dirArg)
@@ -231,19 +260,33 @@ function verifyDeltaDir(repo, dirArg) {
   if (!isSha(manifest?.base_sha) || !isSha(manifest?.head_sha) || !Array.isArray(manifest?.commits)) {
     fail("patch artifacts changed since dispatch: manifest.json")
   }
+  // No `left_out` key: a directory written before evidence elision, verified as whole-commit patches. Any value other
+  // than the one `patch` writes could hide code from the reviewer, so it is refused.
+  if (Object.hasOwn(manifest, "left_out") && manifest.left_out !== LEFT_OUT_DIR) fail("patch artifacts changed since dispatch: manifest.json")
+  const leftOut = Object.hasOwn(manifest, "left_out") ? LEFT_OUT_DIR : undefined
   const commits = revList(repo, manifest.base_sha, manifest.head_sha)
   if (commits.length === 0 || commits.join() !== manifest.commits.map((c) => c?.sha).join()) {
     fail("patch artifacts changed since dispatch: commit list")
   }
-  for (const entry of manifest.commits) {
-    const expected = sha256(showPatch(repo, entry.sha))
+  const matches = (file, recorded, expected) => {
     let onDisk
     try {
-      onDisk = sha256(readFileSync(path.join(dir, entry.patch)))
+      onDisk = sha256(readFileSync(path.join(dir, file)))
     } catch {
-      fail(`patch artifacts changed since dispatch: ${entry.patch}`)
+      fail(`patch artifacts changed since dispatch: ${file}`)
     }
-    if (entry.sha256 !== expected || onDisk !== expected) fail(`patch artifacts changed since dispatch: ${entry.patch}`)
+    if (recorded !== expected || onDisk !== expected) fail(`patch artifacts changed since dispatch: ${file}`)
+  }
+  for (const [index, entry] of manifest.commits.entries()) {
+    const n = patchNumber(index)
+    const expected = deltaArtifacts(repo, entry.sha, n, leftOut)
+    matches(entry.patch, entry.sha256, sha256(expected.patch))
+    if (expected.evidence === undefined) {
+      if (entry.evidence !== undefined || entry.evidence_sha256 !== undefined) fail(`patch artifacts changed since dispatch: ${entry.evidence ?? "manifest.json"}`)
+    } else {
+      if (entry.evidence !== `${n}.evidence.patch`) fail(`patch artifacts changed since dispatch: ${n}.evidence.patch`)
+      matches(entry.evidence, entry.evidence_sha256, sha256(expected.evidence))
+    }
   }
   let verdictBytes
   let verdict
@@ -385,14 +428,20 @@ const commands = {
     if (existsSync(out)) fail("delta directory exists; use a new directory per dispatch")
     mkdirSync(out, { recursive: true })
     const commits = revList(ctx.repo, base, head).map((sha, index) => {
-      const name = `${String(index + 1).padStart(3, "0")}.patch`
-      const bytes = showPatch(ctx.repo, sha)
-      writeFileSync(path.join(out, name), bytes)
-      return { sha, subject: subject(ctx.repo, sha), patch: name, sha256: sha256(bytes) }
+      const n = patchNumber(index)
+      const { patch, evidence } = deltaArtifacts(ctx.repo, sha, n, LEFT_OUT_DIR)
+      const entry = { sha, subject: subject(ctx.repo, sha), patch: `${n}.patch`, sha256: sha256(patch) }
+      writeFileSync(path.join(out, entry.patch), patch)
+      if (evidence !== undefined) {
+        entry.evidence = `${n}.evidence.patch`
+        entry.evidence_sha256 = sha256(evidence)
+        writeFileSync(path.join(out, entry.evidence), evidence)
+      }
+      return entry
     })
     const manifestPath = path.join(out, "manifest.json")
-    writeFileSync(manifestPath, `${JSON.stringify({ base_sha: base, head_sha: head, commits }, null, 2)}\n`)
-    for (const entry of commits) chmodSync(path.join(out, entry.patch), 0o444)
+    writeFileSync(manifestPath, `${JSON.stringify({ base_sha: base, head_sha: head, left_out: LEFT_OUT_DIR, commits }, null, 2)}\n`)
+    for (const entry of commits) for (const file of [entry.patch, entry.evidence]) if (file !== undefined) chmodSync(path.join(out, file), 0o444)
     chmodSync(manifestPath, 0o444)
     console.log(manifestPath)
   },

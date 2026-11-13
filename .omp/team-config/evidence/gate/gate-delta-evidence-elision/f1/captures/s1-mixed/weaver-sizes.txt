@@ -1,0 +1,9 @@
+(cat manifest.json; jq -r '.commits[].patch' manifest.json | xargs cat) | wc -c
+  311695
+du -sk .
+10720	.
+commits 60, with an evidence file 25
+jq -r '.commits[].patch' manifest.json | xargs wc -c | sort -n | tail -3
+   17842 023.patch
+   22706 052.patch
+  289901 total

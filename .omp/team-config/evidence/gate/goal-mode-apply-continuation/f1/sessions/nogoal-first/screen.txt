@@ -1,0 +1,23 @@
+Warning: MCP server "open-design" failed to connect: MCP subprocess closed stdout before responding; its tools are unavailable for this run.
+Working...
+I haven't created the change yet. The request leaves open choices that would change the spec and the acceptance criteria, so I need your answers before I run `openspec new change`.
+
+**What's in the repo now:**
+- `src/cache.ts` has one function, `getWidget(id: string): { id: string }`, which returns `{ id }`. It doesn't load anything and has no backing store or callers.
+- There are no tests and no `package.json`. `bun` and `node` are installed; `tsc` is not.
+- There are no OpenSpec specs, and the configured schema is `omp-gated` (proposal, specs, design, gate, tasks, review).
+
+**The main problem:** a cache only helps if something behind it is slow or expensive. Here, caching `getWidget` saves no work. The only visible change would be that repeated calls return the same object instead of a new one. Without a real source to cache, the spec would be describing nothing useful.
+
+**Questions:**
+1. **What should be cached?** Is there a real widget source to put the cache in front of, such as an API, a database or a slow loader? Or should `getWidget` take a loader function to cache?
+2. **Should repeated calls return the same object?** If they do, a caller that changes the widget changes it for everyone. The alternative is to return a copy on every call.
+3. **How big can it get?** Unbounded (memory grows with every distinct id), a size limit that drops the least recently used entry, or entries that expire after a set time?
+4. **How are entries cleared?** No API, `invalidate(id)`, `clear()`, or both?
+5. **What about failed loads?** If the source can fail, should a failure be cached? And should several calls for the same id while it's loading share one load?
+6. **Which test runner?** I'd use `bun test` with a new `src/cache.test.ts` unless you want something else.
+
+**If you just say "use defaults":** `getWidget(id, loader)` caches the loader's result per id. Calls for the same id share one load while it's in flight, and failures aren't cached. The cache holds at most 1000 entries and drops the least recently used. It provides `invalidate(id)` and `clear()`, repeated calls return the same object, and tests use `bun test`. The design will check existing libraries before deciding whether to build the cache, as the schema requires.
+
+"Implement it" isn't covered here: this workflow only produces the plan and stops after the artifacts. Implementation starts when you run `/opsx-apply`, after the plan review passes.
+EXIT=0

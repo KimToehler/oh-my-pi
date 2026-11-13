@@ -1,0 +1,71 @@
+## 1. Goal and behavioural contract
+
+Reviewed the complete immutable plan snapshot, supplied diff, delivered command, README bump procedure, all 13 QA row files, and selected underlying runtime transcripts.
+
+The delivered **Goal-mode continuation** block matches design.md’s D6 text, and the four surrounding additions match “Other edits.” The README names the fourth team addition and its regeneration requirements.
+
+The implementation remains instruction-only. The supplied diff changes none of the excluded runtime, apply-workflow, validator, review-artifact, or merge-gate surfaces.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No blocking implementation defect found.
+
+The whole-diff integration is coherent:
+
+- The boundary and first guardrail identify the same exception without permitting same-turn apply.
+- The exception distinguishes runtime continuation from user-started turns, requires explicit objective authorization, preserves intervening user messages, and requires current reviewed validation.
+- The continuation passes the change name into the existing apply workflow rather than introducing a parallel implementation mechanism.
+- README maintenance instructions preserve the addition across regeneration.
+- No executable API, persisted schema, or wire contract changes.
+
+**Independent adversarial check:** a continuation’s worktree move must not detach subsequent edits from the reviewed proposal. In `sessions/auth/transcript.jsonl`, the move targets `.worktrees/widget-cache`; the subsequent tool result reports that directory, branch `widget-cache`, task paths inside that worktree, and another successful reviewed validation before source edits. This supports the ordinary handoff path; a deliberately mismatched destination was not exercised.
+
+## 3. Security and privacy delta
+
+No substantiated security blocker found.
+
+This changes a local development workflow’s permission to begin implementation, not authentication, tenant authorization, credential access, or access to another protected asset. Current reviewed validation and the existing apply workflow remain in place.
+
+The inspected captures concern disposable repositories and synthetic cache code. No real credential or third-party personal data was observed in the inspected material. This was not an exhaustive secret scan of every capture byte.
+
+## 4. Verification adequacy
+
+The evidence exercises meaningful behaviour, not merely prompt wording:
+
+- `auth`: planning output precedes the hidden continuation; reviewed validation succeeds; implementation reaches `src/cache.ts`.
+- `stale`: continuation refuses implementation and reports stale reviewed validation.
+- `planonly-later`: an actual continuation runs without applying the proposed change.
+- `veto-log`: an objection delivered during planning remains controlling across two subsequent continuation turns.
+- `nogoal-continue`: a user-typed continuation phrase does not authorize apply.
+- Old-command notice and README controls discriminate the changed behaviour.
+
+Residual notes:
+
+1. **Failed-condition reporting remains imperfect.** `f1/planonly-nc.md:17` and the underlying continuation reply show that the missing authorization was explained in the planning output, not in the continuation reply required by `opsx-propose.md:16`. **Non-blocking here because the brief explicitly supplies the owner’s acceptance of this exact deviation** (`planonly-nc.md:24`); it is not evidence of literal compliance.
+
+2. **Some QA expectations were accepted on intent rather than met literally.** `same-turn-nc.md:13–15` records the file comparison and schema-required delta write; `build-request.md:16` records that the exact build-request sessions stopped for clarification before presenting artifacts. **Non-blocking because the first deviation is explicitly owner-accepted, and separate sessions demonstrate artifact presentation and the unchanged planning boundary.** The combined build-request-to-completed-proposal scenario remains unobserved.
+
+3. **Unchanged apply steps were skipped in the happy-path capture.** `authorized.md:14` records the missing status call and prescribed announcement. **Non-blocking under the plan’s explicit exclusion of `opsx-apply.md`; implementation, rather than merely reading the workflow, was nevertheless observed.**
+
+4. **Minor capture-summary timestamp inaccuracies:** `owner-objects.md:11–13` places the first two continuation starts at `08:39:59Z` and `08:40:07Z`; the transcript records `08:39:55.076Z` and `08:40:05.816Z`. **Non-blocking because message ordering, objection delivery, and both refusal outcomes remain unambiguous.**
+
+No commands, tests, or QA sessions were rerun.
+
+## 5. Final verdict
+
+No blocking findings. The assessment preserves the explicitly accepted QA deviations above and does not claim a compliance rate or SHA-bound merge-gate completion.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Moving an automatically started apply into its task worktree must preserve proposal identity; task paths and reviewed validation used before source edits must resolve inside that destination.
+  positive_witness: After moving into .worktrees/widget-cache, apply instructions return widget-cache task paths inside that worktree and reviewed validation succeeds there before src/cache.ts changes.
+  negative_control: The agent validates the proposal in the original checkout but edits source or ticks tasks in a destination containing a different or stale proposal without validating that destination.
+  observable: Ordered session_move call, subsequent working-directory and branch output, absolute task sourcePath values, destination reviewed-validation output, and source-edit tool arguments.
+  boundary: Continuation-to-opsx-apply handoff across the session worktree move.
+END-REVIEW-TRAILER

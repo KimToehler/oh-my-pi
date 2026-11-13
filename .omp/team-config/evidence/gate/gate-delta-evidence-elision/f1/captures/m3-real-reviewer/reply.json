@@ -1,0 +1,11 @@
+{
+  "verdict": "OKAY",
+  "summary": "No evidenced blocker in the cumulative fixes for 4.22–4.25. The later commits resolve the early replacement-WebView construction defect and reconcile the Android Stop contract to a 2 s escalation deadline with completion within 3 s. The cancellation, commit-wins and iOS navigation evidence supports the corresponding fixes.",
+  "blockers": [],
+  "notes": [
+    "Verification limit: the cached-verification regression starts with cancellation already set; it exercises the first digest-loop check, not cancellation between later buffers. This is explicitly disclosed and does not block the implemented per-buffer check.",
+    "The desktop target=_blank live attempt did not reach routing because it lacked user activation. Its supporting evidence is unit/probe coverage rather than an observed in-place user-click navigation. Non-blocking for this delta: the desktop migration preserves the previous routing decisions.",
+    "BoundedStopTest exercises fallback ordering but does not assert the fallback scheduler delay equals 1000 ms. Adding that assertion would strengthen timing regression coverage; the reviewed implementation supplies the specified delay.",
+    "Read-only review: no builds, tests or device sessions were run."
+  ]
+}
