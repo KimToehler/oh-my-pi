@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ComputerUseTriageR23
 - **Models**: ComputerUsePlanReviewDelta23 onara/cx/gpt-6.1-sol, ComputerUseTriageR23 onara/cx/gpt-6.1-sol
 - **Round**: 23
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (round 23 exhaustion ask answered Fix by the user, Tim, 2026-11-13: "Fix with 2(b) human reads captions"; findings 2 and 3 are protected, so Override was not offered)
 
 ## Blockers
 
