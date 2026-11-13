@@ -969,8 +969,6 @@ The system SHALL export records in batches.
 			["a report finding without its subsection", { ...CONSULTED, Findings: DISPOSITIONS.slice(0, DISPOSITIONS.indexOf("\n\n### F2")) }, "consultation.md Findings"],
 			["subsections in another order than the report", { ...CONSULTED, Findings: `${DISPOSITIONS.slice(DISPOSITIONS.indexOf("### F2"))}\n\n${DISPOSITIONS.slice(0, DISPOSITIONS.indexOf("\n\n### F2"))}` }, "consultation.md Findings"],
 			["a report line that is not JSON", { ...CONSULTED, Report: "```json\n{bottom_line: KEEP}\n```" }, "consultation.md Report"],
-			["a report finding without trigger", withReport(REPORT(findings(FINDING("F1", { trigger: undefined }), FINDING("F2")))), "consultation.md Report: report.findings[0].trigger: missing"],
-			["a report without recommended_approach", withReport(REPORT({ recommended_approach: undefined })), "consultation.md Report: report.recommended_approach: missing"],
 			["a Bottom line other than the report's verdict", { ...CONSULTED, "Bottom line": "KEEP APPROACH" }, "consultation.md Bottom line"],
 			["a record without ## Report", async () => (await consultation(CONSULTED)).replace("## Report\n", ""), "consultation.md Report"],
 			["a consulted record whose Models holds a dispatched entry", { ...CONSULTED, Models: `${ATTEMPT} onara/cc/claude-fable-5-2; ArchConsult012345672 dispatched` }, "consultation.md Models"],
@@ -986,11 +984,8 @@ The system SHALL export records in batches.
 				`consultation.md ${section}`,
 			]),
 			["two report findings with the same id", withReport(REPORT(findings(FINDING("F1"), FINDING("F1"))), { Findings: DISPOSITIONS.replace("### F2", "### F1") }), "consultation.md Report: report.findings[1].id: duplicate id F1"],
-			["six report findings", withReport(REPORT(findings(...["F1", "F2", "F3", "F4", "F5", "F6"].map(id => FINDING(id))))), "consultation.md Report: report.findings: at most 5 elements"],
-			["four uncertainties", withReport(REPORT({ uncertainties: ["a", "b", "c", "d"] })), "consultation.md Report: report.uncertainties: at most 3 elements"],
-			["a category outside its enum", withReport(REPORT(findings(FINDING("F1", { category: "style" }), FINDING("F2")))), "consultation.md Report: report.findings[0].category"],
-			["a verdict outside its enum", withReport(REPORT({ bottom_line: { verdict: "APPROVE", reason: "fine" } }), { "Bottom line": "APPROVE" }), "consultation.md Report: report.bottom_line.verdict"],
-			["a confidence that is a number", withReport(REPORT(findings(FINDING("F1", { confidence: 0.9 }), FINDING("F2")))), "consultation.md Report: report.findings[0].confidence: expected a string"],
+			["a report line that is a JSON array", { ...CONSULTED, Report: reportSection([REPORT()]) }, "consultation.md Report: report: expected an object"],
+			["a report without bottom_line.verdict", withReport(REPORT({ bottom_line: { reason: "fine" } })), "consultation.md Report: report.bottom_line.verdict: expected a string"],
 			["findings that are an object", withReport(REPORT({ findings: { F1: FINDING("F1") } }), { Findings: "none" }), "consultation.md Report: report.findings: expected an array"],
 			["a finding with an empty id", withReport(REPORT(findings(FINDING(""), FINDING("F2"))), { Findings: DISPOSITIONS.replace("### F1", "### ") }), "consultation.md Report: report.findings[0].id"],
 			["Status drafted", { ...CONSULTED, Status: "drafted" }, "consultation.md Status"],
@@ -1014,6 +1009,18 @@ The system SHALL export records in batches.
 			expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
 			expect(run("--reviewed", root).exitCode).toBe(0);
 		});
+		it("accepts a record whose report defects only the report check refuses", async () => {
+			for (const report of [
+				REPORT(findings(FINDING("F1", { trigger: undefined }), FINDING("F2"))),
+				REPORT({ recommended_approach: undefined }),
+				REPORT(findings(FINDING("F1", { category: "style" }), FINDING("F2"))),
+				REPORT(findings(FINDING("F1", { confidence: 0.9 }), FINDING("F2"))),
+			]) {
+				const root = await consulted(await consultation(withReport(report)));
+				expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+				expect(run("--reviewed", root).exitCode).toBe(0);
+			}
+		});
 		it("accepts a pending record in the plain run", async () => {
 			expect(run(await consulted(await consultation(PENDING)))).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
 		});
@@ -1033,34 +1040,35 @@ The system SHALL export records in batches.
 		});
 	});
 
-	describe("report check", () => {
-		type Turn = { model?: string; yield?: { id: string; type?: unknown; data?: unknown; result?: "accepted" | "refused" | "none" } };
-		/** A session file of one attempt: the brief naming `changeDir`, then one assistant turn per entry with its tool result. */
-		async function attempt(root: string, changeDir: string, turns: Turn[]): Promise<string> {
-			const lines: unknown[] = [
-				{ type: "session", version: 3, id: "attempt", timestamp: "2026-11-12T00:00:00.000Z", cwd: root },
-				{
-					type: "message",
-					message: {
-						role: "user",
-						content: [{ type: "text", text: `Complete assignment thoroughly:\n\nRepository root: ${root}\nChange directory: ${changeDir}\n\nReview this proposed change.` }],
-					},
+	type Turn = { model?: string; yield?: { id: string; type?: unknown; data?: unknown; result?: "accepted" | "refused" | "none" } };
+	/** A session file of one attempt: the brief naming `changeDir`, then one assistant turn per entry with its tool result. */
+	async function attempt(root: string, changeDir: string, turns: Turn[]): Promise<string> {
+		const lines: unknown[] = [
+			{ type: "session", version: 3, id: "attempt", timestamp: "2026-11-12T00:00:00.000Z", cwd: root },
+			{
+				type: "message",
+				message: {
+					role: "user",
+					content: [{ type: "text", text: `Complete assignment thoroughly:\n\nRepository root: ${root}\nChange directory: ${changeDir}\n\nReview this proposed change.` }],
 				},
-			];
-			for (const [index, turn] of turns.entries()) {
-				const [provider, ...model] = (turn.model ?? "onara/cc/claude-fable-5-2").split("/");
-				const call = turn.yield
-					? { type: "toolCall", id: turn.yield.id, name: "yield", arguments: { type: turn.yield.type ?? "result", data: turn.yield.data ?? null, error: null } }
-					: { type: "toolCall", id: `read${index}`, name: "read", arguments: { path: "design.md" } };
-				lines.push({ type: "message", message: { role: "assistant", provider, model: model.join("/"), content: [call] } });
-				const result = turn.yield?.result ?? "accepted";
-				if (result !== "none")
-					lines.push({ type: "message", message: { role: "toolResult", toolCallId: call.id, toolName: call.name, isError: result === "refused", content: [{ type: "text", text: "ok" }] } });
-			}
-			const file = path.join(root, "attempt.jsonl");
-			await Bun.write(file, `${lines.map(line => JSON.stringify(line)).join("\n")}\n`);
-			return file;
+			},
+		];
+		for (const [index, turn] of turns.entries()) {
+			const [provider, ...model] = (turn.model ?? "onara/cc/claude-fable-5-2").split("/");
+			const call = turn.yield
+				? { type: "toolCall", id: turn.yield.id, name: "yield", arguments: { type: turn.yield.type ?? "result", data: turn.yield.data ?? null, error: null } }
+				: { type: "toolCall", id: `read${index}`, name: "read", arguments: { path: "design.md" } };
+			lines.push({ type: "message", message: { role: "assistant", provider, model: model.join("/"), content: [call] } });
+			const result = turn.yield?.result ?? "accepted";
+			if (result !== "none")
+				lines.push({ type: "message", message: { role: "toolResult", toolCallId: call.id, toolName: call.name, isError: result === "refused", content: [{ type: "text", text: "ok" }] } });
 		}
+		const file = path.join(root, "attempt.jsonl");
+		await Bun.write(file, `${lines.map(line => JSON.stringify(line)).join("\n")}\n`);
+		return file;
+	}
+
+	describe("report check", () => {
 		const ACCEPTED = REPORT({ findings: [FINDING("F1", { counterevidence: "" })] });
 
 		it("prints the report of an accepted terminal yield, and a record holding it passes", async () => {
@@ -1089,6 +1097,11 @@ The system SHALL export records in batches.
 			["a data string that is not JSON", [{ yield: { id: "y1", data: "{bottom_line: KEEP}" } }], false, "not JSON"],
 			["a data string encoding null", [{ yield: { id: "y1", data: "null" } }], false, "no data"],
 			["two findings with the same id", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1"), FINDING("F1")] }) } }], false, "duplicate"],
+			["a finding without trigger", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1", { trigger: undefined })] }) } }], false, "report.findings[0].trigger: missing"],
+			["a report without recommended_approach", [{ yield: { id: "y1", data: REPORT({ recommended_approach: undefined }) } }], false, "report.recommended_approach: missing"],
+			["a category outside its enum", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1", { category: "style" })] }) } }], false, "report.findings[0].category"],
+			["a verdict outside its enum", [{ yield: { id: "y1", data: REPORT({ bottom_line: { verdict: "APPROVE", reason: "fine" } }) } }], false, "report.bottom_line.verdict"],
+			["a confidence that is a number", [{ yield: { id: "y1", data: REPORT({ findings: [FINDING("F1", { confidence: 0.9 })] }) } }], false, "report.findings[0].confidence: expected a string"],
 		] as const) {
 			it(`refuses ${name}`, async () => {
 				const root = await changeFixture();
@@ -1099,6 +1112,17 @@ The system SHALL export records in batches.
 				expect(result.stderr).toContain(reason);
 			});
 		}
+		it("prints a report over the described limits, and a record holding it passes", async () => {
+			const root = await changeFixture();
+			const ids = ["F1", "F2", "F3", "F4", "F5", "F6"];
+			const over = REPORT({ findings: ids.map(id => FINDING(id)), uncertainties: ["a", "b", "c", "d"] });
+			const file = await attempt(root, root, [{ yield: { id: "y1", data: over } }]);
+			const result = run("--consultation-report", file, root);
+			expect(result).toEqual({ exitCode: 0, stdout: `${JSON.stringify(over)}\n`, stderr: "" });
+			const dispositions = ids.map(id => `### ${id}\n\n- **Disposition**: rejected: outside this change`).join("\n\n");
+			await Bun.write(path.join(root, "consultation.md"), await consultation({ ...CONSULTED, Report: `\`\`\`json\n${result.stdout.trim()}\n\`\`\``, Findings: dispositions }));
+			expect(run(root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+		});
 	});
 
 	/** A copy of the scripts, the template and the agent definition in the deployed layout, for source changes. */
@@ -1140,34 +1164,41 @@ The system SHALL export records in batches.
 			const verbatim = await consulted(await consultation({ ...SKIPPED, "Skip reason": oldSlot }, copy.template));
 			expect(runCopy(copy.script, verbatim)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
 		});
-		it("reads the report schema from the agent definition", async () => {
-			const copy = await skillCopy();
-			const root = await consulted(await consultation(CONSULTED));
-			expect(runCopy(copy.script, root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
-			await changeSchema(copy.definition, schema => {
-				schema.properties.risk_summary = { type: "string" };
+		for (const [name, change, reason] of [
+			[
+				"gains a required report field",
+				(definition: string) =>
+					changeSchema(definition, schema => {
+						schema.properties.risk_summary = { type: "string" };
+					}),
+				"report.risk_summary: missing",
+			],
+			["is missing", (definition: string) => fs.rm(definition), "agents/architecture-oracle.md"],
+		] as const) {
+			it(`keeps stored records valid when the agent definition ${name}, while the report check refuses`, async () => {
+				const copy = await skillCopy();
+				await change(copy.definition);
+				for (const record of [CONSULTED, SKIPPED]) {
+					const root = await consulted(await consultation(record));
+					expect(runCopy(copy.script, root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+					expect(runCopy(copy.script, "--reviewed", root).exitCode).toBe(0);
+				}
+				const root = await consulted(await consultation(CONSULTED));
+				const refused = runCopy(copy.script, "--consultation-report", await attempt(root, root, [{ yield: { id: "y1", data: REPORT() } }]), root);
+				expect(refused.exitCode).toBe(1);
+				expect(refused.stderr).toContain(reason);
 			});
-			const missing = runCopy(copy.script, root);
-			expect(missing.exitCode).toBe(1);
-			expect(missing.stderr).toContain("report.risk_summary: missing");
-		});
-		it("applies the definition's maxElements", async () => {
-			const copy = await skillCopy();
-			await changeSchema(copy.definition, schema => {
-				schema.properties.findings.metadata.maxElements = 1;
-			});
-			const result = runCopy(copy.script, await consulted(await consultation(CONSULTED)));
-			expect(result.exitCode).toBe(1);
-			expect(result.stderr).toContain("report.findings: at most 1 elements, got 2");
-		});
-		it("refuses a JTD form outside the supported subset, naming it", async () => {
+		}
+		it("refuses a JTD form outside the supported subset in the report check only, naming it", async () => {
 			const copy = await skillCopy();
 			await changeSchema(copy.definition, schema => {
 				schema.optionalProperties = { note: { type: "string" } };
 			});
-			const result = runCopy(copy.script, await consulted(await consultation(CONSULTED)));
-			expect(result.exitCode).toBe(1);
-			expect(result.stderr).toContain("unsupported JTD form optionalProperties");
+			const root = await consulted(await consultation(CONSULTED));
+			expect(runCopy(copy.script, root)).toEqual({ exitCode: 0, stdout: "passed\n", stderr: "" });
+			const refused = runCopy(copy.script, "--consultation-report", await attempt(root, root, [{ yield: { id: "y1", data: REPORT() } }]), root);
+			expect(refused.exitCode).toBe(1);
+			expect(refused.stderr).toContain("unsupported JTD form optionalProperties");
 		});
 	});
 });

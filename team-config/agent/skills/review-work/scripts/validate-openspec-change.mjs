@@ -339,8 +339,9 @@ function markdownSections(text) {
 }
 
 /**
- * The JTD forms `checkReport` interprets: `properties` (every key required, no others), `elements` with an optional
- * `metadata.maxElements`, an `enum` of strings and `type: string`. Returns a defect for every other form, naming it.
+ * The JTD forms `checkReport` interprets: `properties` (every key required, no others), `elements`, an `enum` of strings
+ * and `type: string`. `metadata` is ignored, `maxElements` included: the definition's limits guide the model and are
+ * never enforced. Returns a defect for every other form, naming it.
  */
 function jtdSubsetDefects(schema, at, defects = []) {
 	if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
@@ -355,9 +356,6 @@ function jtdSubsetDefects(schema, at, defects = []) {
 		if (forms.length === known.length) defects.push(`${at}: expected exactly one of properties, elements, enum or type`);
 		return defects;
 	}
-	const max = schema.metadata?.maxElements;
-	if (max !== undefined && (!Number.isInteger(max) || max < 0 || known[0] !== "elements"))
-		defects.push(`${at}: metadata.maxElements is a nonnegative integer on an elements form only`);
 	if (known[0] === "type" && schema.type !== "string") defects.push(`${at}: unsupported JTD form type: ${schema.type}`);
 	if (known[0] === "enum" && (!Array.isArray(schema.enum) || !schema.enum.every(item => typeof item === "string")))
 		defects.push(`${at}: enum must list strings`);
@@ -370,26 +368,14 @@ function jtdSubsetDefects(schema, at, defects = []) {
 	return defects;
 }
 
-let consultationContract;
+let consultationSlots;
+let oracleContract;
 
-/**
- * The slot text of every record field and section from the shipped template, and the oracle's model (without its thinking
- * suffix) and output schema from its definition, whose `output` is the last frontmatter key, written as one JSON object.
- * `{ error }` when a source is missing, unreadable or outside the supported schema subset.
- */
-function loadConsultationContract() {
-	if (consultationContract !== undefined) return consultationContract;
-	const read = file => {
-		try {
-			return { text: readFileSync(file, "utf8") };
-		} catch (error) {
-			return { error: `${CONSULTATION_FILE}: cannot read ${file}: ${error instanceof Error ? error.message : String(error)}` };
-		}
-	};
-	const template = read(CONSULTATION_TEMPLATE);
-	if (template.error) return (consultationContract = { error: template.error });
-	const definition = read(ORACLE_DEFINITION);
-	if (definition.error) return (consultationContract = { error: definition.error });
+/** The slot text of every record field and section from the shipped template; `{ error }` when it is missing or unreadable. */
+function loadConsultationSlots() {
+	if (consultationSlots !== undefined) return consultationSlots;
+	const template = readSource(CONSULTATION_TEMPLATE);
+	if (template.error) return (consultationSlots = { error: template.error });
 	const slots = new Map();
 	const content = planContent(scanMarkdown(template.text));
 	for (const field of CONSULTATION_FIELDS) slots.set(field, topLevelField(content, field).value);
@@ -397,7 +383,19 @@ function loadConsultationContract() {
 	for (const name of CONSULTATION_SECTIONS) slots.set(name, sections.get(name)?.[0]);
 	const missing = [...slots].filter(([, slot]) => !slot).map(([name]) => name);
 	if (missing.length > 0)
-		return (consultationContract = { error: `${CONSULTATION_FILE}: the template ${CONSULTATION_TEMPLATE} has no slot for ${missing.join(", ")}` });
+		return (consultationSlots = { error: `${CONSULTATION_FILE}: the template ${CONSULTATION_TEMPLATE} has no slot for ${missing.join(", ")}` });
+	return (consultationSlots = { slots });
+}
+
+/**
+ * The oracle's model (without its thinking suffix) and output schema from its definition, whose `output` is the last
+ * frontmatter key, written as one JSON object. Only the report check reads it; a stored record is never re-checked
+ * against it (design D9). `{ error }` when the definition is missing, unreadable or outside the supported schema subset.
+ */
+function loadOracleContract() {
+	if (oracleContract !== undefined) return oracleContract;
+	const definition = readSource(ORACLE_DEFINITION);
+	if (definition.error) return (oracleContract = { error: definition.error });
 	const front = definition.text.split(/^---[ \t]*$/m)[1] ?? "";
 	const model = /^model:[ \t]*(\S+)[ \t]*$/m.exec(front)?.[1]?.replace(/:[^:/]+$/, "");
 	const outputAt = front.search(/^output:/m);
@@ -408,13 +406,21 @@ function loadConsultationContract() {
 		schema = undefined;
 	}
 	if (!model || schema === undefined)
-		return (consultationContract = {
+		return (oracleContract = {
 			error: `${CONSULTATION_FILE}: ${ORACLE_DEFINITION} needs a model line and output as its last frontmatter key, written as one JSON object`,
 		});
 	const defects = jtdSubsetDefects(schema, "report");
 	if (defects.length > 0)
-		return (consultationContract = { error: `${CONSULTATION_FILE}: the output schema of ${ORACLE_DEFINITION}: ${defects.join("; ")}` });
-	return (consultationContract = { slots, model, schema });
+		return (oracleContract = { error: `${CONSULTATION_FILE}: the output schema of ${ORACLE_DEFINITION}: ${defects.join("; ")}` });
+	return (oracleContract = { model, schema });
+}
+
+function readSource(file) {
+	try {
+		return { text: readFileSync(file, "utf8") };
+	} catch (error) {
+		return { error: `${CONSULTATION_FILE}: cannot read ${file}: ${error instanceof Error ? error.message : String(error)}` };
+	}
 }
 
 function checkJtd(schema, value, at, issues) {
@@ -428,8 +434,6 @@ function checkJtd(schema, value, at, issues) {
 			if (!Object.hasOwn(schema.properties, key)) issues.push(`${at}.${key}: not in the agent's output schema`);
 	} else if ("elements" in schema) {
 		if (!Array.isArray(value)) return issues.push(`${at}: expected an array`);
-		const max = schema.metadata?.maxElements;
-		if (max !== undefined && value.length > max) issues.push(`${at}: at most ${max} elements, got ${value.length}`);
 		value.forEach((item, index) => checkJtd(schema.elements, item, `${at}[${index}]`, issues));
 	} else if ("enum" in schema) {
 		if (!schema.enum.includes(value)) issues.push(`${at}: expected one of ${schema.enum.join(", ")}, got ${JSON.stringify(value)}`);
@@ -437,15 +441,10 @@ function checkJtd(schema, value, at, issues) {
 }
 
 /**
- * The one report check: the value conforms to the oracle definition's output schema, and every finding's `id` is a
- * nonempty single line without surrounding whitespace, distinct from the others, because it keys its disposition.
+ * Every finding's `id` is a nonempty single line without surrounding whitespace, distinct from the others, because it
+ * keys its disposition.
  */
-function checkReport(value) {
-	const contract = loadConsultationContract();
-	if (contract.error) return [contract.error];
-	const issues = [];
-	checkJtd(contract.schema, value, "report", issues);
-	const findings = Array.isArray(value?.findings) ? value.findings : [];
+function findingIdIssues(findings, issues) {
 	const seen = new Set();
 	findings.forEach((finding, index) => {
 		const id = finding?.id;
@@ -455,12 +454,39 @@ function checkReport(value) {
 		else if (seen.has(id)) issues.push(`report.findings[${index}].id: duplicate id ${id}`);
 		seen.add(id);
 	});
+}
+
+/** The one report check: the value conforms to the oracle definition's output schema, and its finding ids key dispositions. */
+function checkReport(value) {
+	const contract = loadOracleContract();
+	if (contract.error) return [contract.error];
+	const issues = [];
+	checkJtd(contract.schema, value, "report", issues);
+	findingIdIssues(Array.isArray(value?.findings) ? value.findings : [], issues);
+	return issues;
+}
+
+/**
+ * The invariants a stored report needs for its record (design D9): an object whose `bottom_line.verdict` is a string and
+ * whose `findings` is an array with ids that key dispositions. The report check proved the rest when the attempt counted.
+ */
+function recordReportIssues(value) {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return ["report: expected an object"];
+	const issues = [];
+	if (typeof value.bottom_line?.verdict !== "string") issues.push("report.bottom_line.verdict: expected a string");
+	if (!Array.isArray(value.findings)) issues.push("report.findings: expected an array");
+	else {
+		value.findings.forEach((finding, index) => {
+			if (typeof finding?.id !== "string") issues.push(`report.findings[${index}].id: expected a string`);
+		});
+		findingIdIssues(value.findings, issues);
+	}
 	return issues;
 }
 
 /** Checks consultation.md against the shipped template's form; the report is read as one JSON line, never as Markdown. */
 function validateConsultation(text, errors) {
-	const contract = loadConsultationContract();
+	const contract = loadConsultationSlots();
 	if (contract.error) {
 		errors.push(contract.error);
 		return;
@@ -521,7 +547,7 @@ function validateConsultation(text, errors) {
 		say("Report", `the report line is not JSON: ${error instanceof Error ? error.message : String(error)}`);
 		return;
 	}
-	for (const issue of checkReport(report)) say("Report", issue);
+	for (const issue of recordReportIssues(report)) say("Report", issue);
 	const verdict = report?.bottom_line?.verdict;
 	if (typeof verdict === "string") require("Bottom line", value => value === verdict, `expected the report's verdict ${verdict}`);
 	if (!Array.isArray(report?.findings) || !values.has("Findings")) return;
@@ -555,7 +581,7 @@ function validateConsultation(text, errors) {
  * keeps the string the model sent. Returns `{ report }` or `{ error }`.
  */
 async function consultationReport(sessionFile, changeDir) {
-	const contract = loadConsultationContract();
+	const contract = loadOracleContract();
 	if (contract.error) return { error: contract.error };
 	let text;
 	try {
