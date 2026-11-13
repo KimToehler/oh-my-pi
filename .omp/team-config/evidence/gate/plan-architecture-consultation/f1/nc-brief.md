@@ -1,49 +1,38 @@
 # Negative control: Brief
 
-Files reviewed: `S` = schema.yaml review instruction (lines 348-770), `T` = templates/consultation.md, `A` = team-config/agent/agents/architecture-oracle.md. Quotes join wrapped lines.
+Files: S = team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml (review instruction, lines 348-775), T = .../templates/consultation.md (1-16), A = team-config/agent/agents/architecture-oracle.md (1-38).
 
-## (1) Consultation brief with added focus, file list or summary of the change
+## (1) Consultation brief with added focus (or file list / summary)
 
-Forbidding sentences:
-- S:391-397 "only then dispatch, in a new task call, exactly one fresh item: `agent: "architecture-oracle"`, `name` `ArchConsult` followed by the first 8 hex digits of the consulted commit and the attempt number (e.g. `ArchConsult1a2b3c4d1`), `solutionSpace: "Architecture consultation before plan review; outcome open"`, `context` exactly `Architecture consultation on an OpenSpec change (planning artifacts only; nothing is implemented yet).`, the brief below verbatim with only the two paths filled in, and no `model`. Add no focus, summary or file list."
+Forbidding:
+- S:391-397 "dispatch, in a new task call, exactly one fresh item: `agent: "architecture-oracle"`, `name` `ArchConsult` followed by the first 8 hex digits ... `solutionSpace: "Architecture consultation before plan review; outcome open"`, `context` exactly `Architecture consultation on an OpenSpec change (planning artifacts only; nothing is implemented yet).`, the brief below verbatim with only the two paths filled in, and no `model`. Add no focus, summary or file list."
 - S:422-423 retry "with the same brief".
-- A:17 "the repository root and change directory the brief names; those are your only read roots."
+- S:399-410 the fixed brief text itself.
 
-Permitting sentences: none. Loose points considered:
-- S:404-405 "Read proposal.md, design.md, tasks.md, gate.md and every specs/**/spec.md in the change directory" is a file list, but it is inside the fixed brief the spec mandates verbatim, not an addition.
-- The enumerated item fields (S:392-397) omit the top-level `i` intent and `tools`/`isolated` fields; "exactly one fresh item" plus the unqualified "Add no focus, summary or file list" cover the dispatch, so a literal agent has no sanctioned slot for added content.
+Permitting sentences: none found.
+Readings checked: S:464 and S:460-463 (the "no focus" rule and scope paragraphs) concern the plan-reviewer briefs, not the consultation, so they neither permit nor forbid here. S:449 "or the user asked for a consultation" changes admission, not the brief. The brief's own sentence "Inspect the relevant existing implementation and callers" (S:405-406) is fixed text, not planner-added focus.
 
-Verdict: forbidden
+## (2) `model` on the consultation item
 
-## (2) `model` set on the consultation task item
+Forbidding: S:397 "and no `model`"; S:456 "Never carry a `model` on a task item; the agent's configuration chooses the model."; A:5 pins the model in the definition.
 
-Forbidding sentences:
-- S:396-397 "the brief below verbatim with only the two paths filled in, and no `model`."
-- S:422-423 retry is "with the same brief" and S:386 "Dispatch, for each attempt" governs it.
-- S:453 "Never carry a `model` on a task item; the agent's configuration chooses the model." (general, step 3).
+Permitting sentences: none found.
+Readings checked: S:418-419 "the override-first pin check ... is not used" relates to verification, not to adding `model`. S:429-430 "a configured override" is a diagnosis for the ask.
 
-Permitting sentences: none. The retry bullet (S:422) does not restate "no model" but the dispatch bullet covers each attempt.
+## (3) Definition with an editing tool
 
-Verdict: forbidden
+Forbidding: A:4 `tools: read, grep, glob`; A:17 "You NEVER edit, run code, delegate, browse the web, or access files outside the repository root and change directory the brief names"; A:10 "read-only".
 
-## (3) Agent definition granting an editing tool
+Permitting sentences: none found.
+Readings checked: A:32 "Submit the whole report as one terminal `yield`" is a result-delivery mechanism, not an edit/write tool (not among the tools list at A:4). A:8 and A:12-38 grant nothing else.
 
-Forbidding sentences:
-- A:4 "tools: read, grep, glob"
-- A:17 "You NEVER edit, run code, delegate, browse the web, or access files outside the repository root and change directory the brief names".
-- A:3 description "Read-only pre-review architecture consultation".
+## (4) Definition with another model
 
-Permitting sentences: none found. Notes: `yield` is not in the `tools` list but A:32 "Submit the whole report as one terminal `yield`"; yield is a submission, not an editing tool. No other tool line or tool-granting sentence exists in A. The task item carries no `tools` field (S:392-397).
+Forbidding: A:5 `model: onara/cc/claude-fable-5-2:high` (one model, the pinned one); S:395-397 and S:456 keep the item free of a `model`; S:416-419 the report check decides the model question.
 
-Verdict: forbidden
+Permitting sentences: none found.
+Readings checked: T:6 "further models appended" and S:420 record models the session shows; they only record, and an attempt on another model does not count (S:417-418).
 
-## (4) Definition naming a model other than `onara/cc/claude-fable-5-2:high`
-
-Forbidding sentences:
-- A:5 "model: onara/cc/claude-fable-5-2:high"
-
-Permitting sentences: none. A names no other model anywhere (the output schema on A:7 contains no model name). S has no instruction to change the definition's model; S:419-420 "the override-first pin check after step 3's briefs is not used" keeps overrides out.
-
-Verdict: forbidden
+Verdict: (1) forbidden; (2) forbidden; (3) forbidden; (4) forbidden.
 
 Overall: PASS

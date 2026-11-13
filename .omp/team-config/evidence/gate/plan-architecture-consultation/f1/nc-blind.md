@@ -1,42 +1,34 @@
 # Negative control: Blind review
 
-Files reviewed: `S` = schema.yaml review instruction (348-770), `T` = templates/consultation.md, `A` = architecture-oracle.md. Quotes join wrapped lines.
+Files: S = team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml (review instruction, lines 348-775), T = .../templates/consultation.md (1-16), A = team-config/agent/agents/architecture-oracle.md (1-38).
 
-## (1) A plan-reviewer (full round or delta) allowed to read `consultation.md`
+## (1) A reviewer reading `consultation.md`
 
-Forbidding sentences:
-- S:466-467 full-round brief: "Review every file in the change directory except review.md and consultation.md (neither is part of the plan; do not read them) against the repository."
-- S:456-457 "Each item's task is the brief below, verbatim, with only the two paths filled in".
-- S:691-694 delta brief: "(proposal.md, specs/**/spec.md, design.md, gate.md and tasks.md; review.md is the review record and consultation.md the consultation record, neither is plan; do not read consultation.md)".
-- S:688 "Delta brief (substitute the `{...}` inputs, change nothing else)".
-- S:422-423 and S:559-561 retries use "the same brief".
+Forbidding:
+- S:469-470 (full-round brief, which every scope paragraph follows, S:459-461) "Review every file in the change directory except review.md and consultation.md (neither is part of the plan; do not read them) against the repository."
+- S:694-697 (delta brief) "review.md is the review record and consultation.md the consultation record, neither is plan; do not read consultation.md".
+- S:457-461 the brief is verbatim with only the paths filled in, plus a scope paragraph.
 
-Permitting sentences: none. Notes: the `blocker-verifier` brief (S:594-600) carries no exclusion, but it is not a plan-reviewer, S:440 says "no verifier triages consultation findings", and S:460-461 bars consultation content from its dispatch.
+Permitting sentences: none found.
+Readings checked:
+- The `blocker-verifier` brief (S:597-603) does not repeat the exclusion; the verifier is not a reviewer and gets only blocker text (observation, not counted).
+- S:404-405 tells the consultant that review.md and consultation.md are not part of the plan; that concerns the consultant, not a reviewer.
+- S:469-470 forbids reading it only for plan files; the retry and incomplete-round re-runs (S:562-566, S:754-756) use the same brief.
 
-Verdict: forbidden
+## (2) A delta patch containing `consultation.md`
 
-## (2) A delta-check patch containing `consultation.md`
+Forbidding: S:702-703 "The diff is {PATCH PATH}, written with `git diff {RECORDING COMMIT} -- {CHANGE DIR} ':!{CHANGE DIR}/review.md' ':!{CHANGE DIR}/consultation.md'`"; S:688-689 the consultation commit's edits are covered by the patch "taken from the recording commit"; S:691 "change nothing else".
 
-Forbidding sentences:
-- S:699-701 "The diff is {PATCH PATH}, written with `git diff {RECORDING COMMIT} -- {CHANGE DIR} ':!{CHANGE DIR}/review.md' ':!{CHANGE DIR}/consultation.md'`; read it completely before you decide."
-- S:688 "change nothing else".
+Permitting sentences: none found.
+Readings checked: S:688-689 "covers the consultation edits too" means the plan-artifact edits adopted with it, not the record, because the pathspec exclusion is part of the verbatim delta brief. S:712-713 patch location is uncommitted and does not change content.
 
-Possible ambiguity (not a permit): S:685-686 "its patch, taken from the recording commit, covers the consultation edits with the fixes" can be read as including consultation.md edits; "the consultation edits" means the adopted plan-artifact edits (S:441-443), and the fixed git command excludes the file regardless.
+## (3) A quoted finding
 
-Verdict: forbidden
+Forbidding: S:463-464 "Never quote, summarise or name a consultation finding in any reviewer or verifier dispatch."; S:593-595 verifier input is "every blocker copied verbatim from the delivered payload ... never retyped, paraphrased or filtered"; S:696-701 delta brief fixed text; S:701 fix entries "verbatim from the recorded round" (review round, not consultation).
 
-## (3) A reviewer or verifier dispatch quoting, summarising or naming a consultation finding
+Permitting sentences: none found.
+Readings checked: no sentence tells the author to put a finding's text into the plan artifacts; S:441-443 records dispositions only in consultation.md (observation: nothing in S/T/A explicitly bars writing a finding's wording into an adopted edit of design.md, which a reviewer then reads as plan text; S:464 limits itself to dispatches). Fix entries (S:701) and carried findings (S:757-762) come from review.md rounds, which cannot contain consultation text since reviewers do not read it (S:469-470).
 
-Forbidding sentences:
-- S:460-461 "Never quote, summarise or name a consultation finding in any reviewer or verifier dispatch."
-- S:457-458 "Add no focus area, emphasis, file list or summary of the change to any brief, beyond its scope paragraph" and S:459-460 "The scope paragraphs are fixed for every change and carry nothing about this one."
-- S:454-456 `context` is "exactly" the fixed sentence.
-- S:590-592 verifier gets "the brief below, the two paths and every blocker copied verbatim from the delivered payload (`read agent://<id>`), never retyped, paraphrased or filtered."
-- S:698 delta `{FIX ENTRIES}` are "verbatim from the recorded round".
-- S:440 "no verifier triages consultation findings."
-
-Permitting sentences: none. Considered: adopted plan edits reach the reviewers only as plan/patch content (S:685-686), not as a dispatch quoting or naming a finding; S:688 "change nothing else" blocks adding any provenance text to the delta brief.
-
-Verdict: forbidden
+Verdict: (1) forbidden; (2) forbidden; (3) forbidden.
 
 Overall: PASS
