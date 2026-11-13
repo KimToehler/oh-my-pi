@@ -42,6 +42,9 @@ Create review.md for the OpenSpec change seat-reservation: get the instruction w
   review.md: Verdict: REJECT; Reviewed digest: 84ddd95b4fb9016829ff1fa48e872e0b7b46a84a9b8a301cad60db0d4835bcc7; Depth: risky; Reviewer: plan-reviewer, AdvisoryWalrus, TeenageOx; Models: AdvisoryWalrus onara/cx/gpt-6.1-sol; TeenageOx onara/cx/gpt-6.1-sol; WilyGazelle onara/cx/gpt-6.1-sol; Round: 1; Awaiting: none
 - `258f077400` openspec: seat-reservation fix round 1 blockers  
   files: design.md, tasks.md
+- `24d9783560` openspec: seat-reservation review round 2 OKAY  
+  files: review.md
+  review.md: Verdict: OKAY; Reviewed digest: af6c3a11c28def47bec2b85dc557a74bb5caba0808344911ee26f7732d47a20a; Depth: risky; Reviewer: plan-reviewer, LocalCatfish, DrabAnaconda; Models: LocalCatfish onara/cx/gpt-6.1-sol; DrabAnaconda onara/cx/gpt-6.1-sol; Round: 2; Awaiting: none
 
 Working tree status after the session:
 
@@ -417,7 +420,28 @@ Spawned 2 background agents using plan-reviewer.
 56. [2026-11-13T17:30:44.114Z] **wait** {"i": "Waiting for round 2 reviewers"}  (error=False) `## Still Running (2) ⏎  ⏎ - `LocalCatfish` [task] — LocalCatfish — 6.6s · 2 req · $0.04 · ctx 19K/500K ⏎ - `DrabAnaconda` [task] — DrabAnaconda — 6.6s · 2 req · $0.04 · ctx 19K/500K ⏎  ⏎ No job finished within `
 57. [2026-11-13T17:30:50.523Z] **wait** {"i": "Waiting for round 2 reviewers"}  (error=False) `## Still Running (2) ⏎  ⏎ - `LocalCatfish` [task] — LocalCatfish — 18.1s · 5 req · $0.05 · ctx 20K/500K ⏎ - `DrabAnaconda` [task] — DrabAnaconda — 18.1s · 6 req · $0.05 · ctx 20K/500K ⏎  ⏎ No job finished withi`
 58. [2026-11-13T17:31:02.250Z] **wait** {"i": "Waiting for round 2 reviewers"}  (error=False) `## Still Running (2) ⏎  ⏎ - `LocalCatfish` [task] — LocalCatfish — 49.8s · 17 req · $0.14 · ctx 28K/500K ⏎ - `DrabAnaconda` [task] — DrabAnaconda — 49.8s · 16 req · $0.09 · ctx 23K/500K ⏎  ⏎ No job finished wit`
-59. [2026-11-13T17:31:33.677Z] **wait** {"i": "Waiting for round 2 reviewers"}  (error=None) `(no result)`
+59. [2026-11-13T17:31:33.677Z] **wait** {"i": "Waiting for round 2 reviewers"}  (error=False) `## Still Running (2) ⏎  ⏎ - `LocalCatfish` [task] — LocalCatfish — 1m51s · 24 req · $0.22 · ctx 38K/500K ⏎ - `DrabAnaconda` [task] — DrabAnaconda — 1m51s · 22 req · $0.11 · ctx 24K/500K ⏎  ⏎ No job finished wit`
+60. [2026-11-13T17:32:35.489Z] **wait** {"i": "Waiting for round 2 reviewers"}  (error=False) `## Completed (1) ⏎  ⏎ ### DrabAnaconda [task] — completed ⏎ Label: DrabAnaconda ⏎ Delivery: delivered by this wait — it finished while you were waiting. ⏎ ``` ⏎ <task-result id="DrabAnaconda" agent="plan-reviewer`
+61. [2026-11-13T17:33:17.181Z] **bash** `cd /tmp/pac-f1/sessions/f1a && f=$(ls -d */DrabAnaconda.jsonl); echo $f; jq -r 'select(.type=="message" and .message.role=="assistant") | .message.provider + "/" + .message.model' $f | sort -u`  
+   result (error=False): `2026-11-13T17-21-34-883Z_01a1d5ed-d0a3-71ae-84fd-441e55819e58/DrabAnaconda.jsonl ⏎ onara/cx/gpt-6.1-sol ⏎ `
+62. [2026-11-13T17:33:19.250Z] **wait** {"i": "Waiting for round 2 scope A"}  (error=False) `## Still Running (1) ⏎  ⏎ - `LocalCatfish` [task] — LocalCatfish — 2m41s · 27 req · $0.24 · ctx 40K/500K ⏎  ⏎ No job finished within 5.0s; a back-to-back wait allows up to 10.0s.`
+63. [2026-11-13T17:33:25.609Z] **wait** {"i": "Waiting for round 2 scope A"}  (error=False) `## Still Running (1) ⏎  ⏎ - `LocalCatfish` [task] — LocalCatfish — 2m53s · 27 req · $0.24 · ctx 40K/500K ⏎  ⏎ No job finished within 10.0s; a back-to-back wait allows up to 30.0s.<system-notice> ⏎ Nothing new a`
+64. [2026-11-13T17:33:36.991Z] **wait** {"i": "Waiting for round 2 scope A"}  (error=False) `## Still Running (1) ⏎  ⏎ - `LocalCatfish` [task] — LocalCatfish — 3m24s · 27 req · $0.24 · ctx 40K/500K ⏎  ⏎ No job finished within 30.0s; a back-to-back wait allows up to 1m.<system-notice> ⏎ Nothing new afte`
+65. [2026-11-13T17:34:09.445Z] **wait** {"i": "Waiting for round 2 scope A"}  (error=False) `## Completed (1) ⏎  ⏎ ### LocalCatfish [task] — completed ⏎ Label: LocalCatfish ⏎ Delivery: handed over by this snapshot (it finished 119ms before this call) — this snapshot superseded its queued completion p`
+66. [2026-11-13T17:34:14.235Z] **read** {"path": "history://LocalCatfish:1-1", "i": "Finding LocalCatfish session file"}  (error=False) `[/tmp/pac-f1/sessions/f1a/2026-11-13T17-21-34-883Z_01a1d5ed-d0a3-71ae-84fd-441e55819e58/LocalCatfish.jsonl#94BC] ⏎ 1:# LocalCatfish (idle) ⏎ 2: ⏎ 3:## user ⏎ 4: ⏎  ⏎ [153 more lines in resource. Use :5 to continu`
+67. [2026-11-13T17:34:14.235Z] **read** {"path": "history://DrabAnaconda:1-1", "i": "Finding DrabAnaconda session file"}  (error=False) `[/tmp/pac-f1/sessions/f1a/2026-11-13T17-21-34-883Z_01a1d5ed-d0a3-71ae-84fd-441e55819e58/DrabAnaconda.jsonl#E68A] ⏎ 1:# DrabAnaconda (idle) ⏎ 2: ⏎ 3:## user ⏎ 4: ⏎  ⏎ [123 more lines in resource. Use :5 to continu`
+68. [2026-11-13T17:34:16.680Z] **bash** `jq -r 'select(.type=="message" and .message.role=="assistant") | .message.provider + "/" + .message.model' /tmp/pac-f1/sessions/f1a/2026-11-13T17-21-34-883Z_01a1d5ed-d0a3-71ae-84fd-441e55819e58/LocalCatfish.jsonl | sort -u`  
+   result (error=False): `onara/cx/gpt-6.1-sol ⏎ `
+69. [2026-11-13T17:34:24.261Z] **bash** `cd /tmp/pac-f1/f1a && C=openspec/changes/seat-reservation; V="node $HOME/.omp/agent/skills/review-work/scripts/validate-openspec-change.mjs"; cat > $C/review.md <<'EOF'
+## Review
+
+- **Verdict**: OKAY
+- **Reviewed digest**: af6c3a11c28def47bec2b85dc557a74bb5caba0808344911ee26f7732d47a20a
+- **Depth**: risky
+- **Reviewer**: plan-reviewer, LocalCatfish, DrabAnaconda
+- **Verifier**: blocker-verifier, no`  
+   result (error=False): `passed ⏎ af6c3a11c28def47bec2b85dc557a74bb5caba0808344911ee26f7732d47a20a ⏎ 24d9783 openspec: seat-reservation review round 2 OKAY ⏎ reviewed: OKAY in round 2 ⏎ reviewed exit 0 ⏎ `
+70. [2026-11-13T17:34:29.773Z] **learn** {"i": "Capturing path pitfall lesson", "memory": "In the pac-f1 harness on macOS, /tmp is a symlink to /private/tmp and git's toplevel is /private/tmp/... . The omp-gated consultation check `git diff   (error=False) `Lesson stored.`
 
 #### Child sessions: provider/model of every assistant turn
 
@@ -429,5 +453,24 @@ Spawned 2 background agents using plan-reviewer.
 
 ### Final reply
 
+`review.md` for `seat-reservation` is committed. Round 2 ended **OKAY**, and `V --reviewed` prints `reviewed: OKAY in round 2`, so apply is no longer blocked.
 
+**Architecture consultation.** An earlier attempt was still recorded as `pending`. Its report counted: it ran on `onara/cc/claude-fable-5-2`, and the plan files hadn't changed since the commit it reviewed. I recorded it as `consulted`, verdict CHANGE APPROACH, with four findings:
+- **F1, adopted:** the reservation in design decision D1 checked the count and then inserted as separate queries, so two requests could both take the last seat. It now runs in one transaction that locks the event row. The isolation level is set to `READ COMMITTED`, and the lock and the count must stay separate statements. The Risks section also notes that a request holds a pool connection while it waits for the lock.
+- **F2, adopted:** task 2.1 now fires a burst of 20 concurrent calls and must first be seen failing against the old check-then-insert version. The contested-seat row of the final QA task (3.1) is now 20 curls split across both instances.
+- **F3, adopted:** `reserveSeat` returns `created`, `full` or `not_found`, and the route maps these to 201, 409 and 404. A body that isn't valid JSON now gets 400.
+- **F4, rejected:** whether one user may hold several seats for one event. That is a product decision with no evidence in the repo, so I didn't put an answer in the plan. It's an open question for you or the box-office owner.
+
+**Round 1** (two reviewers, digest `84ddd95b…`): REJECT, then triage:
+1. Missing Build vs. adopt record for JSON request-body decoding: real but non-blocking, so a residual. I added the record anyway alongside the fix below.
+2. The route test for 201 didn't check that the response contains the created reservation: confirmed blocking. Fixed in task 2.2, which now compares the response with the stored row and checks the count rose by exactly one.
+3. The final QA task's Verify command only checks that the evidence files are non-empty: refuted, because the QA lane judges what those files show. It remains in the plan as is.
+
+**Round 2** (two fresh reviewers, digest `af6c3a11…`): both OKAY, with no blockers or residuals.
+
+All reviewers and the triage agent ran on the pinned model `onara/cx/gpt-6.1-sol`. The commits on `main` run from `40ee3ab` to `24d9783`.
+
+Non-blocking notes from the reviewers that are still in the plan:
+- Task 1.1 names `test/migrations.test.js`, which doesn't exist yet, and doesn't say what it should check.
+- The design's "at most a few thousand seats" is an assumption; the database doesn't enforce it.
 
