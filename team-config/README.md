@@ -46,7 +46,8 @@ copied the same way: merge its `cc/claude-fable-5-2` entry into an existing
 `~/.omp/agent/models.yml` by hand (and into each profile or custom `PI_CODING_AGENT_DIR`), or
 every architecture consultation runs on another model, counts as failed and ends in the
 skip-or-stop ask below. Open `risky` OpenSpec changes need a `consultation.md` before
-`--reviewed` passes again: a consultation on their next full round, or a skip you approve.
+`--reviewed` passes again: re-run their review, which records the consultation, or a skip you
+approve, without a round unless an adopted finding edits the plan.
 
 ## What lands where
 
@@ -244,15 +245,16 @@ with the re-run's. Only a round that delivered nothing and carries nothing write
 not by checkers that re-score model output, and the class comes from the delivered change, not from the session's own
 login. F2, its delta reviews and an on-demand `integration-review` keep review-work's `Blocker disposition` section unchanged; plan review does not use it.
 
-Before the first full `risky` round, and before any later full `risky` round while the folder holds no record, the
-review runs one architecture consultation (a `standard` change gets one only when you ask). The planner commits the
+Before every `plan-reviewer` dispatch of a `risky` change, a full round or a delta check, while the folder holds no
+record, the review runs one architecture consultation (a `standard` change gets one only when you ask). The planner commits the
 change folder and a `pending` `consultation.md` naming the attempt, then dispatches one fresh `architecture-oracle`
 item with a fixed brief: a read-only agent (`read, grep, glob`) pinned in its definition to
 `onara/cc/claude-fable-5-2:high`, a second model family next to the Sol reviewers, at about $4-8 per consultation at
 list price. An attempt counts only when `validate-openspec-change.mjs --consultation-report <session file> <change dir>`
 accepts its session file: the brief names this change, every turn ran on the definition's model (never on a
 `task.agentModelOverrides` entry), and the final `yield` delivered a report matching the agent's output schema. A failed
-attempt gets one retry; after two, you choose between skipping with your reason and stopping. The counted report is
+attempt gets one retry; after two, you choose between skipping with your reason and stopping. After a Stop you can ask
+the agent to consult again, for example once the model entry is fixed, which allows two more attempts. The counted report is
 copied into `consultation.md` by the report command, never retyped, and the planner marks every finding
 `adopted:` (with the plan edit) or `rejected:` with a reason, without a verifier; the record and the adopted edits
 are committed together before the round's digest. The formal reviewers stay blind: their briefs exclude
