@@ -1,0 +1,29 @@
+{
+  "base_sha": "f189717632cf345f27c09771a15c68a5f2ad2b02",
+  "head_sha": "d824d6ebda8f92179ffee7268162047d46d671a7",
+  "left_out": ".omp/team-config/evidence/",
+  "commits": [
+    {
+      "sha": "a7068f983c4ec65af562ff7e3fac1c3da842cac3",
+      "subject": "engine: stop drains every queue; RED record of task 1.1",
+      "patch": "001.patch",
+      "sha256": "1a86679eff15142d49c0ed1cc6c61585b335b4442d018fae277cf5dc618e77a2",
+      "evidence": "001.evidence.patch",
+      "evidence_sha256": "48826eb0aec8c58aa5d25ffa6424e78bebf38c58b80614b508804187626fd369"
+    },
+    {
+      "sha": "762ff63bcc49f906504ab3f121440111a31484fc",
+      "subject": "engine: stop drains until the 250 ms deadline (task 1.1)",
+      "patch": "002.patch",
+      "sha256": "c7fd306ea525ecdf7bad3fb64893c56169ee44d68064d7a8128840fb5b77a158"
+    },
+    {
+      "sha": "d824d6ebda8f92179ffee7268162047d46d671a7",
+      "subject": "drop the RED record of task 1.1",
+      "patch": "003.patch",
+      "sha256": "1600f519d9b78ce5fa0c67d43c6670d3938ac05aaa6d72db17df00bf8b621fd4",
+      "evidence": "003.evidence.patch",
+      "evidence_sha256": "24b3be1f02e221475aa4e205fd5edd96eda5ed43aa87bcdec4edd55ba87b8a82"
+    }
+  ]
+}

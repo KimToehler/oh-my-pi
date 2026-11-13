@@ -1,0 +1,113 @@
+001.patch 4246 bytes 98 lines: 1 read(s) ['001.patch:raw'] result bytes [4246] cut=[False] whole-read=True
+002.patch 5472 bytes 153 lines: 1 read(s) ['002.patch:raw'] result bytes [5472] cut=[False] whole-read=True
+003.patch 470 bytes 10 lines: 1 read(s) ['003.patch:raw'] result bytes [470] cut=[False] whole-read=True
+004.patch 3851 bytes 62 lines: 1 read(s) ['004.patch:raw'] result bytes [3851] cut=[False] whole-read=True
+005.patch 9378 bytes 176 lines: 1 read(s) ['005.patch:raw'] result bytes [9378] cut=[False] whole-read=True
+006.patch 478 bytes 10 lines: 1 read(s) ['006.patch:raw'] result bytes [478] cut=[False] whole-read=True
+007.patch 4697 bytes 100 lines: 1 read(s) ['007.patch:raw'] result bytes [4697] cut=[False] whole-read=True
+008.patch 472 bytes 10 lines: 1 read(s) ['008.patch:raw'] result bytes [472] cut=[False] whole-read=True
+009.patch 8003 bytes 165 lines: 1 read(s) ['009.patch:raw'] result bytes [8003] cut=[False] whole-read=True
+010.patch 10670 bytes 197 lines: 2 read(s) ['010.patch:raw', '010.patch:1-120:raw'] result bytes [10670, 6845] cut=[False, False] whole-read=True
+011.patch 4293 bytes 76 lines: 1 read(s) ['011.patch:raw'] result bytes [4293] cut=[False] whole-read=True
+012.patch 482 bytes 10 lines: 1 read(s) ['012.patch:raw'] result bytes [482] cut=[False] whole-read=True
+013.patch 5877 bytes 101 lines: 1 read(s) ['013.patch:raw'] result bytes [5877] cut=[False] whole-read=True
+014.patch 364 bytes 9 lines: 1 read(s) ['014.patch:raw'] result bytes [364] cut=[False] whole-read=True
+015.patch 555 bytes 11 lines: 1 read(s) ['015.patch:raw'] result bytes [555] cut=[False] whole-read=True
+016.patch 496 bytes 10 lines: 1 read(s) ['016.patch:raw'] result bytes [496] cut=[False] whole-read=True
+017.patch 513 bytes 11 lines: 1 read(s) ['017.patch:raw'] result bytes [513] cut=[False] whole-read=True
+018.patch 518 bytes 10 lines: 1 read(s) ['018.patch:raw'] result bytes [518] cut=[False] whole-read=True
+019.patch 422 bytes 9 lines: 1 read(s) ['019.patch:raw'] result bytes [422] cut=[False] whole-read=True
+020.patch 16717 bytes 52 lines: 1 read(s) ['020.patch:raw'] result bytes [16717] cut=[False] whole-read=True
+021.patch 14209 bytes 21 lines: 1 read(s) ['021.patch:raw'] result bytes [14209] cut=[False] whole-read=True
+022.patch 3760 bytes 38 lines: 1 read(s) ['022.patch:raw'] result bytes [3760] cut=[False] whole-read=True
+023.patch 17842 bytes 25 lines: 1 read(s) ['023.patch:raw'] result bytes [17842] cut=[False] whole-read=True
+024.patch 577 bytes 11 lines: 1 read(s) ['024.patch:raw'] result bytes [577] cut=[False] whole-read=True
+025.patch 368 bytes 9 lines: 1 read(s) ['025.patch:raw'] result bytes [368] cut=[False] whole-read=True
+026.patch 2692 bytes 28 lines: 1 read(s) ['026.patch:raw'] result bytes [2692] cut=[False] whole-read=True
+027.patch 2251 bytes 24 lines: 1 read(s) ['027.patch:raw'] result bytes [2251] cut=[False] whole-read=True
+028.patch 685 bytes 11 lines: 1 read(s) ['028.patch:raw'] result bytes [685] cut=[False] whole-read=True
+029.patch 2721 bytes 29 lines: 1 read(s) ['029.patch:raw'] result bytes [2721] cut=[False] whole-read=True
+030.patch 2520 bytes 27 lines: 1 read(s) ['030.patch:raw'] result bytes [2520] cut=[False] whole-read=True
+031.patch 2489 bytes 26 lines: 1 read(s) ['031.patch:raw'] result bytes [2489] cut=[False] whole-read=True
+032.patch 2547 bytes 27 lines: 1 read(s) ['032.patch:raw'] result bytes [2547] cut=[False] whole-read=True
+033.patch 1485 bytes 18 lines: 1 read(s) ['033.patch:raw'] result bytes [1485] cut=[False] whole-read=True
+034.patch 1543 bytes 19 lines: 1 read(s) ['034.patch:raw'] result bytes [1543] cut=[False] whole-read=True
+035.patch 1971 bytes 21 lines: 1 read(s) ['035.patch:raw'] result bytes [1971] cut=[False] whole-read=True
+036.patch 2007 bytes 22 lines: 1 read(s) ['036.patch:raw'] result bytes [2007] cut=[False] whole-read=True
+037.patch 3469 bytes 35 lines: 1 read(s) ['037.patch:raw'] result bytes [3469] cut=[False] whole-read=True
+038.patch 3519 bytes 36 lines: 1 read(s) ['038.patch:raw'] result bytes [3519] cut=[False] whole-read=True
+039.patch 9706 bytes 20 lines: 1 read(s) ['039.patch:raw'] result bytes [9706] cut=[False] whole-read=True
+040.patch 6540 bytes 68 lines: 1 read(s) ['040.patch:raw'] result bytes [6540] cut=[False] whole-read=True
+041.patch 6439 bytes 156 lines: 1 read(s) ['041.patch:raw'] result bytes [6439] cut=[False] whole-read=True
+042.patch 8035 bytes 153 lines: 1 read(s) ['042.patch:raw'] result bytes [8035] cut=[False] whole-read=True
+043.patch 478 bytes 10 lines: 1 read(s) ['043.patch:raw'] result bytes [478] cut=[False] whole-read=True
+044.patch 4844 bytes 48 lines: 1 read(s) ['044.patch:raw'] result bytes [4844] cut=[False] whole-read=True
+045.patch 5736 bytes 105 lines: 1 read(s) ['045.patch:raw'] result bytes [5736] cut=[False] whole-read=True
+046.patch 5382 bytes 36 lines: 1 read(s) ['046.patch:raw'] result bytes [5382] cut=[False] whole-read=True
+047.patch 16618 bytes 63 lines: 1 read(s) ['047.patch:raw'] result bytes [16618] cut=[False] whole-read=True
+048.patch 1252 bytes 20 lines: 1 read(s) ['048.patch:raw'] result bytes [1252] cut=[False] whole-read=True
+049.patch 2110 bytes 23 lines: 1 read(s) ['049.patch:raw'] result bytes [2110] cut=[False] whole-read=True
+050.patch 8475 bytes 54 lines: 1 read(s) ['050.patch:raw'] result bytes [8475] cut=[False] whole-read=True
+051.patch 4446 bytes 36 lines: 1 read(s) ['051.patch:raw'] result bytes [4446] cut=[False] whole-read=True
+052.patch 22706 bytes 106 lines: 1 read(s) ['052.patch:raw'] result bytes [22706] cut=[False] whole-read=True
+053.patch 7949 bytes 54 lines: 1 read(s) ['053.patch:raw'] result bytes [7949] cut=[False] whole-read=True
+054.patch 4522 bytes 36 lines: 1 read(s) ['054.patch:raw'] result bytes [4522] cut=[False] whole-read=True
+055.patch 6411 bytes 64 lines: 1 read(s) ['055.patch:raw'] result bytes [6411] cut=[False] whole-read=True
+056.patch 6824 bytes 52 lines: 1 read(s) ['056.patch:raw'] result bytes [6824] cut=[False] whole-read=True
+057.patch 436 bytes 9 lines: 1 read(s) ['057.patch:raw'] result bytes [436] cut=[False] whole-read=True
+058.patch 1843 bytes 32 lines: 1 read(s) ['058.patch:raw'] result bytes [1843] cut=[False] whole-read=True
+059.patch 367 bytes 9 lines: 1 read(s) ['059.patch:raw'] result bytes [367] cut=[False] whole-read=True
+060.patch 14153 bytes 21 lines: 1 read(s) ['060.patch:raw'] result bytes [14153] cut=[False] whole-read=True
+evidence 003.evidence.patch: ['003.evidence.patch:raw']
+evidence 006.evidence.patch: ['006.evidence.patch:raw']
+evidence 008.evidence.patch: ['008.evidence.patch:raw']
+evidence 012.evidence.patch: ['012.evidence.patch:raw']
+evidence 018.evidence.patch: ['018.evidence.patch:raw']
+evidence 033.evidence.patch: ['033.evidence.patch:1-88:raw']
+evidence 035.evidence.patch: ['035.evidence.patch:1-243:raw']
+evidence 043.evidence.patch: ['043.evidence.patch:raw']
+evidence 049.evidence.patch: ['049.evidence.patch:1-12:raw']
+manifest reads: 3
+patch files never read: none
+other tool calls: 41
+  read {"i": "Reading fix review inputs", "path": "/Users/tim/git/oh-my-pi/.worktrees/gate-delta-evidence-elision/.omp/team-config/evidence/gate/gate-delta-evidence-el
+  read {"i": "Reading review verification skill", "path": "skill://review-work"}
+  read {"i": "Inspecting workspace availability", "path": "/Users/tim/git/weaver/.worktrees/m5-app-design-workspace"}
+  grep {"i": "Locating material capture records", "pattern": "^diff --git|FAIL|PASS|carry|Carry", "path": "/tmp/f1-weaver-ClO5/delta/045.evidence.patch;/tmp/f1-weaver-
+  read {"i": "Reading shared stopping logic", "path": "/Users/tim/git/weaver/.worktrees/m5-app-design-workspace/app/preview/src/commonMain/kotlin/eu/weaver/app/preview
+  grep {"i": "Locating stopping integration points", "pattern": "ClosingBarrier|BoundedStop|fun open|fun stop|fun close|whenIdle|rendererGone|onRenderProcessGone|Frame
+  read {"i": "Reading stop lifecycle wiring", "path": "/Users/tim/git/weaver/.worktrees/m5-app-design-workspace/app/preview/src/androidMain/kotlin/eu/weaver/app/previe
+  read {"i": "Reading reader source capabilities", "path": "xd://read/sources"}
+  grep {"i": "Recovering full cancellation diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/010.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading complete routing test diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/001.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading complete stop test diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/002.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading full cancellation tests", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/005.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading complete deadline integration diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/007.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading complete desktop routing diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/009.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading stream wrapper correction diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/011.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading commit arbitration test diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/013.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading alignment amendment diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/020.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading amended task test diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/021.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading task completion diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/023.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading busy renderer fix entry", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/039.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading stopping spec amendment diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/040.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading renderer termination tests diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/041.patch:1-195", "case": true, "gitignore": false, "skip": 
+  grep {"i": "Reading renderer termination implementation diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/042.patch", "case": true, "gitignore": false, "skip
+  grep {"i": "Reading replacement view gating diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/045.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading review rejection record diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/044.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading lifecycle triage diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/046.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading replacement lifecycle contract diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/047.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading timing rejection diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/050.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading timing triage record diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/051.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading final timing contract diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/052.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading remaining review rejection diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/053.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading final triage diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/054.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading unified timing wording diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/055.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading closing review record diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/056.patch", "case": true, "gitignore": false, "skip": 0}
+  grep {"i": "Reading final task status diff", "pattern": "^", "path": "/tmp/f1-weaver-ClO5/delta/060.patch", "case": true, "gitignore": false, "skip": 0}
+  read {"i": "Reading final stop QA row", "path": "/Users/tim/git/weaver/.worktrees/m5-app-design-workspace/.omp/team-config/evidence/gate/m5-app-design-workspace/f1/a
+  grep {"i": "Locating final desktop link observation", "pattern": "Fix round 3|Fix round 4|32dc8c5d|activation|not observed|Carry|carri", "path": "/Users/tim/git/weav
+  grep {"i": "Locating iOS navigation decision", "pattern": "decidePolicyFor|targetFrame|LinkPolicy|LinkRequested|didFinishNavigation", "path": "/Users/tim/git/weaver/
+  grep {"i": "Inspecting teardown storage coverage", "pattern": "origin|clearPage|fun teardown|deleteAllData|clearCache|removeAllCookies|CLEAR_PAGE", "path": "/Users/t
+  read {"i": "Reading teardown callback ordering", "path": "/Users/tim/git/weaver/.worktrees/m5-app-design-workspace/app/preview/src/androidMain/kotlin/eu/weaver/app/p
+  yield {"type": "result", "data": {"verdict": "OKAY", "summary": "No evidenced blocker in the cumulative fixes for 4.22\u20134.25. The later commits resolve the early 
