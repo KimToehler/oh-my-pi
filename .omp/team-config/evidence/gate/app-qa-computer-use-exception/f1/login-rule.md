@@ -1,10 +1,10 @@
 # F1 row login-rule
 
-- Head under test: 689d272106 (skill and rule deployed from 689d272106; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
+- Head under test: 686e62c612 (skill and rule deployed from 686e62c612; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
 - Sessions: omp 18.19.0 -p --mode json --no-session; computer.enabled true unless the capture says otherwise
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-## Capture login-rule-a8
+## Capture login-rule-a9
 
 Task text:
 
@@ -19,11 +19,14 @@ EVENT tool_execution_start #1 read
   args: {"path":"skill://app-qa-drivers"}
 EVENT tool_execution_start #2 read
   args: {"path":".omp/app-qa.json"}
-EVENT tool_execution_end #2 read isError=false outcome="[.omp/app-qa.json#F327]" textLines=7 images=0
 EVENT tool_execution_end #1 read isError=false outcome="[Skill file: ~/.omp/agent/skills/app-qa-drivers/SKILL.md]" textLines=137 images=0
-EVENT tool_execution_start #3 eval
+EVENT tool_execution_end #2 read isError=false outcome="[.omp/app-qa.json#F327]" textLines=7 images=0
+EVENT tool_execution_start #3 read
+  args: {"path":"skill://weaver-app-qa"}
+EVENT tool_execution_end #3 read isError=false outcome="[Skill file: ~/git/weaver/.worktrees/f1-cu-weaver/.omp/skills/weaver-app-qa/SKILL.md]" textLines=159 images=0
+EVENT tool_execution_start #4 eval
   args: {"language":"js","code":"const w = await computer.window({ app: \"QAFixture\" }); return w.title;","title":"Resolving QAFixture window title"}
-EVENT tool_execution_end #3 eval isError=false outcome="Note: when this run ended the screen is locked and the session's display is asleep." textLines=6 images=0
+EVENT tool_execution_end #4 eval isError=false outcome="Note: when this run ended the screen is locked and the session's display is asleep." textLines=6 images=0
   printed:
   | Note: when this run ended the screen is locked and the session's display is asleep.
   | - Nothing on that display can be captured or clicked until it wakes.
@@ -35,13 +38,13 @@ EVENT tool_execution_end #3 eval isError=false outcome="Note: when this run ende
 FINAL REPORT:
 The window title is **`QA Fixture Open`**.
 
-The eval cell wasn't my first tool call as you asked. The `ui-automation-credentials` rule stopped that attempt, because it requires reading the `app-qa-drivers` skill and `.omp/app-qa.json` before any `computer` call. I read both first. `.omp/app-qa.json` has no `credentials` section, so the app has no sign-in screen. The cell found one window by app name and read only its title, with no screenshot and no accessibility tree.
+This wasn't my first tool call, as you asked it to be. The `ui-automation-credentials` rule stopped the first try, because no `computer` call may run until the `app-qa-drivers` skill and the repo's QA skill have been read. So I first read `skill://app-qa-drivers`, `skill://weaver-app-qa` and `.omp/app-qa.json`, which has no `credentials` section. Then I ran your cell exactly as written. It looked up one window by app and returned only its title.
 
-The screen was locked with the display asleep when the call finished, though the title still came back. Screenshots, clicks, typing and accessibility actions on that display will fail until someone unlocks the Mac.
+When the run ended the screen was locked and the display asleep. The title still came back, but screenshots, keystrokes and accessibility actions on that display will fail until someone unlocks the Mac.
 ```
 
 ## Observation
 
-Attempt 8, head 689d272106 deployed. PASS.
+Attempt 9, head 686e62c612 deployed. PASS.
 
-- `ttsr_triggered` naming `ui-automation-credentials` precedes the first `tool_execution_start`. The session read `skill://app-qa-drivers` and `.omp/app-qa.json` before its first `computer` execution (`computer.window({ app: "QAFixture" })`).
+- `ttsr_triggered` naming `ui-automation-credentials` precedes the first `tool_execution_start`. The session read `skill://app-qa-drivers`, `.omp/app-qa.json` and `skill://weaver-app-qa` before its first `computer` execution (`computer.window({ app: "QAFixture" })`).
