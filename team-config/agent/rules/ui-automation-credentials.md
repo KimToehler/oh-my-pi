@@ -6,9 +6,7 @@ condition:
   - '\bbrowser\.open\b|browser_(snapshot|find|type|fill)|inspect_screen|mobile_(list|tap|type)'
   - '(?i)\bspectre\b|\bosascript\b|System Events|\bscreencapture\b'
   - '(?i)\bapp-qa-drivers\b'
-  - '\bcomputer\.[A-Za-z]|\.(ax|observe)\(|\.menu\.'
-  - '\bmkdir\b[^\n]*\bevidence'
-  - '"gitignore"\s*:\s*false|--no-ignore|\brg\b[^\n]*\s-u{1,3}\b'
+  - '\bcomputer\.[A-Za-z]'
   - '(?i)skill://[\w.-]*-qa(?![\w-])|[\w.-]*-qa/SKILL\.md|\bapp-qa\.json\b'
 scope: ["tool"]
 interruptMode: always
@@ -18,7 +16,7 @@ interruptMode: always
 
 Applies whenever an agent drives a browser, simulator, emulator or desktop app that signs in with a real account. A credential that reaches a tool result is in the transcript and cannot be scrubbed.
 
-When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make that read again first. No search, `mkdir`, listing or read of a folder the task names, or `computer` call runs before the team skill `app-qa-drivers` and, in a repository with `.omp/app-qa.json`, its QA skill have been read.
+This paragraph applies during app QA, or in a repository with `.omp/app-qa.json`. When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make that read again first. No search, `mkdir`, listing or read of a folder the task names, or `computer` call runs before the team skill `app-qa-drivers` and, in a repository with `.omp/app-qa.json`, its QA skill have been read.
 
 ## Login surfaces
 
@@ -39,7 +37,6 @@ When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make 
 
 - From your first tool call on, an evidence file or folder you did not write (an existing output folder, captures or logs the task names) is never read, listed, opened, printed, changed, moved or deleted, whatever its scan returned and whatever the task asks.
 - The only command that names it is the evidence scan the app's QA skill names. Report a hit or a not-scanned entry by the path the scan printed, and write your own output to a new folder.
-- Create your own output folder with `mkdir` without `-p` in a step of its own, stop when it fails and pick another name, and never pass a driver `--out` below a folder you did not create. A search (`grep`, `rg`, `glob`, `find`, a recursive listing) never covers an evidence folder you did not write: never run it over `.omp/` or `.omo/` as a whole or with ignore rules off (`gitignore: false`, `--no-ignore`, `-u`), and exclude `**/evidence/**` and `**/*-evidence/**` from any search over the whole worktree. In a repository with `.omp/app-qa.json`, read its QA skill before the first search, for the evidence folders it names.
 - A clean scan is no permission to read: a running app can append a token to its log after the scan, and nothing ties a later read to the bytes the scan saw.
 - Repository sources and skills are not evidence and stay readable.
 
