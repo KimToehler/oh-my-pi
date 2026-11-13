@@ -1,14 +1,14 @@
 # Review
 
 - **Verdict**: OKAY
-- **Reviewed digest**: 90bab0b9e40cd392742429625f73c85cf18099025ba580c7dbbe1211291df9eb
+- **Reviewed digest**: 96d46483180cfb3e48dad35ac8e6782aa7c82095956357b679b3ba15c5792809
 - **Depth**: risky
-- **Reviewer**: plan-reviewer, ProposeComputerUse.PlanReviewDelta11
+- **Reviewer**: plan-reviewer, ProposeComputerUse.PlanReviewDelta12b
 - **Verifier**: blocker-verifier, none
-- **Models**: ProposeComputerUse.PlanReviewDelta11 onara/cx/gpt-6.1-sol
-- **Round**: 11
+- **Models**: ProposeComputerUse.PlanReviewDelta12b onara/cx/gpt-6.1-sol
+- **Round**: 12
 - **Awaiting**: none
-- **Override**: none (this delta check reviews the fix the user, Tim, authorized on 2026-11-13 after F1 attempt 4 failed `rt-search` and `rt-collide`: "Fix: rule bullet + mkdir-on-evidence condition, D10 rewrite, then delta check and full F1 run")
+- **Override**: none (this delta check reviews the fix the user, Tim, authorized on 2026-11-13 after F1 attempt 5 failed `rt-search` in onara: "Fix: add the **/evidence/** and **/*-evidence/** exclusion to rule and skill, then delta check and full F1 run". The first dispatch, ProposeComputerUse.PlanReviewDelta12, ran without a structured result (six invalid yield submissions); this is its one fresh retry with the same brief.)
 
 ## Blockers
 
@@ -16,4 +16,4 @@ none
 
 ## Residuals
 
-none (the delta check returned no blocker; its notes, that task 2.3's Verify checks shared clause keys rather than semantic equivalence (design D12 names the drift risk) and that the fresh F1 run still has to confirm the behaviour, are not findings).
+none (the delta check returned no blocker; its notes, that onara's QA skill names `docs/evidence/` and that the F1 rerun is still pending, are not findings).
