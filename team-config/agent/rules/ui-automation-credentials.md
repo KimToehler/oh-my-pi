@@ -8,6 +8,7 @@ condition:
   - '(?i)\bapp-qa-drivers\b'
   - '\bcomputer\.[A-Za-z]|\.(ax|observe)\(|\.menu\.'
   - '\bmkdir\b[^\n]*\bevidence'
+  - '"gitignore"\s*:\s*false|--no-ignore|\brg\b[^\n]*\s-u{1,3}\b'
 scope: ["tool"]
 interruptMode: always
 ---
