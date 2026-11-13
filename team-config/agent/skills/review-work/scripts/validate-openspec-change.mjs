@@ -645,7 +645,8 @@ async function consultationReport(sessionFile, changeDir) {
 /**
  * Checker over a snapshot: a Map of change-relative path (`/`-separated) to file bytes. It reads no change file from disk,
  * so a caller that digests the same snapshot validates exactly the bytes it pins; a consultation record is checked against
- * the shipped template and the architecture-oracle definition, which it reads from the installation.
+ * the shipped template and its own record invariants, never against the architecture-oracle definition, which only
+ * `--consultation-report` reads.
  */
 export function validateOpenSpecFiles(snapshot) {
 	const errors = [];
