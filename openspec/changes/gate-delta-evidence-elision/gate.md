@@ -18,8 +18,11 @@
   reads it), and no state machine changes. Product, because it gates every product change.
 - **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
 - **Accepted residual risks**:
-  - A QA harness script kept under `.omp/team-config/evidence/` that a fix round changes is shown to the delta reviewer
-    only as a directory line; its effect is judged through the QA row it produces in the wave (design.md Risks).
+  - A QA harness script kept under `.omp/team-config/evidence/` that a fix round changes is shown in the patch only as
+    a directory line; its hunk is in that commit's evidence file, read on demand, and its effect is judged through the
+    QA row it produces in the wave (design.md Risks).
+  - A binary capture (screenshot) in an evidence file is git's `Binary files ... differ` line only, as in today's
+    patches.
   - Merge commits keep `git show`'s combined diff, which is empty for a clean merge: a merge's content is reviewed
     through its parents' commits or a main-merge range, as today.
 - **Out of scope for blocking**:
