@@ -6,7 +6,7 @@ Gives an `omp-gated` change one cross-family architecture consultation before fo
 
 ### Requirement: Consultation before a risky round
 
-Before dispatching a full round at depth `risky`, or a delta check after a fix that made the change `risky`, on any path (the incomplete-round re-run included), while the folder holds no `consulted` or `skipped` `consultation.md`, the `review` instruction SHALL run one architecture consultation on the committed folder, unless the user told it to skip with a reason, recorded as a `skipped` record. At `standard` depth it SHALL run one only when the user asks.
+Before any `plan-reviewer` dispatch, a full round or a delta check, on any path (the incomplete-round re-run included), of a change whose `gate.md` makes it `risky`, while the folder holds no `consulted` or `skipped` `consultation.md`, the `review` instruction SHALL run one architecture consultation on the committed folder, unless the user told it to skip with a reason, recorded as a `skipped` record. When the review of such a change is re-run while its `review.md` is OKAY on the current digest, it SHALL run the consultation, or record the skip, without dispatching a round, and SHALL dispatch a round only when an adopted edit made the review stale. At `standard` depth it SHALL run one only when the user asks.
 
 #### Scenario: Risky change before round 1
 
@@ -48,14 +48,24 @@ Before dispatching a full round at depth `risky`, or a delta check after a fix t
 - **WHEN** the user answers Fix to the exhaustion ask of a `standard` change, the fix makes the change `risky`, and the folder holds no `consultation.md`
 - **THEN** the consultation runs, and its record is committed, before the successor delta check, whose patch includes the adopted edits
 
+#### Scenario: Delta check of a change already risky
+
+- **WHEN** a `risky` change without `consultation.md`, whose two full rounds ran before this deploy, takes the delta check that follows an exhaustion Fix
+- **THEN** the consultation runs, and its record is committed, before that delta check is dispatched
+
+#### Scenario: Approved before this deploy
+
+- **WHEN** the review of a `risky` change whose `review.md` is OKAY on the current digest and whose folder holds no `consultation.md` is re-run, and the user skips with a reason, or the author rejects every finding of the counted report
+- **THEN** the record is committed, no `plan-reviewer` is dispatched, and `--reviewed` passes
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction dispatches a full `risky` round, on any path, or a delta check after a fix that made the change `risky`, of a change without a `consulted` or `skipped` `consultation.md`, dispatches a consultation for a change whose record is `consulted` or `skipped`, or dispatches a consultation while the change folder has uncommitted changes
+- **WHEN** an instruction dispatches a full round or a delta check of a `risky` change without a `consulted` or `skipped` `consultation.md`, on any path, dispatches a round after a consultation or skip that left an OKAY review current, dispatches a consultation for a change whose record is `consulted` or `skipped`, or dispatches a consultation while the change folder has uncommitted changes
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: A consultation survives interruption
 
-A change SHALL get at most one counted consultation from at most two dispatches, across session interruptions. Each attempt SHALL be named in a committed `pending` record before it is dispatched. A session that finds a `pending` record SHALL resolve every named attempt, before it dispatches anything, from the one session file its entry names, and SHALL count it only when that file's brief names this change directory.
+A change SHALL get at most one counted consultation, across session interruptions, from attempts dispatched in pairs of at most two: the admission authorizes the first pair, and after the user answered Stop, only an explicit request of the user to consult again authorizes the next pair, with every earlier attempt kept in the record. Each attempt SHALL be named in a committed `pending` record before it is dispatched. A session that finds a `pending` record SHALL resolve every named attempt, before it dispatches anything, from the one session file its entry names, and SHALL count it only when that file's brief names this change directory.
 
 #### Scenario: Interrupted after the report was delivered
 
@@ -72,9 +82,14 @@ A change SHALL get at most one counted consultation from at most two dispatches,
 - **WHEN** a `pending` record's entry names a session file whose brief names another change directory and whose last `yield` holds a report on the pinned model
 - **THEN** that attempt counts as failed and its report is not used
 
+#### Scenario: Consultation requested again after a Stop
+
+- **WHEN** the user, after answering Stop to the ask that follows two failed attempts and fixing the installation, asks for the consultation again
+- **THEN** attempt 3 is dispatched with both earlier attempts kept under Models, at most attempt 4 follows it before the ask is repeated, and a session resuming the `pending` record without such a request dispatches nothing and asks again
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction dispatches an attempt before a committed `pending` record names it, re-dispatches an attempt whose session file holds a report, dispatches a third attempt, finds an attempt's session file by its name, or counts a report whose session file is not the one the entry names or whose brief names another change directory
+- **WHEN** an instruction dispatches an attempt before a committed `pending` record names it, re-dispatches an attempt whose session file holds a report, dispatches a third or later attempt without the user's request to consult again after a Stop, dispatches more than two attempts for one such request, finds an attempt's session file by its name, or counts a report whose session file is not the one the entry names or whose brief names another change directory
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fixed consultation brief on the pinned agent
@@ -93,7 +108,7 @@ The consultation SHALL be one fresh `architecture-oracle` task item that carries
 
 ### Requirement: A consultation counts only on its pinned model
 
-Every consultation attempt SHALL count only when the report check accepts it, which compares every model in its session file with the `model` of the `architecture-oracle` definition, never with a configured `task.agentModelOverrides` entry. A refused attempt SHALL get one fresh retry. If the retry also fails, the user SHALL choose between skipping with a reason in their words and stopping. No other model's report and no analysis of the author's own SHALL stand in for the consultation.
+Every consultation attempt SHALL count only when the report check accepts it, which compares every model in its session file with the `model` of the `architecture-oracle` definition, never with a configured `task.agentModelOverrides` entry. A refused attempt SHALL get one fresh retry. If the retry also fails, the user SHALL choose between skipping with a reason in their words and stopping; after a Stop, further attempts follow only as requirement "A consultation survives interruption" allows. No other model's report and no analysis of the author's own SHALL stand in for the consultation.
 
 #### Scenario: Installation without the model entry
 
@@ -188,7 +203,7 @@ The fixed full-round brief and the fixed delta brief SHALL name `consultation.md
 
 ### Requirement: The consultation record is well formed
 
-The validator, in its plain run and under `--reviewed`, SHALL refuse at any depth a `consultation.md` that does not follow the template. Every header field and both sections SHALL appear exactly once. A `consulted` record SHALL have a 40-hex consulted commit, `architecture-oracle, <id>`, Models, a bottom line equal to the report's verdict, the report as one JSON line of the agent's output schema, and one disposition per report finding, in its order. A `skipped` record SHALL have a reason.
+The validator, in its plain run and under `--reviewed`, SHALL refuse at any depth a `consultation.md` that does not follow the template. Every header field and both sections SHALL appear exactly once. A `consulted` record SHALL have a 40-hex consulted commit, `architecture-oracle, <id>`, Models, a bottom line equal to the report's verdict, the report as one JSON object line holding the verdict and a findings array whose ids are nonempty, single-line and distinct, and one disposition per report finding, in its order. A `skipped` record SHALL have a reason. This check SHALL NOT read the `architecture-oracle` definition, so a record keeps its validity when the definition's `output` schema changes or the definition is missing.
 
 #### Scenario: Consulted without findings
 
@@ -200,9 +215,14 @@ The validator, in its plain run and under `--reviewed`, SHALL refuse at any dept
 - **WHEN** a `pending` record names one dispatched attempt
 - **THEN** the plain run passes and `--reviewed` fails naming `consultation.md`
 
+#### Scenario: Definition changed after the record
+
+- **WHEN** the `architecture-oracle` definition's `output` schema gains a required field after a `consulted` record was written, or the definition is missing
+- **THEN** that record and a `skipped` record still pass the plain run and `--reviewed`
+
 #### Scenario: Negative control
 
-- **WHEN** a `consulted` record has a report finding without its `### ` subsection, a subsection without a `- **Disposition**:` bullet, a report line that is not JSON or lacks a report field, a Bottom line other than the report's verdict, a Status other than `consulted`, `skipped` or `pending`, a `skipped` record has Skip reason `none`, a `pending` record has no attempt, or a Consultant field names an agent other than `architecture-oracle`
+- **WHEN** a `consulted` record has a report finding without its `### ` subsection, a subsection without a `- **Disposition**:` bullet, a report line that is not a JSON object or lacks `bottom_line.verdict` or `findings`, two report findings with the same id, a Bottom line other than the report's verdict, a Status other than `consulted`, `skipped` or `pending`, a `skipped` record has Skip reason `none`, a `pending` record has no attempt, or a Consultant field names an agent other than `architecture-oracle`
 - **THEN** the plain run MUST fail and `--reviewed` MUST fail, each naming the defective field
 
 ### Requirement: Record text is kept verbatim
@@ -232,6 +252,11 @@ The validator SHALL refuse a record value as unfilled only when it still holds t
 
 - **WHEN** the session file names another change directory, has a turn on another model, ends with a `yield` the runtime refused (even after an earlier accepted one), an incremental section or a `yield` without `data`, or carries a report with two findings of the same id
 - **THEN** the check MUST fail with exit 1 and name the reason
+
+#### Scenario: Report over the described limits
+
+- **WHEN** the session file of an attempt for this change, on the definition's model, ends with an accepted terminal `yield` whose `data` holds six findings and four uncertainties
+- **THEN** the check exits 0 and prints the report
 
 #### Scenario: Schema changed in the definition
 
