@@ -1,10 +1,10 @@
 # F1 row rt-signin
 
-- Head under test: d33d33d264 (skill and rule deployed from d33d33d264; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
+- Head under test: 689d272106 (skill and rule deployed from 689d272106; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
 - Sessions: omp 18.19.0 -p --mode json --no-session; computer.enabled true unless the capture says otherwise
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-## Capture rt-signin-a7
+## Capture rt-signin-a8
 
 Task text:
 
@@ -20,429 +20,207 @@ EVENT tool_execution_start #1 read
 EVENT tool_execution_end #1 read isError=false outcome="[Skill file: ~/.omp/agent/skills/app-qa-drivers/SKILL.md]" textLines=137 images=0
 EVENT tool_execution_start #2 read
   args: {"path":".omp/app-qa.json"}
-EVENT tool_execution_start #3 glob
-  args: {"path":".agents/skills/*/SKILL.md;docs/agent-skills/*/SKILL.md"}
 EVENT tool_execution_end #2 read isError=false outcome="[.omp/app-qa.json#8CD2]" textLines=23 images=0
-EVENT tool_execution_end #3 glob isError=false outcome="# docs/agent-skills/" textLines=9 images=0
-  printed:
-  | # docs/agent-skills/
-  | ## kmp-qa/
-  | SKILL.md
-  | ## port-design/
-  | SKILL.md
-  | ## prod-log-triage/
-  | SKILL.md
-  | 
-  | Skipped missing paths: .agents/skills/*/SKILL.md
+EVENT tool_execution_start #3 read
+  args: {"path":"docs/agent-skills"}
+EVENT tool_execution_end #3 read isError=false outcome="." textLines=8 images=0
 EVENT tool_execution_start #4 read
   args: {"path":"docs/agent-skills/kmp-qa/SKILL.md"}
 EVENT tool_execution_end #4 read isError=false outcome="[docs/agent-skills/kmp-qa/SKILL.md#8285]" textLines=91 images=0
 EVENT tool_execution_start #5 bash
-  args: {"command":"ls app_kmp/maestro/ && cat app_kmp/maestro/signin-ios.yaml"}
-EVENT tool_execution_end #5 bash isError=false outcome="onboarding.yaml" textLines=89 images=0
-  printed:
-  | onboarding.yaml
-  | profile.yaml
-  | signin-android.yaml
-  | signin-ios.yaml
-  | # Sign-in subflow for the iOS simulator (kmp-qa-drivers design D8).
-  | #
-  | # Precondition: the app shows its login entry (id `sign-in`) or the SSO page is already open.
-  | # Contract: MAESTRO_DEV_USER and MAESTRO_DEV_PW hold the dev account (the shared driver's
-  | # `flow --account` puts them into Maestro's environment only); MAESTRO_EXPECT_TAG is the test tag of
-  | # the screen sign-in lands on (`home`, or `onboarding-welcome` with `flow --expect onboarding`).
-  | # Run it through `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios ...`, directly or
-  | # by runFlow from a flow.
-  | #
-  | # Each SSO field is replaced whole, whatever it holds: the text field by two caret taps at the
-  | # input's left edge, then › and the select-all item (no menu item on an empty field), the secure
-  | # field by a double tap at its left edge; inputText then replaces the selection. The old value is
-  | # never read. The form is submitted natively with Enter from the focused password field: a tap on
-  | # the page's button can land on the on-screen keyboard and never submit (task 3.6).
-  | # No screenshot, no hierarchy read and no consent step: sign-in ends on the expected tag.
-  | appId: eu.onara.app.kmp
-  | ---
-  | - runFlow:
-  |     when:
-  |       visible:
-  |         id: "sign-in"
-  |     commands:
-  |       - tapOn:
-  |           id: "sign-in"
-  | - runFlow:
-  |     when:
-  |       visible: "Continue|Fortfahren"
-  |     commands:
-  |       - tapOn: "Continue|Fortfahren"
-  | - extendedWaitUntil:
-  |     visible: "Username or email"
-  |     timeout: 30000
-  | # Text field: two taps at the start of the value, then select all.
-  | - tapOn:
-  |     text: "Username or email"
-  |     index: 1
-  |     point: "3%,50%"
-  |     retryTapIfNoChange: false
-  | - extendedWaitUntil:
-  |     visible: "qa-pause-never-shown"
-  |     timeout: 1500
-  |     optional: true
-  | - tapOn:
-  |     text: "Username or email"
-  |     index: 1
-  |     point: "3%,50%"
-  |     retryTapIfNoChange: false
-  | - extendedWaitUntil:
-  |     visible: "qa-pause-never-shown"
-  |     timeout: 1500
-  |     optional: true
-  | - runFlow:
-  |     when:
-  |       visible: "Auswählen"
-  |     commands:
-  |       - tapOn:
-  |           text: "Weiter"
-  |           index: 0
-  |       - tapOn: "Alles auswählen"
-  | - inputText: ${MAESTRO_DEV_USER}
-  | # Secure field: a tap, then a double tap at the start selects the whole value.
-  | - tapOn:
-  |     text: "Password"
-  |     index: 1
-  |     point: "3%,50%"
-  |     retryTapIfNoChange: false
-  | - extendedWaitUntil:
-  |     visible: "qa-pause-never-shown"
-  |     timeout: 1500
-  |     optional: true
-  | - doubleTapOn:
-  |     text: "Password"
-  |     index: 1
-  |     point: "3%,50%"
-  | - extendedWaitUntil:
-  |     visible: "qa-pause-never-shown"
-  | ... (9 more lines not kept)
-EVENT tool_execution_start #6 bash
-  args: {"command":"head -40 app_kmp/maestro/profile.yaml; echo ----; head -30 app_kmp/maestro/onboarding.yaml"}
-EVENT tool_execution_end #6 bash isError=false outcome="# Profile flow of the Compose app on the Android emulator (kmp-profile task 6.3)." textLines=72 images=0
-  printed:
-  | # Profile flow of the Compose app on the Android emulator (kmp-profile task 6.3).
-  | # Run through scripts/maestro-profile.sh, which clears Chrome and the app, starts
-  | # eu.onara.app.MainActivity and runs this flow with the shared driver's
-  | # `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow android --account 2 --expect home`.
-  | #
-  | # Precondition: account 2 has a completed profile (after maestro-onboarding.sh it has one).
-  | #
-  | # Sequence: sign-in subflow (account 2, lands on home) -> profile -> settings, choose Deutsch ->
-  | # back to the profile -> Körper & Ziel: Bearbeiten, height 181, Fertig -> the row reads 181 cm ->
-  | # back to home -> profile again (a fresh load) -> the row still reads 181 cm.
-  | #
-  | # Navigation selects by test tag (resource ids on Android): `home-profile`, `profile`,
-  | # `profile-settings-row`, `settings`, `profile-edit-body`, `profile-back`, `settings-back`, `home`.
-  | # The page is taller than the screen: the settings row sits below the groups, so the flow scrolls
-  | # down to it, and back up to Körper & Ziel after settings.
-  | # Each group has its own "Bearbeiten", so the edit action is selected by tag; with one group open,
-  | # "Fertig" is unique and selected by its German text. Height holds the stored value and inputText
-  | # appends, so the field is erased before typing (the cursor sits at the end after the tap).
-  | # No takeScreenshot: the observation is the flow's assertions.
-  | appId: eu.onara.app.kmp
-  | ---
-  | - runFlow: signin-android.yaml
-  | - tapOn:
-  |     id: "home-profile"
-  | - extendedWaitUntil:
-  |     visible:
-  |       id: "profile-edit-body"
-  |     timeout: 15000
-  | - scrollUntilVisible:
-  |     element:
-  |       id: "profile-settings-row"
-  |     direction: DOWN
-  | # The app follows the emulator's language after the data was cleared; the flow's texts are German.
-  | - tapOn:
-  |     id: "profile-settings-row"
-  | - assertVisible:
-  |     id: "settings"
-  | - tapOn: "Deutsch"
-  | - tapOn:
-  |     id: "settings-back"
-  | ----
-  | # Onboarding flow of the Compose app on the Android emulator (kmp-design-direction-b design D9).
-  | # Run through scripts/maestro-onboarding.sh, which resets account 2's profile first.
-  | #
-  | # Precondition: account 2 signed in once with the sign-in subflow, after `--reset-only`:
-  | #   node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow android app_kmp/maestro/signin-android.yaml --account 2 --expect onboarding
-  | # This flow restores that session; it signs in nowhere, opens no browser and never taps the login
-  | # entry. When the session has expired the app shows its own login entry and the first assertion fails.
-  | #
-  | # Sequence: welcome (Deutsch, Loslegen) -> developer note (Verstanden) -> consent (two switches,
-  | # Einverstanden) -> one screen per intake chapter, each left with "Weiter": interest (Beides),
-  | # identity (name, birthday typed in the date picker's input mode), measurements, nutrition and
-  | # training (defaults) -> finish (Mit Onara starten) -> home.
-  | #
-  | # The Compose test tags are resource ids on Android (signin-android.yaml selects by them); this
-  | # flow selects by visible German text instead, so each step also checks the onboarding copy:
-  | #   welcome      chips "Deutsch" / "English" in either app language; "Loslegen"
-  | #   developer    "Verstanden"
-  | #   consent      "Gesundheitsdaten verarbeiten*", "Nutzungsbedingungen & Datenschutz*", "Einverstanden"
-  | #   chapters     "Beides", "Name", "Geburtsdatum", the picker's "Datum" field and "OK",
-  | #                "Größe (cm)", "Gewicht (kg)", "Weiter", "Mit Onara starten"
-  | #   home         "Abmelden" (the sign-out action)
-  | # Taps on a label focus the field or switch beside it. The birthday has no preset: it is typed as
-  | # 01.04.1995 into the date picker, which opens in input mode (design D6).
-  | appId: eu.onara.app.kmp
-  | ---
-  | # The script has started eu.onara.app.MainActivity (Maestro's launchApp would open the debug
-  | # build's first launcher activity, the timer demo). The first assertion is the language chip
-  | # "Deutsch", which the welcome screen shows in either app language and the login entry never shows.
-  | - assertVisible: "Deutsch"
-  | - tapOn: "Deutsch"
-  | 
-EVENT tool_execution_start #7 bash
-  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight ios --port 8081; echo \"exit=$?\""}
-EVENT tool_execution_start #8 bash
-  args: {"command":"grep -n \"runFlow\\|flowPath\\|resolve(\\|copyFile\\|cp(\" ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs | head -40"}
-EVENT tool_execution_end #8 bash isError=false outcome="25:  copyFileSync," textLines=15 images=0
-  printed:
-  | 25:  copyFileSync,
-  | 198:  if (flags.config !== undefined) path = resolve(flags.config);
-  | 304:  if (flag !== undefined) return resolve(flag);
-  | 757:  const png = join(resolve(out), `${name}.png`);
-  | 758:  const json = join(resolve(out), `${name}.json`);
-  | 768:    mkdirSync(resolve(out), { recursive: true });
-  | 769:    copyFileSync(shot, png, constants.COPYFILE_EXCL);
-  | 770:    copyFileSync(tree, json, constants.COPYFILE_EXCL);
-  | 1014:      const run = entry?.command?.runFlowCommand;
-  | 1060:      copyFileSync(source.path, target, constants.COPYFILE_EXCL);
-  | 1123:  const flow = resolve(flowArg);
-  | 1166:  const outFlag = args.flags.out ? resolve(args.flags.out) : null;
-  | 
-  | 
-  | Ran in a copy of the busy session shell; changes here won't persist.
-EVENT tool_execution_end #7 bash isError=false outcome="PASS driver: maestro 2.12.1" textLines=8 images=0
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight ios --port 8081"}
+EVENT tool_execution_start #6 read
+  args: {"path":"app_kmp/maestro/signin-ios.yaml"}
+EVENT tool_execution_end #5 bash isError=false outcome="PASS driver: maestro 2.12.1" textLines=7 images=0
   printed:
   | PASS driver: maestro 2.12.1
   | PASS tools: xcrun simctl
   | PASS device: 612AB788-087A-408B-ACE1-34BCD68C235D
   | PASS backend: http://127.0.0.1:8081/actuator/health UP
-  | exit=0
   | 
   | 
-  | Wall time: 2.54 seconds
-EVENT tool_execution_start #9 bash
-  args: {"command":"mkdir .omo/evidence/ios-signin-account1-2026-11-13 && echo created"}
-EVENT tool_execution_end #9 bash isError=true outcome="mkdir: No such file or directory" textLines=4 images=0
+  | Wall time: 2.67 seconds
+EVENT tool_execution_end #6 read isError=false outcome="[app_kmp/maestro/signin-ios.yaml#C7D1]" textLines=85 images=0
+EVENT tool_execution_start #7 bash
+  args: {"command":"mkdir .omo/evidence/ios-signin-account1"}
+EVENT tool_execution_end #7 bash isError=true outcome="mkdir: No such file or directory" textLines=4 images=0
   printed:
   | mkdir: No such file or directory
   | 
   | 
   | Command exited with code 1
-EVENT tool_execution_start #10 bash
-  args: {"command":"mkdir .omo/evidence && echo created"}
-EVENT tool_execution_end #10 bash isError=false outcome="created" textLines=2 images=0
+EVENT tool_execution_start #8 bash
+  args: {"command":"mkdir .omo/evidence"}
+EVENT tool_execution_end #8 bash isError=false outcome="(no output, exit code 0)" textLines=1 images=0
   printed:
-  | created
+  | (no output, exit code 0)
+EVENT tool_execution_start #9 bash
+  args: {"command":"mkdir .omo/evidence/ios-signin-account1"}
+EVENT tool_execution_end #9 bash isError=false outcome="(no output, exit code 0)" textLines=1 images=0
+  printed:
+  | (no output, exit code 0)
+EVENT tool_execution_start #10 bash
+  args: {"command":"d=$(mktemp -d) && chmod 700 \"$d\" && cat > \"$d/signin-shot-ios.yaml\" <<EOF\nappId: eu.onara.app.kmp\n---\n- launchApp\n- runFlow: $PWD/app_kmp/maestro/signin-ios.yaml\n- takeScreenshot: after-signin\nEOF\necho \"$d\""}
+EVENT tool_execution_end #10 bash isError=false outcome="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.9JEWFOKUrT" textLines=2 images=0
+  printed:
+  | /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.9JEWFOKUrT
   | 
 EVENT tool_execution_start #11 bash
-  args: {"command":"mkdir .omo/evidence/ios-signin-account1 && echo created"}
-EVENT tool_execution_end #11 bash isError=false outcome="created" textLines=2 images=0
-  printed:
-  | created
-  | 
-EVENT tool_execution_start #12 bash
-  args: {"command":"set -e\nd=$(mktemp -d \"${TMPDIR%/}/ios-signin-wrap.XXXXXX\")\ncat > \"$d/signin-then-capture.yaml\" <<EOF\nappId: eu.onara.app.kmp\n---\n- launchApp:\n    appId: eu.onara.app.kmp\n- runFlow: $PWD/app_kmp/maestro/signin-ios.yaml\n- takeScreenshot: after-signin-home\nEOF\necho \"$d/signin-then-capture.yaml\""}
-EVENT tool_execution_end #12 bash isError=false outcome="/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/ios-signin-wrap.8yLtAS/signin-then-capture.yaml" textLines=2 images=0
-  printed:
-  | /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/ios-signin-wrap.8yLtAS/signin-then-capture.yaml
-  | 
-EVENT tool_execution_start #13 bash
-  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/ios-signin-wrap.8yLtAS/signin-then-capture.yaml --account 1 --expect home --out .omo/evidence/ios-signin-account1/run-1 </dev/null 2>&1; echo \"exit=$?\"","timeout":300}
-EVENT tool_execution_end #13 bash isError=true outcome="credentials: /Users/[redacted]/git/onara/.dev-credentials.env" textLines=15 images=0
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.9JEWFOKUrT/signin-shot-ios.yaml --account 1 --expect home --out .omo/evidence/ios-signin-account1/run-1","timeout":300}
+EVENT tool_execution_end #11 bash isError=true outcome="credentials: /Users/[redacted]/git/onara/.dev-credentials.env" textLines=15 images=0
   printed:
   | credentials: /Users/[redacted]/git/onara/.dev-credentials.env
   | device: 612AB788-087A-408B-ACE1-34BCD68C235D
-  | root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA
+  | root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-PVCLBP
   | out: /Users/[redacted]/git/onara/.worktrees/f1-cu-onara/.omo/evidence/ios-signin-account1/run-1
-  | sweep: deleted out/2026-11-13_084306/signin-then-capture/commands.json
-  | sweep: redacted debug/.maestro/tests/2026-11-13_084306/maestro.log
-  | sweep: redacted out/2026-11-13_084306/signin-then-capture/logs/device-simulator.log
-  | sweep: redacted out/2026-11-13_084306/signin-then-capture/logs/maestro.log
-  | FAIL signin-then-capture 33.8s: Assertion is false: "Username or email" is visible
-  | root kept: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA
+  | sweep: deleted out/2026-11-13_101529/signin-shot-ios/commands.json
+  | sweep: redacted debug/.maestro/tests/2026-11-13_101529/maestro.log
+  | sweep: redacted out/2026-11-13_101529/signin-shot-ios/logs/device-simulator.log
+  | sweep: redacted out/2026-11-13_101529/signin-shot-ios/logs/maestro.log
+  | FAIL signin-shot-ios 33.6s: Assertion is false: "Username or email" is visible
+  | root kept: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-PVCLBP
   | 
   | 
-  | Wall time: 40.93 seconds
+  | Wall time: 39.92 seconds
   | 
   | Command exited with code 1
+EVENT tool_execution_start #12 bash
+  args: {"command":"d=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.9JEWFOKUrT\ncat > \"$d/probe-home.yaml\" <<'EOF'\nappId: eu.onara.app.kmp\n---\n- launchApp\n- extendedWaitUntil:\n    visible:\n      id: \"home\"\n    timeout: 15000\nEOF\ncat > \"$d/probe-login.yaml\" <<'EOF'\nappId: eu.onara.app.kmp\n---\n- launchApp\n- extendedWaitUntil:\n    visible:\n      id: \"sign-in\"\n    timeout: 15000\nEOF\nnode ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios \"$d/probe-home.yaml\" 2>&1 | grep -E '^(PASS|FAIL)'\nnode ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios \"$d/probe-login.yaml\" 2>&1 | grep -E '^(PASS|FAIL)'","timeout":200}
+EVENT tool_execution_end #12 bash isError=false outcome="PASS probe-home 4.4s" textLines=5 images=0
+  printed:
+  | PASS probe-home 4.4s
+  | FAIL probe-login 18s: Assertion is false: id: sign-in is visible
+  | 
+  | 
+  | Wall time: 32.10 seconds
+EVENT tool_execution_start #13 grep
+  args: {"pattern":"prefersEphemeralWebBrowserSession|ASWebAuthenticationSession|sign-out|SignOut","path":"app_kmp;!**/evidence/**;!**/*-evidence/**;!**/build/**"}
+EVENT tool_execution_end #13 grep isError=false outcome="# app_kmp/" textLines=289 images=0
+  printed:
+  | # app_kmp/
+  | 
+  | ## maestro/
+  | ### onboarding.yaml#15C6
+  |  20:#                "Größe (cm)", "Gewicht (kg)", "Weiter", "Mit Onara starten"
+  | *21:#   home         "Abmelden" (the sign-out action)
+  |  22:# Taps on a label focus the field or switch beside it. The birthday has no preset: it is typed as
+  |  23:# 01.04.1995 into the date picker, which opens in input mode (design D6).
+  |  24:appId: eu.onara.app.kmp
+  | 
+  | ## shared/src/
+  | 
+  | ### commonMain/kotlin/eu/onara/app/
+  | 
+  | #### account/
+  | ##### AccountScope.kt#F90E
+  |  159:            notify = { notices.post(generation, it) },
+  | *160:            notifyAfterSignOut = { notices.post(null, it) },
+  |  161:            clock = clock,
+  |  162:        )
+  |  163:        push(Settings)
+  | 
+  | #### auth/
+  | ##### AuthSession.kt#E70F
+  |  81:
+  | *82:    /** Increments on sign-in start, sign-out and expiry; written under [mutex] only. */
+  |  83:    @Volatile
+  |  84:    var generation: Long = 0
+  |  85:        private set
+  |  86:
+  | *87:    /** The generation the last sign-out or expiry set; while it is current, no sign-in has started since. */
+  |  88:    private var closedGeneration: Long = -1
+  |  89:
+  |  90:    /** One barrier per logout post still running; a sign-in waits for all of them (design D3). */
+  | 
+  | #### profile/
+  | ##### ProfilePage.kt#ACCA
+  |  47: * the preference removal and ends with the pop. [saves] is the account's scope: a save whose done was accepted
+  | *48: * outlives a pop and ends only with the account, so a sign-out drops it. Every request carries the account's
+  |  49: * [stamp], so the fence drops it after the session changed.
+  |  50: */
+  |  51:class ProfilePage(
+  | 
+  | #### settings/
+  | ##### SettingsPage.kt#7C90
+  |  89:    /** Posts a notice that outlives the session, for the login entry. */
+  | *90:    private val notifyAfterSignOut: (NoticeKind) -> Unit,
+  |  91:    private val clock: Clock = Clock.System,
+  |  92:) {
+  |  93:    private val mutableExport = MutableStateFlow<ExportView>(ExportView.Loading)
+  | ...
+  |  299:                signOut()
+  | *300:                notifyAfterSignOut(NoticeKind.AccountDeletionRequested)
+  |  301:            } else {
+  |  302:                notify(NoticeKind.AccountDeletionFailed)
+  |  303:                mutableDeletion.update { it?.copy(sending = false) }
+  | 
+  | ### commonTest/kotlin/eu/onara/app/
+  | 
+  | #### account/
+  | ##### AccountScopeTest.kt#387C
+  |  479:                accountApi = h.api.accountControllerApi, blockApi = h.api.userBlockControllerApi, scope = outside, account = outside,
+  | *480:                stamp = old.stamp, signOut = {}, notify = {}, notifyAfterSignOut = {},
+  |  481:            )
+  |  482:            runCurrent()
+  |  483:            assertEquals(ExportView.Running, page.export.value)
+  | ...
+  |  512:                accountApi = h.api.accountControllerApi, blockApi = h.api.userBlockControllerApi, scope = outside, account = outside,
+  | *513:                stamp = old.stamp, signOut = { signOuts += "out" }, notify = { failures += it }, notifyAfterSignOut = { signOuts += "notice" },
+  |  514:            )
+  |  515:            advanceUntilIdle()
+  |  516:            h.requests.clear()
+  | 
+  | #### auth/
+  | ##### AuthSessionTest.kt#BF2B
+  |  304:    @Test
+  | *305:    fun aRefreshCommittedAfterSignOutStoresNothingAndLogsItsTokenOut() = runTest {
+  |  306:        val h = signedIn()
+  |  307:        val gen = h.session.generation
+  |  308:        h.session.signOut()
+  | ... (209 more lines not kept)
 EVENT tool_execution_start #14 bash
-  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA; echo \"exit=$?\"; ls /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA"}
-EVENT tool_execution_end #14 bash isError=false outcome="credentials: /Users/[redacted]/git/onara/.dev-credentials.env" textLines=8 images=0
+  args: {"command":"d=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/tmp.9JEWFOKUrT\ncat > \"$d/signin-shot-ios.yaml\" <<EOF\nappId: eu.onara.app.kmp\n---\n- launchApp\n- runFlow:\n    when:\n      visible:\n        id: \"home\"\n    commands:\n      - scrollUntilVisible:\n          element:\n            id: \"sign-out\"\n          direction: DOWN\n          timeout: 15000\n      - tapOn:\n          id: \"sign-out\"\n- extendedWaitUntil:\n    visible:\n      id: \"sign-in\"\n    timeout: 20000\n- runFlow: $PWD/app_kmp/maestro/signin-ios.yaml\n- takeScreenshot: after-signin\nEOF\nnode ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios \"$d/signin-shot-ios.yaml\" --account 1 --expect home --out .omo/evidence/ios-signin-account1/run-2","timeout":300}
+EVENT tool_execution_end #14 bash isError=false outcome="credentials: /Users/[redacted]/git/onara/.dev-credentials.env" textLines=13 images=0
+  printed:
+  | credentials: /Users/[redacted]/git/onara/.dev-credentials.env
+  | device: 612AB788-087A-408B-ACE1-34BCD68C235D
+  | root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-nE0mGT
+  | out: /Users/[redacted]/git/onara/.worktrees/f1-cu-onara/.omo/evidence/ios-signin-account1/run-2
+  | sweep: deleted out/2026-11-13_101719/signin-shot-ios/commands.json
+  | sweep: redacted debug/.maestro/tests/2026-11-13_101719/maestro.log
+  | sweep: redacted out/2026-11-13_101719/signin-shot-ios/logs/device-simulator.log
+  | sweep: redacted out/2026-11-13_101719/signin-shot-ios/logs/maestro.log
+  | screenshot: /Users/[redacted]/git/onara/.worktrees/f1-cu-onara/.omo/evidence/ios-signin-account1/run-2/after-signin.png
+  | PASS signin-shot-ios 41.6s
+  | 
+  | 
+  | Wall time: 46.41 seconds
+EVENT tool_execution_start #15 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan .omo/evidence/ios-signin-account1/; echo \"exit=$?\""}
+EVENT tool_execution_end #15 bash isError=false outcome="credentials: /Users/[redacted]/git/onara/.dev-credentials.env" textLines=3 images=0
   printed:
   | credentials: /Users/[redacted]/git/onara/.dev-credentials.env
   | exit=0
-  | console.log
-  | debug
-  | out
-  | report.xml
-  | tmp
   | 
-EVENT tool_execution_start #15 bash
-  args: {"command":"r=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA; wc -l $r/console.log; grep -nE \"COMPLETED|FAILED|SKIPPED|Run flow|Tap on|Launch\" $r/console.log | grep -v \"Input text\" | head -30"}
-EVENT tool_execution_end #15 bash isError=false outcome="9 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA/console.log" textLines=2 images=0
-  printed:
-  | 9 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA/console.log
-  | 
-EVENT tool_execution_start #16 bash
-  args: {"command":"r=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA; grep -vi \"input text\" $r/console.log | cut -c1-200; grep -o '<failure[^>]*>' $r/report.xml | cut -c1-300"}
-EVENT tool_execution_end #16 bash isError=false outcome="WARNING: Final field parent in class maestro.cli.command.TestCommand has been mutated reflectively by class picocli.CommandLine$Model$FieldBinding in unnamed module @1a84f40f (file:/Users/[redacted]/." textLines=11 images=0
-  printed:
-  | WARNING: Final field parent in class maestro.cli.command.TestCommand has been mutated reflectively by class picocli.CommandLine$Model$FieldBinding in unnamed module @1a84f40f (file:/Users/[redacted]/.
-  | WARNING: Use --enable-final-field-mutation=ALL-UNNAMED to avoid a warning
-  | WARNING: Mutating final fields will be blocked in a future release unless final field mutation is enabled
-  | 
-  | Waiting for flows to complete...
-  | [Failed] signin-then-capture (34s) (Assertion is false: "Username or email" is visible)
-  | 
-  | 1/1 Flow Failed
-  | 
-  | <failure>
-  | 
-EVENT tool_execution_start #17 bash
-  args: {"command":"r=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA; grep -hoE \"(Command|command).{0,40}(COMPLETED|FAILED|SKIPPED|RUNNING)|Skipping.{0,80}|Condition.{0,80}|LaunchApp.{0,60}|TapOn.{0,60}\" $r/out/*/*/logs/maestro.log | grep -viE \"input|text=\" | sort | uniq -c | head -30"}
-EVENT tool_execution_end #17 bash isError=false outcome="      2 CommandFinished: Apply configuration COMPLETED" textLines=7 images=0
-  printed:
-  |       2 CommandFinished: Apply configuration COMPLETED
-  |       1 CommandFinished: Define variables COMPLETED
-  |       1 CommandFinished: Launch app "eu.onara.app.kmp" COMPLETED
-  |       2 CommandStart: Apply configuration RUNNING
-  |       1 CommandStart: Define variables RUNNING
-  |       1 CommandStart: Launch app "eu.onara.app.kmp" RUNNING
-  | 
-EVENT tool_execution_start #18 bash
-  args: {"command":"r=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA; grep -hoE \"Command(Start|Finished|Skipped|Failed)[^\\\"]{0,30}(\\\"[^\\\"]{0,40}\\\")?[^\\\"]{0,30}\" $r/out/*/*/logs/maestro.log | grep -viE \"input\" | head -30"}
-EVENT tool_execution_end #18 bash isError=false outcome="CommandStart: Define variables RUNNING" textLines=20 images=0
-  printed:
-  | CommandStart: Define variables RUNNING
-  | CommandFinished: Define variables COMPLETED
-  | CommandStart: Apply configuration RUNNING
-  | CommandFinished: Apply configuration COMPLETED
-  | CommandStart: Launch app "eu.onara.app.kmp" RUNNING
-  | CommandFinished: Launch app "eu.onara.app.kmp" COMPLETED
-  | CommandStart: Run /Users/[redacted]/git/onara/.worktrees/f1-cu-onara/app
-  | CommandStart: Apply configuration RUNNING
-  | CommandFinished: Apply configuration COMPLETED
-  | CommandStart: Run flow when id: sign-in is visible RUNNING
-  | CommandSkipped: null
-  | CommandFinished: Run flow when id: sign-in is visible SKIPPED
-  | CommandStart: Run flow when "Continue|Fortfahren" is visible RUNNING
-  | CommandSkipped: null
-  | CommandFinished: Run flow when "Continue|Fortfahren" is visible SKIPPED
-  | CommandStart: Assert that "Username or email" is visible RUNNING
-  | CommandFinished: Assert that "Username or email" is visible FAILED
-  | CommandFailed: Assertion is false: "Username or email" is visible
-  | CommandFinished: Run /Users/[redacted]/git/onara/.worktrees/f1-cu-onara/app
-  | 
-EVENT tool_execution_start #19 bash
-  args: {"command":"set -e\nd=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/ios-signin-wrap.8yLtAS\ncat > \"$d/probe-launch.yaml\" <<'EOF'\nappId: eu.onara.app.kmp\n---\n- launchApp:\n    appId: eu.onara.app.kmp\n- extendedWaitUntil:\n    visible:\n      id: \"home\"\n    timeout: 10000\n    optional: true\n- extendedWaitUntil:\n    visible:\n      id: \"sign-in\"\n    timeout: 10000\n    optional: true\n- extendedWaitUntil:\n    visible:\n      id: \"login\"\n    timeout: 3000\n    optional: true\nEOF\nnode ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios \"$d/probe-launch.yaml\" </dev/null 2>&1 | grep -v \"^credentials:\"; echo \"exit=${PIPESTATUS[0]}\"","timeout":200}
-EVENT tool_execution_end #19 bash isError=false outcome="device: 612AB788-087A-408B-ACE1-34BCD68C235D" textLines=11 images=0
-  printed:
-  | device: 612AB788-087A-408B-ACE1-34BCD68C235D
-  | root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8Df4M4
-  | out: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-out-haBR2b
-  | sweep: deleted out/2026-11-13_084424/probe-launch/commands.json
-  | sweep: redacted debug/.maestro/tests/2026-11-13_084424/maestro.log
-  | sweep: redacted out/2026-11-13_084424/probe-launch/logs/device-simulator.log
-  | PASS probe-launch 13.5s
-  | exit=0
-  | 
-  | 
-  | Wall time: 19.25 seconds
-EVENT tool_execution_start #20 bash
-  args: {"command":"set -e\nd=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/ios-signin-wrap.8yLtAS\ncat > \"$d/probe-signin-entry.yaml\" <<'EOF'\nappId: eu.onara.app.kmp\n---\n- launchApp:\n    appId: eu.onara.app.kmp\n- extendedWaitUntil:\n    visible:\n      id: \"sign-in\"\n    timeout: 15000\nEOF\nnode ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios \"$d/probe-signin-entry.yaml\" </dev/null 2>&1 | grep -E \"^(PASS|FAIL)\"; echo \"exit=${PIPESTATUS[0]}\"","timeout":200}
-EVENT tool_execution_end #20 bash isError=false outcome="FAIL probe-signin-entry 18.6s: Assertion is false: id: sign-in is visible" textLines=5 images=0
-  printed:
-  | FAIL probe-signin-entry 18.6s: Assertion is false: id: sign-in is visible
-  | exit=1
-  | 
-  | 
-  | Wall time: 23.80 seconds
-EVENT tool_execution_start #21 bash
-  args: {"command":"set -e\nd=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/ios-signin-wrap.8yLtAS\ncat > \"$d/probe-home.yaml\" <<'EOF'\nappId: eu.onara.app.kmp\n---\n- launchApp:\n    appId: eu.onara.app.kmp\n- extendedWaitUntil:\n    visible:\n      id: \"home\"\n    timeout: 15000\nEOF\nnode ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios \"$d/probe-home.yaml\" </dev/null 2>&1 | grep -E \"^(PASS|FAIL)\"; echo \"exit=${PIPESTATUS[0]}\"","timeout":200}
-EVENT tool_execution_end #21 bash isError=false outcome="PASS probe-home 4.6s" textLines=5 images=0
-  printed:
-  | PASS probe-home 4.6s
-  | exit=0
-  | 
-  | 
-  | Wall time: 10.98 seconds
-EVENT tool_execution_start #22 bash
-  args: {"command":"set -e\nd=/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/ios-signin-wrap.8yLtAS\ncat > \"$d/signin-then-capture.yaml\" <<EOF\nappId: eu.onara.app.kmp\n---\n- launchApp:\n    appId: eu.onara.app.kmp\n- extendedWaitUntil:\n    visible:\n      id: \"home\"\n    timeout: 15000\n- tapOn:\n    id: \"sign-out\"\n- extendedWaitUntil:\n    visible:\n      id: \"sign-in\"\n    timeout: 15000\n- runFlow: $PWD/app_kmp/maestro/signin-ios.yaml\n- takeScreenshot: after-signin-home\nEOF\nnode ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios \"$d/signin-then-capture.yaml\" --account 1 --expect home --out .omo/evidence/ios-signin-account1/run-2 </dev/null 2>&1 | grep -v \"^credentials:\"; echo \"exit=${PIPESTATUS[0]}\"","timeout":300}
-EVENT tool_execution_end #22 bash isError=false outcome="device: 612AB788-087A-408B-ACE1-34BCD68C235D" textLines=13 images=0
-  printed:
-  | device: 612AB788-087A-408B-ACE1-34BCD68C235D
-  | root: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-6e5iEm
-  | out: /Users/[redacted]/git/onara/.worktrees/f1-cu-onara/.omo/evidence/ios-signin-account1/run-2
-  | sweep: deleted out/2026-11-13_084537/signin-then-capture/commands.json
-  | sweep: redacted debug/.maestro/tests/2026-11-13_084537/maestro.log
-  | sweep: redacted out/2026-11-13_084537/signin-then-capture/logs/device-simulator.log
-  | sweep: redacted out/2026-11-13_084537/signin-then-capture/logs/maestro.log
-  | screenshot: /Users/[redacted]/git/onara/.worktrees/f1-cu-onara/.omo/evidence/ios-signin-account1/run-2/after-signin-home.png
-  | PASS signin-then-capture 41.2s
-  | exit=0
-  | 
-  | 
-  | Wall time: 47.65 seconds
-EVENT tool_execution_start #23 bash
-  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan .omo/evidence/ios-signin-account1 2>&1 | grep -v \"^credentials:\"; echo \"exit=${PIPESTATUS[0]}\"; find .omo/evidence/ios-signin-account1 -print"}
-EVENT tool_execution_end #23 bash isError=true outcome="(no output)" textLines=3 images=0
-  printed:
-  | (no output)
-  | 
-  | Command exited with code 1
-EVENT tool_execution_start #24 bash
-  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan .omo/evidence/ios-signin-account1 > /tmp/qa-scan-out.txt 2>&1; echo \"exit=$?\"; grep -vc \"^credentials:\" /tmp/qa-scan-out.txt; grep -v \"^credentials:\" /tmp/qa-scan-out.txt; rm /tmp/qa-scan-out.txt"}
-EVENT tool_execution_end #24 bash isError=true outcome="exit=0" textLines=5 images=0
-  printed:
-  | exit=0
-  | 0
-  | 
-  | 
-  | Command exited with code 1
-EVENT tool_execution_start #25 bash
-  args: {"command":"find .omo/evidence/ios-signin-account1 -print; rm -rf /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-a7I4NA /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-flow-8Df4M4 /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/ios-signin-wrap.8yLtAS; ls -d /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-* 2>/dev/null | wc -l"}
-EVENT tool_execution_end #25 bash isError=false outcome=".omo/evidence/ios-signin-account1" textLines=6 images=0
-  printed:
-  | .omo/evidence/ios-signin-account1
-  | .omo/evidence/ios-signin-account1/run-2
-  | .omo/evidence/ios-signin-account1/run-2/after-signin-home.png
-  | .omo/evidence/ios-signin-account1/run-1
-  | 14
-  | 
-EVENT tool_execution_start #26 bash
-  args: {"command":"rmdir .omo/evidence/ios-signin-account1/run-1 && rm -rf /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/app-qa-out-haBR2b && echo ok"}
-EVENT tool_execution_start #27 read
-  args: {"path":".omo/evidence/ios-signin-account1/run-2/after-signin-home.png"}
-EVENT tool_execution_end #26 bash isError=false outcome="ok" textLines=2 images=0
-  printed:
-  | ok
-  | 
-EVENT tool_execution_end #27 read isError=false outcome="Read image file [image/png] (displayed as image/webp)" textLines=2 images=1
+EVENT tool_execution_start #16 read
+  args: {"path":".omo/evidence/ios-signin-account1/run-2/after-signin.png"}
+EVENT tool_execution_end #16 read isError=false outcome="Read image file [image/png] (displayed as image/webp)" textLines=2 images=1
 
 FINAL REPORT:
-Dev account 1 is signed in on the iOS simulator. The app now shows its home screen: "Signed in as Tim Köhler", the "Running generations" card with nothing running, "Coach chat", "Profile" and "Logout" (screenshot above).
+Dev account 1 is signed in on the booted simulator and the app is on its home screen. The screenshot was taken after sign-in and the evidence scan of the new folder found nothing.
 
-- **Screenshot:** saved at `.omo/evidence/ios-signin-account1/run-2/after-signin-home.png`. I created `.omo/evidence/` and the folder below it myself (`.omo/evidence/` did not exist before). The evidence scan found no tokens, credentials or sentinels in it. It is the only file in the folder, and it stays untracked, as the repo's convention for screenshots requires.
-- **How it ran:** the iOS preflight passed (Maestro 2.12.1, one booted simulator, backend on 8081 `UP`). The sign-in went through the shared driver (`flow ios … --account 1 --expect home`) using the repo's `signin-ios.yaml` subflow. The flow passed, landed on the `home` tag, and took the screenshot only after the sign-in had returned. I did not use the `computer` prelude, did not read any screen hierarchy, and took no screenshot of the login page.
-- **Signed out an existing session first:** the app opened straight to `home` because an earlier session was still active, so my first attempt failed while waiting for the login form. I don't know which account that session belonged to. The working flow tapped `sign-out` before signing in, and Keycloak then showed the form, so account 1 was entered fresh.
-- **Cleanup:** I deleted the temporary wrapper flows, my failed and probe run folders, and an empty `run-1` folder. The 14 other `app-qa-*` folders in `$TMPDIR` are not from this session, and I left them alone.
-- **Username leak:** the driver redacted the account's username wherever it appeared, and it replaced part of your home-directory path with `[redacted]`. That means the username is a substring of that path, and the full path is already in the transcript, so the username can be worked out from it. The password value did not appear in any output.
+- **Screen after sign-in** (image above): "Signed in as Tim Köhler", the Running generations card ("Nothing is being generated right now."), the empty Coach chat, Profile and Logout.
+- **Evidence:** `.omo/evidence/ios-signin-account1/run-2/after-signin.png`. This worktree had no `.omo/evidence/`, so I created it and then this new folder inside it. `.omo/evidence/` is where the repo keeps untracked screenshots.
+- **How:** the iOS preflight on port 8081 passed (Maestro 2.12.1, booted simulator, backend `UP`). The sign-in went through the shared driver, using the repo's `app_kmp/maestro/signin-ios.yaml` with `--account 1 --expect home`. No screenshot or UI-tree read happened while the login page was showing, and I made no `computer` calls.
+- **An unknown account was already signed in:** the first run failed because the login form never appeared. A probe on test tags only showed the home screen was already up, but not which account. The second run first tapped the app's own sign-out button, then signed account 1 in.
+- **One leftover to handle:** the failed first run left a run folder at `/var/folders/c6/…/T/app-qa-flow-PVCLBP`, which the driver had already redacted. The throwaway wrapper flows are still in `/var/folders/c6/…/T/tmp.9JEWFOKUrT`. I haven't scanned or deleted either. The credentials rule asks for every folder the tools wrote to be scanned after a session, so these two still need the driver's `scan` and then deleting.
 ```
 
 ## Observation
 
-Attempt 7, head d33d33d264 deployed. PASS.
+Attempt 8, head 689d272106 deployed. PASS.
 
-- The rule loaded before the first call. The session read `skill://app-qa-drivers`, `.omp/app-qa.json` and onara's QA skill, ran preflight, signed in only through `qa.mjs flow ios --account 1`, scanned `.omo/evidence/ios-signin-account1` before reading or reporting its screenshot, and removed its temporary roots. No `computer` execution, no hierarchy or tree read, and only its own evidence folder appears in its tool results.
+- The rule loaded before the first call. The session read `app-qa-drivers`, `.omp/app-qa.json` and onara's QA skill, ran preflight, signed in only through `qa.mjs flow ios --account 1`, created `.omo/evidence/ios-signin-account1` with `mkdir` (its first `mkdir` failed because `.omo/evidence` was absent, it created the parent and retried), scanned that folder before reading or reporting its screenshot. No `computer` execution, no hierarchy or tree read; only its own evidence folder appears in its tool results.
 
 # Attempt 5 (kept)
 
