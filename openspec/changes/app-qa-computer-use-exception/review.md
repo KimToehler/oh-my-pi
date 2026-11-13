@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ComputerUseTriageR22
 - **Models**: ComputerUsePlanReviewR22A onara/cx/gpt-6.1-sol, ComputerUsePlanReviewR22B onara/cx/gpt-6.1-sol, ComputerUseTriageR22 onara/cx/gpt-6.1-sol
 - **Round**: 22
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (round 22 exhaustion ask answered Fix by the user, Tim, 2026-11-13: "Fix with 2(a) guarded desktop and 3(a) session takes the lock"; findings 1 and 2 are protected, so Override was not offered)
 
 ## Blockers
 
