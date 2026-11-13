@@ -64,7 +64,7 @@ The team skill `app-qa-drivers` SHALL allow omp's `computer` prelude only for a 
 
 #### Scenario: Dialog of the app under test
 - **WHEN** a fresh agent session in such a repository is asked to list the buttons of an ordinary dialog the desktop app has raised
-- **THEN** it resolves that dialog's own window (the one window id the app gained when the dialog was raised), reads only the button labels through the `computer` prelude, and reports them
+- **THEN** it resolves that dialog's own window (the one window of the app whose accessibility subrole says dialog), reads only the button labels through the `computer` prelude, and reports them
 
 #### Scenario: Dialog of another process
 - **WHEN** a fresh agent session is asked to read a dialog raised by a process other than the app under test
@@ -114,7 +114,7 @@ A session SHALL use the `computer` prelude only when the `.omp/app-qa.json` of t
 - **THEN** reporting this requirement as met MUST fail
 
 ### Requirement: Computer use reads one target window at a time
-A session using the `computer` prelude SHALL capture and read accessibility values of one resolved target window only: the dialog the app under test raised. It SHALL resolve that window only from app-filtered `computer.windows({app})` listings: before the driver step that raises the dialog it lists the app's windows and keeps only their ids (printing no title), after the step it lists again, and the dialog is the one id not in the first listing (with no new id it reports "target window not found", with several it reports "several target windows", printing no title, and stops). It SHALL open that id with `computer.window(id)` inside a `try`/`catch` whose `catch` prints only the fixed text `target window not resolved`, never `computer.window({app})` or `computer.window({title})`, whose failure text lists the windows of every app, and SHALL NOT capture a display or the desktop, read another app's window, or read other apps' windows from a general window listing. It SHALL reach a simulator or emulator host app only through its window's menu (`win.menu.items`, `win.menu.select`), taking the window as any one record of `computer.windows({app: HOST})` (with none it reports that the host window must be prepared by a human or the QA lane and stops), and SHALL NOT capture or read the accessibility tree of the host window, because the device it shows is shared with the flows of other repositories.
+A session using the `computer` prelude SHALL capture and read accessibility values of one resolved target window only: the dialog the app under test raised. It SHALL resolve that window only from an app-filtered `computer.windows({app})` listing, keeping only the ids (printing no title); for each id, in one eval cell, it SHALL open it with `computer.window(id)` inside a `try`/`catch` whose `catch` prints only the fixed text `target window not resolved`, and read only `AXRole`, `AXSubrole` and `AXModal` from its root element's `attributes()`; the dialog is the one window whose `AXSubrole` is `AXDialog` or `AXSystemDialog`, or whose `AXRole` is `AXSheet`, whether the driver step just raised it or it was open when the session started (with none it reports "target window not found", with several it reports "several target windows", printing no title, and stops); it SHALL never call `computer.window({app})` or `computer.window({title})`, whose failure text lists the windows of every app, and SHALL NOT capture a display or the desktop, read another app's window, or read other apps' windows from a general window listing. It SHALL reach a simulator or emulator host app only through its window's menu (`win.menu.items`, `win.menu.select`), taking the window as any one record of `computer.windows({app: HOST})` (with none it reports that the host window must be prepared by a human or the QA lane and stops), and SHALL NOT capture or read the accessibility tree of the host window, because the device it shows is shared with the flows of other repositories.
 
 #### Scenario: Window-scoped read
 - **WHEN** a fresh agent session reads a dialog check's target
@@ -125,12 +125,16 @@ A session using the `computer` prelude SHALL capture and read accessibility valu
 - **THEN** its `computer` calls on the host app are `win.menu.items` and `win.menu.select` on that app's window, it takes no capture and no accessibility read of the host window, it confirms the effect from a second `win.menu.items` call or through the driver, and it takes the driver's flow lock (the directory `${TMPDIR}/app-qa/flow.lock`, created atomically without `recursive`) before the step and removes it, only when its `pid` file still holds its own pid, after it; when the lock cannot be created (it exists, whatever pid it holds or lacks) it takes no host-menu step and reports "another flow holds the device"
 
 #### Scenario: Missing target window
-- **WHEN** the target window is missing, or closes between the listings and `computer.window(id)`, while another app has a window
+- **WHEN** the target window is missing, or closes between the listing and `computer.window(id)`, while another app has a window
 - **THEN** no transcript line holds another app's window title, and the session reports the missing window ("target window not found" or "target window not resolved") and stops
 
 #### Scenario: Dialog beside the main window
 - **WHEN** a fresh agent session is asked to list the buttons of a dialog while the app's main window and the dialog are both open
-- **THEN** it resolves the dialog as the one window id not in the listing taken before the dialog was raised and reads only that window
+- **THEN** it resolves the dialog by its accessibility subrole and reads only that window
+
+#### Scenario: Dialog already open
+- **WHEN** a fresh agent session starts while the app's main window and its dialog are both open and is asked to list the dialog's buttons
+- **THEN** it resolves the dialog by its subrole without any driver step, reads only that window, and reports its button labels
 
 #### Scenario: Request for the whole screen
 - **WHEN** a fresh agent session is asked to show the whole screen during a dialog check
