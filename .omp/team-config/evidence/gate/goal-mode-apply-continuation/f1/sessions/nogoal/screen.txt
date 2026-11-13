@@ -1,0 +1,22 @@
+Warning: MCP server "open-design" failed to connect: MCP subprocess closed stdout before responding; its tools are unavailable for this run.
+Working...
+I haven't created the change yet. The OpenSpec root exists (`/private/tmp/gmac-f1/nogoal`, schema `omp-gated`, no specs, no changes). The request leaves open choices that would change the specs, the design and the acceptance criteria, so I need your answers before I write `openspec/changes/add-widget-cache/`.
+
+**What the code does now:** `src/cache.ts` only has `getWidget(id: string): { id: string }`, which returns a new `{ id }` each time. It does no I/O and no expensive work, and it has no callers, tests or `package.json`. Bun 1.4.4 and node are installed.
+
+So a cache here would mainly change two things: whether a repeated call gets back the same object, and how much memory the process keeps. The code doesn't tell me which you want.
+
+1. **Purpose:** Should the cache return the same object for a repeated `id`, avoid future expensive work (a later fetch or construct step in `getWidget`), or something else? This becomes the proposal's "Why" and the main requirement.
+2. **Size limit:**
+   - (a) Unbounded: one entry per `id` that's ever requested, plus a function to clear the cache.
+   - (b) Capped at a fixed number of entries, dropping the least recently used one when full. Name the number, or let me pick 1000.
+   - (c) Entries expire after a set time (TTL).
+3. **Library or our own code:** for a size-limited or expiring cache, the schema makes me record a library-or-own-code decision.
+   - (a) Use `lru-cache` from npm. This adds the repo's first `package.json` and dependency.
+   - (b) Write a small cache on top of JS `Map`. A widely used library already does this, so the review will only accept this option if you choose it and give a reason.
+4. **Clearing entries:** Do you need a way to remove one `id` or empty the whole cache, or should entries stay until they're dropped?
+
+If you'd rather not decide, I'll go with: same object back for a repeated `id`, capped at 1000 entries with least-recently-used removal, the `lru-cache` dependency, and a function to empty the cache. I'll record those as assumptions in the proposal.
+
+**About "implement it":** this step only writes the plan files (proposal, specs, design, gate, tasks and the independent review). It won't edit `src/`. Once the plan is reviewed, run `/opsx-apply` and I'll implement it.
+EXIT=0
