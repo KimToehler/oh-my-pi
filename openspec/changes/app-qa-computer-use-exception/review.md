@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ProposeComputerUse.Triage20
 - **Models**: ProposeComputerUse.PlanReviewDelta20 onara/cx/gpt-6.1-sol, ProposeComputerUse.Triage20 onara/cx/gpt-6.1-sol
 - **Round**: 20
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (the exhaustion ask of this round was answered Fix by the user, Tim, 2026-11-13: "Fix (check the two phrases in the proof section, then one delta check and attempt 11)")
 
 ## Blockers
 
