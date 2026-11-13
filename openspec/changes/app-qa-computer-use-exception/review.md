@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ComputerUseTriageR25
 - **Models**: ComputerUsePlanReviewDelta25 onara/cx/gpt-6.1-sol, ComputerUseTriageR25 onara/cx/gpt-6.1-sol
 - **Round**: 25
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (round 25 exhaustion ask answered Fix by the user, Tim, 2026-11-14: "Fix (per-window root ref from each window's own snapshot; identification vs content reads in the spec)")
 
 ## Blockers
 
