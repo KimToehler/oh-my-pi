@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ProposeComputerUse.Triage16
 - **Models**: ProposeComputerUse.PlanReviewDelta16 onara/cx/gpt-6.1-sol, ProposeComputerUse.Triage16 onara/cx/gpt-6.1-sol
 - **Round**: 16
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (the exhaustion ask of this round was answered Fix by the user, Tim, 2026-11-13: "Fix: route every computer call in a configured repository and every app-QA call, then one delta check and the full F1 run")
 
 ## Blockers
 
