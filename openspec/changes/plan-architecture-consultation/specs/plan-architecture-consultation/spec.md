@@ -65,7 +65,7 @@ Before any `plan-reviewer` dispatch, a full round or a delta check, on any path 
 
 ### Requirement: A consultation survives interruption
 
-A change SHALL get at most one counted consultation, across session interruptions, from attempts dispatched in pairs of at most two: the admission authorizes the first pair, and after the user answered Stop, only an explicit request of the user to consult again authorizes the next pair, with every earlier attempt kept in the record. Each attempt SHALL be named in a committed `pending` record before it is dispatched. A session that finds a `pending` record SHALL resolve every named attempt, before it dispatches anything, from the one session file its entry names, and SHALL count it only when that file's brief names this change directory.
+A change SHALL get at most one counted consultation, across session interruptions, from attempts dispatched in pairs of at most two: the admission authorizes the first pair, and after the user answered Stop, only an explicit request of the user to consult again authorizes the next pair, with every earlier attempt kept in the record. Each attempt SHALL be named in a committed `pending` record before it is dispatched, and that record's consulted commit SHALL hold the plan files, every file of the folder except `review.md` and `consultation.md`, that the attempt reads: the recorded commit is kept only when the plan files still equal it, and otherwise replaced by the current commit. An attempt SHALL count only when the plan files still equal the consulted commit when it is counted. A session that finds a `pending` record SHALL resolve every named attempt, before it dispatches anything, from the one session file its entry names, and SHALL count it only when that file's brief names this change directory.
 
 #### Scenario: Interrupted after the report was delivered
 
@@ -87,9 +87,14 @@ A change SHALL get at most one counted consultation, across session interruption
 - **WHEN** the user, after answering Stop to the ask that follows two failed attempts and fixing the installation, asks for the consultation again
 - **THEN** attempt 3 is dispatched with both earlier attempts kept under Models, at most attempt 4 follows it before the ask is repeated, and a session resuming the `pending` record without such a request dispatches nothing and asks again
 
+#### Scenario: Plan revised between pairs
+
+- **WHEN** attempts 1 and 2 failed on plan commit A, the user answered Stop, the plan was revised and committed as B, and the user asks for the consultation again
+- **THEN** the `pending` record that names attempt 3 has consulted commit B, attempts 1 and 2 stay under Models, and the `consulted` record written from attempt 3 names B
+
 #### Scenario: Negative control
 
-- **WHEN** an instruction dispatches an attempt before a committed `pending` record names it, re-dispatches an attempt whose session file holds a report, dispatches a third or later attempt without the user's request to consult again after a Stop, dispatches more than two attempts for one such request, finds an attempt's session file by its name, or counts a report whose session file is not the one the entry names or whose brief names another change directory
+- **WHEN** an instruction dispatches an attempt before a committed `pending` record names it, re-dispatches an attempt whose session file holds a report, dispatches a third or later attempt without the user's request to consult again after a Stop, dispatches more than two attempts for one such request, finds an attempt's session file by its name, records a consulted commit whose plan files differ from those the attempt read, counts an attempt after a plan file changed while it ran, or counts a report whose session file is not the one the entry names or whose brief names another change directory
 - **THEN** review of that instruction MUST fail
 
 ### Requirement: Fixed consultation brief on the pinned agent
