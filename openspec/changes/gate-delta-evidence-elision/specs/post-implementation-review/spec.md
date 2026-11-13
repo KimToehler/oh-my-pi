@@ -30,14 +30,19 @@ manifest SHALL record the left-out directory, and the delta brief of `review-wor
 ### Requirement: A delta directory verifies against the patch form its manifest names
 
 `gate-convergence.mjs delta` and `accept` SHALL recompute each patch of a delta directory in the form its manifest
-names: the full `git show` patch when the manifest has no left-out directory, and the form of "Fix-delta patches leave
-out gate evidence" when it names `.omp/team-config/evidence/`. A manifest that names any other left-out value SHALL be
-refused as changed since dispatch, and nothing SHALL be appended to the ledger.
+names: the full `git show` patch when the manifest has no `left_out` key, and the form of "Fix-delta patches leave out
+gate evidence" when `left_out` is exactly `.omp/team-config/evidence/`, the value `patch` writes. Any other `left_out`
+value SHALL be refused as changed since dispatch, and nothing SHALL be appended to the ledger.
+
+#### Scenario: Directory written by the new patch
+
+- **WHEN** `patch` writes a range holding a commit that mixes a fix with a capture and an evidence-only commit, `delta` records a REJECT from it, and `accept` runs on the same directory
+- **THEN** its manifest's `left_out` is `.omp/team-config/evidence/`, `delta` records the verdict and `accept` records `accepted-risk`
 
 #### Scenario: Delta directory written before the change
 
 - **WHEN** a delta directory holds full patches and a manifest without a left-out field, as `patch` wrote them before this change, and `delta` runs on it with a structured verdict
-- **THEN** the patches verify and the verdict is recorded
+- **THEN** the patches verify, `delta` records the verdict, and after a REJECT `accept` records `accepted-risk`
 
 #### Scenario: Patch edited after dispatch
 

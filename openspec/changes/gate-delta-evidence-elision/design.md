@@ -59,18 +59,35 @@ directory it is 24 KB. The reviewer gets the file names of one directory with `g
 
 ### D-3 Manifest field and verification
 
-The manifest gains `"left_out": ".omp/team-config/evidence/"`. `verifyDeltaDir` recomputes each patch with the form the
-manifest names: no `left_out` key gives the full patch (delta directories written before this change, so a gate in
-flight can still record a verdict from a dispatch made before the deploy), the exact `EVIDENCE_DIR` value gives the
-D-2 form, and any other value fails with `patch artifacts changed since dispatch: manifest.json` before anything is
-appended. The hash check of every patch is otherwise unchanged.
+`gate-layout.mjs` exports one value, `LEFT_OUT_DIR`, the `EVIDENCE_DIR` string plus `/`, so `.omp/team-config/evidence/`: the
+trailing slash keeps the pathspec to the directory and is the spelling the manifest stores. `patch` writes
+`"left_out": LEFT_OUT_DIR` and builds its pathspecs from it; `verifyDeltaDir` compares the manifest's value with the
+same constant, so writer and verifier cannot disagree on its spelling. `verifyDeltaDir` recomputes each patch with the
+form the manifest names: no `left_out` key gives the full patch (delta directories written before this change, so a
+gate in flight can still record a verdict from a dispatch made before the deploy), a value equal to `LEFT_OUT_DIR`
+gives the D-2 form, and any other value (`src/`, the directory without its slash, `null`, a number) fails with
+`patch artifacts changed since dispatch: manifest.json` before anything is appended. The hash check of every patch is
+otherwise unchanged.
 
 ### D-4 Brief text
 
-Fix waves step 5a says that the patch leaves out evidence hunks and ends with their listing. The delta brief's last
-paragraph says: "Hunks of files under `.omp/team-config/evidence/` (QA captures, RED and GREEN records, trailers) are
-left out; a patch that changes any ends with their listing by directory, and `git show <sha> -- <path>` shows one.
-Read every patch file it lists completely before you decide." The rest of the brief is unchanged.
+Fix waves step 5a becomes this one line, the rest of the step list unchanged:
+
+   a. `GC patch --base <base> --head <head> --out .omp/team-config/gate-deltas/F2-<first row>-<head12>-<UTC yyyymmddHHMMSS>`. It writes one read-only patch per commit plus a manifest, and prints the manifest path. Each patch leaves out the hunks of files under `.omp/team-config/evidence/` and, when its commit changes any, ends with their listing by directory.
+
+The fenced delta brief becomes this block; only its last paragraph changes:
+
+```
+Review this fix delta. Workspace root: {REPO ROOT}. Plan: {PLAN PATH}.
+Plan invariants, verbatim from the plan's ## Merge gate (feature-specific criteria, accepted residual risks, out of scope for blocking; a field the plan lacks reads "<field>: not in plan"):
+{PLAN INVARIANTS}
+Fix entries this delta implements, verbatim from the plan's ## TODOs:
+{FIX ROWS}
+QA rows carried across this range, each with its one-line reason (reject a carry when the diff can change the behaviour that row observed, and name the row):
+{CARRIED ROWS}
+Commit range {BASE SHA}..{HEAD SHA}, commits {FIX SHAS}.
+The diff is one patch file per commit, in commit order, each with its commit header. Hunks of files under .omp/team-config/evidence/ (QA captures, RED and GREEN records, trailers) are left out: a patch whose commit changes any ends with their listing by directory, and `git show <sha> -- <path>` shows one file. Read {MANIFEST PATH}, then read every patch file it lists completely before you decide. Judge the cumulative effect as well: a later commit can revert or replace an earlier one.
+```
 
 ### Build vs. adopt: path filtering of a commit diff
 
