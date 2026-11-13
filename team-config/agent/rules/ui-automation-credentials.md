@@ -17,6 +17,8 @@ interruptMode: always
 
 Applies whenever an agent drives a browser, simulator, emulator or desktop app that signs in with a real account. A credential that reaches a tool result is in the transcript and cannot be scrubbed.
 
+When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make that read again first. No search, `mkdir` or `computer` call runs before the team skill `app-qa-drivers` and, in a repository with `.omp/app-qa.json`, its QA skill have been read.
+
 ## Login surfaces
 
 - While a login, identity-provider or password-manager surface is visible, take no accessibility snapshot or UI-hierarchy dump, run no text or regex find, and call no tool that renders textbox values: Playwright MCP `browser_snapshot`/`browser_find`, `uiautomator dump`, `maestro hierarchy`, mobile-mcp `inspect_screen` or their equivalents. Browsers prefill saved passwords as textbox values, and password-manager dialogs (also a "save/update password?" dialog that appears after sign-in) render the saved password as node text.
