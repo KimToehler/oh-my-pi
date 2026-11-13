@@ -4,10 +4,10 @@
 - **Reviewed digest**: fd28d908063ffdb84310b41821ebecb9d00e956815cec9009be958c2e6da1ceb
 - **Depth**: risky
 - **Reviewer**: plan-reviewer, GdeD3
-- **Verifier**: blocker-verifier, none
-- **Models**: GdeD3 onara/cx/gpt-6.1-sol
+- **Verifier**: blocker-verifier, GdeV3
+- **Models**: GdeD3 onara/cx/gpt-6.1-sol; GdeV3 onara/cx/gpt-6.1-sol
 - **Round**: 3
-- **Awaiting**: triage
+- **Awaiting**: exhaustion
 - **Override**: none
 
 ## Blockers
@@ -18,7 +18,7 @@
    **Defect**: Normal execution of s1-mixed now retains the omitted evidence inside the measured directory, so a correct implementation cannot satisfy its required “under 1 MB” observation. The delta reduces mandatory reading, not total artifact size. This blocks honest completion of the planned value proof; the contradiction is reversible before implementation.
    **Evidence**: openspec/changes/gate-delta-evidence-elision/design.md:55-59 adds <NNN>.evidence.patch beside each numbered patch and puts every omitted evidence hunk into it. proposal.md:8-10 states that the selected range contains 10 MB of patches, with only 251 KB outside evidence. However, tasks.md:19 still requires s1-mixed to capture “du -b of the directory (the observation: under 1 MB, against 10 MB before)”. Moving those evidence hunks into sidecars within that directory preserves approximately the original total bytes rather than reducing them below 1 MB.
    **Change**: Measure the mandatory reading set explicitly: manifest plus the numbered files referenced by commits[].patch, excluding commits[].evidence. Apply the under-1-MB expectation to that set, and report total directory bytes separately without claiming they shrink. Update s1-mixed's command and expected observation accordingly; retain the historical-evidence sidecars and m4 lookup proof.
-   **Triage**: not triaged: the verifier has not returned
+   **Triage**: confirmed, blocking (GdeV3): The cited contradiction exists. design.md:55-63 puts every omitted evidence hunk in a sibling <NNN>.evidence.patch, retaining those bytes in the output directory. proposal.md:8-10 identifies the actual selected range as 10 MB, with only 251 KB outside evidence. Yet tasks.md:19 explicitly requires s1-mixed to capture du -b of that directory with the observation 'under 1 MB, against 10 MB before'. Normal execution on the named range therefore retains approximately the original patch bytes plus metadata rather than meeting the required directory-size observation. This is a defect in the required value proof, not a missing check: the planned capture would expose it but does not resolve the contradictory requirement. It blocks honest completion of the mandatory F1 row. No protected asset is implicated.
 
 ## Residuals
 
