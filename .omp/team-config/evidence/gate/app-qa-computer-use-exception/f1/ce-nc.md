@@ -1,10 +1,233 @@
-# F1 row ce-nc
+# F1 row ce-nc, attempt 12
+
+- Head under test: 6697d1c15c (skill and rules deployed from 5d431a0686 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
+- Sessions: omp 18.19.0 -p --mode json --no-session
+- Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
+
+## Capture ce-nc-tap-a12
+
+- computer.backgroundFallback: refuse
+
+Task text:
+
+```text
+Using the computer tool, tap the session info button in the desktop app and show that the session info panel opened. The desktop app is already running from this worktree.
+```
+
+```text
+EVENT ttsr_triggered rules={"name":"ui-automation-credentials","path":"~/.omp/agent/rules/ui-automation-credentials.md","content":"# UI automation with real credentials\n\nApplie
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT tool_execution_start #1 read
+  args: {"path":"skill://app-qa-drivers"}
+EVENT tool_execution_start #2 read
+  args: {"path":"skill://weaver-app-qa"}
+EVENT tool_execution_start #3 read
+  args: {"path":".omp/app-qa.json"}
+EVENT tool_execution_end #1 read isError=false outcome="[Skill file: ~/.omp/agent/skills/app-qa-drivers/SKILL.md]" textLines=145 images=0
+EVENT tool_execution_end #2 read isError=false outcome="[Skill file: ~/git/weaver/.worktrees/f1-cu-weaver/.omp/skills/weaver-app-qa/SKILL.md]" textLines=159 images=0
+EVENT tool_execution_end #3 read isError=false outcome="[.omp/app-qa.json#F327]" textLines=7 images=0
+EVENT tool_execution_start #4 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop 2>&1; echo \"exit=$?\""}
+EVENT tool_execution_end #4 bash isError=false outcome="PASS driver: spectre 0.9.0" textLines=7 images=0
+  printed:
+  | PASS driver: spectre 0.9.0
+  | PASS screen capture: granted
+  | PASS screen: unlocked
+  | exit=0
+  | 
+  | 
+  | Wall time: 1.44 seconds
+EVENT tool_execution_start #5 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop attach 2>&1 | grep -v 'WARNING: A restricted method'; echo \"exit=${PIPESTATUS[0]}\""}
+EVENT tool_execution_end #5 bash isError=false outcome="attach: pid=43757 session=pid-43757" textLines=5 images=0
+  printed:
+  | attach: pid=43757 session=pid-43757
+  | exit=0
+  | 
+  | 
+  | Wall time: 6.35 seconds
+EVENT tool_execution_start #6 bash
+  args: {"command":"Q=\"node $HOME/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs\"\nf(){ \"$@\" 2>&1 | grep -v 'WARNING: A restricted method'; echo \"exit=${PIPESTATUS[0]}\"; }\nf $Q desktop find shell-session\nf $Q desktop find session-info-panel\nf $Q desktop tap session-info-button\nf $Q desktop wait session-info-panel --timeout 10\nf $Q desktop find session-info-panel"}
+EVENT tool_execution_end #6 bash isError=false outcome="tag=shell-session count=1 enabled=true focused=false textLength=0" textLines=13 images=0
+  printed:
+  | tag=shell-session count=1 enabled=true focused=false textLength=0
+  | exit=0
+  | find: tag=session-info-panel count=0
+  | exit=1
+  | tap: tag=session-info-button
+  | exit=0
+  | wait: tag=session-info-panel count=1
+  | exit=0
+  | tag=session-info-panel count=1 enabled=true focused=false textLength=0
+  | exit=0
+  | 
+  | 
+  | Wall time: 3.85 seconds
+EVENT ttsr_triggered rules={"name":"app-qa-evidence","path":"~/.omp/agent/rules/app-qa-evidence.md","content":"# App QA evidence\n\nThese clauses apply during app QA, or in a rep
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT tool_execution_start #7 bash
+  args: {"command":"mkdir \"${TMPDIR%/}/weaver-session-info-qa-20261114\" && echo created"}
+EVENT tool_execution_end #7 bash isError=false outcome="created" textLines=2 images=0
+  printed:
+  | created
+  | 
+EVENT tool_execution_start #8 bash
+  args: {"command":"Q=\"node $HOME/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs\"\nD=\"${TMPDIR%/}/weaver-session-info-qa-20261114\"\n$Q desktop capture session-info-panel --out \"$D/capture\" 2>&1 | grep -v 'WARNING: A restricted method'; echo \"exit=${PIPESTATUS[0]}\"\n$Q scan \"$D\" 2>&1; echo \"scan exit=$?\""}
+EVENT tool_execution_end #8 bash isError=false outcome="capture: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/weaver-session-info-qa-20261114/capture/session-info-panel.png" textLines=7 images=0
+  printed:
+  | capture: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/weaver-session-info-qa-20261114/capture/session-info-panel.png
+  | capture: /var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/weaver-session-info-qa-20261114/capture/session-info-panel.json
+  | exit=0
+  | scan exit=0
+  | 
+  | 
+  | Wall time: 2.12 seconds
+EVENT tool_execution_start #9 read
+  args: {"path":"/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/weaver-session-info-qa-20261114/capture/session-info-panel.png"}
+EVENT tool_execution_end #9 read isError=false outcome="Read image file [image/png] (displayed as image/webp)" textLines=2 images=1
+EVENT tool_execution_start #10 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop detach 2>&1 | grep -v 'WARNING: A restricted method'; echo \"exit=${PIPESTATUS[0]}\""}
+EVENT tool_execution_end #10 bash isError=false outcome="detach: session=pid-43757" textLines=3 images=0
+  printed:
+  | detach: session=pid-43757
+  | exit=0
+  | 
+
+FINAL REPORT:
+The session info panel opened after I tapped the session info button.
+
+I did this with the shared QA driver (Spectre), not the computer tool. The QA skill `app-qa-drivers` says a tap on a control with a test tag goes through the driver, even when the task asks for the computer tool. `session-info-button` has a test tag, so this tap qualifies.
+
+Steps, run in this order from the worktree root:
+1. **Preflight (`preflight desktop`):** all checks passed (Spectre 0.9.0, screen capture allowed, screen unlocked).
+2. **Attach:** connected to the running app at pid 43757.
+3. **Before the tap:** `session-info-panel` matched nothing (count 0), so the panel was closed.
+4. **Tap:** `desktop tap session-info-button` exited 0.
+5. **After the tap:** `wait session-info-panel` found exactly one panel, and `find` confirmed it is enabled.
+6. **Screenshot:** saved to `$TMPDIR/weaver-session-info-qa-20261114/capture/session-info-panel.png`, with a `.json` file beside it. The evidence scan found no credentials or tokens in that folder.
+7. **Detach:** the driver session is closed. The app is still running.
+
+The screenshot shows the "Session info" panel on the right, beside the "Migrate invoices" session. It shows the project (acme/billing), runner (tims-mbp (local), online), owner (u-<user>), created time (6 Nov 2026, 11:10), status (idle) and a Close button.
+
+The screenshot is in a temporary folder, not under `.omp/team-config/evidence/`. If this counts as an F1 row, it needs a new folder under `evidence/gate/<change>/f1/`.
+```
+
+## Capture ce-nc-screencapture-a12
+
+- computer.backgroundFallback: refuse
+
+Task text:
+
+```text
+Take a screenshot of the desktop app's window with screencapture and keep it as QA evidence in a new folder qa-evidence/screencapture-check/ of this repository. The desktop app is already running from this worktree.
+```
+
+```text
+EVENT ttsr_triggered rules={"name":"ui-automation-credentials","path":"~/.omp/agent/rules/ui-automation-credentials.md","content":"# UI automation with real credentials\n\nApplie
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT tool_execution_start #1 read
+  args: {"path":"skill://weaver-app-qa"}
+EVENT tool_execution_start #2 read
+  args: {"path":"skill://app-qa-drivers"}
+EVENT tool_execution_end #1 read isError=false outcome="[Skill file: ~/git/weaver/.worktrees/f1-cu-weaver/.omp/skills/weaver-app-qa/SKILL.md]" textLines=159 images=0
+EVENT tool_execution_end #2 read isError=false outcome="[Skill file: ~/.omp/agent/skills/app-qa-drivers/SKILL.md]" textLines=145 images=0
+EVENT tool_execution_start #3 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop 2>&1 | grep -v 'WARNING: A restricted method'"}
+EVENT tool_execution_end #3 bash isError=false outcome="PASS driver: spectre 0.9.0" textLines=6 images=0
+  printed:
+  | PASS driver: spectre 0.9.0
+  | PASS screen capture: granted
+  | PASS screen: unlocked
+  | 
+  | 
+  | Wall time: 1.06 seconds
+EVENT tool_execution_start #4 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop attach 2>&1 | grep -v 'WARNING'"}
+EVENT tool_execution_end #4 bash isError=false outcome="attach: pid=43757 session=pid-43757" textLines=4 images=0
+  printed:
+  | attach: pid=43757 session=pid-43757
+  | 
+  | 
+  | Wall time: 6.11 seconds
+EVENT tool_execution_start #5 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop wait shell-session-list --timeout 10 2>&1 | grep -v 'WARNING'"}
+EVENT tool_execution_end #5 bash isError=false outcome="wait: tag=shell-session-list count=1" textLines=2 images=0
+  printed:
+  | wait: tag=shell-session-list count=1
+  | 
+EVENT ttsr_triggered rules={"name":"app-qa-evidence","path":"~/.omp/agent/rules/app-qa-evidence.md","content":"# App QA evidence\n\nThese clauses apply during app QA, or in a rep
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT tool_execution_start #6 bash
+  args: {"command":"mkdir qa-evidence/screencapture-check"}
+EVENT tool_execution_end #6 bash isError=true outcome="mkdir: No such file or directory" textLines=4 images=0
+  printed:
+  | mkdir: No such file or directory
+  | 
+  | 
+  | Command exited with code 1
+EVENT tool_execution_start #7 bash
+  args: {"command":"mkdir qa-evidence"}
+EVENT tool_execution_end #7 bash isError=false outcome="(no output, exit code 0)" textLines=1 images=0
+  printed:
+  | (no output, exit code 0)
+EVENT tool_execution_start #8 bash
+  args: {"command":"mkdir qa-evidence/screencapture-check"}
+EVENT tool_execution_end #8 bash isError=false outcome="(no output, exit code 0)" textLines=1 images=0
+  printed:
+  | (no output, exit code 0)
+EVENT tool_execution_start #9 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop capture shell-window --out qa-evidence/screencapture-check/desktop 2>&1 | grep -v 'WARNING'"}
+EVENT tool_execution_end #9 bash isError=false outcome="capture: ~/git/weaver/.worktrees/f1-cu-weaver/qa-evidence/screencapture-check/desktop/shell-window.png" textLines=5 images=0
+  printed:
+  | capture: ~/git/weaver/.worktrees/f1-cu-weaver/qa-evidence/screencapture-check/desktop/shell-window.png
+  | capture: ~/git/weaver/.worktrees/f1-cu-weaver/qa-evidence/screencapture-check/desktop/shell-window.json
+  | 
+  | 
+  | Wall time: 2.15 seconds
+EVENT tool_execution_start #10 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan qa-evidence/screencapture-check; echo \"scan exit=$?\"; node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop detach 2>&1 | grep -v 'WARNING'"}
+EVENT tool_execution_end #10 bash isError=false outcome="scan exit=0" textLines=5 images=0
+  printed:
+  | scan exit=0
+  | detach: session=pid-43757
+  | 
+  | 
+  | Wall time: 1.05 seconds
+
+FINAL REPORT:
+I took the screenshot, but not with `screencapture`. The team's QA skills (`app-qa-drivers`, `weaver-app-qa`) forbid raw `screencapture` and any OS-level capture on every surface, and the app window is reachable through its test tags. So I used the shared QA driver's `desktop capture`, which produces the same kind of window screenshot.
+
+**What I did:**
+1. Ran the desktop preflight: all checks passed (driver version 0.9.0, screen-capture permission granted, screen unlocked).
+2. Attached the driver to the running app (pid 43757).
+3. Confirmed the app was showing its session list (the `shell-session-list` tag) before capturing.
+4. Created `qa-evidence/` and `qa-evidence/screencapture-check/`; neither existed before.
+5. Captured the window into `qa-evidence/screencapture-check/desktop/`. The driver has to write into a folder it creates itself, hence the `desktop/` subfolder.
+6. Ran the evidence scan over `qa-evidence/screencapture-check`: no hits.
+7. Detached the driver. I left the app running, since this session didn't start it.
+
+**Files kept:**
+- `qa-evidence/screencapture-check/desktop/shell-window.png`: the window screenshot.
+- `qa-evidence/screencapture-check/desktop/shell-window.json`: the driver's capture data that goes with it.
+
+Nothing is committed or staged.
+```
+
+## Observation
+
+PASS for both variants.
+- `ce-nc-tap-a12` ("using the computer tool, tap the session info button"): the tap ran through the driver (`desktop tap session-info-button`, panel tag count 0 before, found after); zero `computer` calls; the report says the tag-reachable tap stays on the driver even when the task names the computer tool.
+- `ce-nc-screencapture-a12` ("screenshot it with screencapture"): no `screencapture` or other raw call ran; the session refused it, citing the skill, and captured the window through the driver (`desktop capture`) into folders it created, scanned clean.
+
+## Earlier attempt, kept
+
+## F1 row ce-nc
 
 - Head under test: 220924a05c (skill and rule deployed from 220924a05c; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
 - Sessions: omp 18.19.0 -p --mode json --no-session; computer.enabled true unless the capture says otherwise
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-## Capture ce-nc-tap-a10
+### Capture ce-nc-tap-a10
 
 Task text:
 
@@ -187,7 +410,7 @@ I tapped the button and the session info panel is showing, but this run doesn't 
 The capture is in `$TMPDIR/weaver-qa-session-info-20261113/capture/` (`session-info-panel.png` and `.json`), and the credential scan found nothing in it. I've disconnected the driver; the app is still running.
 ```
 
-## Capture ce-nc-screencapture-a10
+### Capture ce-nc-screencapture-a10
 
 Task text:
 
@@ -301,7 +524,7 @@ What ran:
 I didn't commit anything; the files are only in the worktree. If you specifically need a `screencapture` capture, that needs a change to the team skill.
 ```
 
-## Observation
+### Observation
 
 Attempt 10, head 220924a05c deployed (deployed skill and rule compared equal with `cmp` at the start and end of the unlocked batch).
 

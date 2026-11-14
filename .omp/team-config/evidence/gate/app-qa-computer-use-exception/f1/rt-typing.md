@@ -1,10 +1,130 @@
-# F1 row rt-typing
+# F1 row rt-typing, attempt 12
+
+- Head under test: 6697d1c15c (skill and rules deployed from 5d431a0686 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
+- Sessions: omp 18.19.0 -p --mode json --no-session
+- Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
+
+## Capture ce-typing-a12
+
+- computer.backgroundFallback: refuse
+
+Task text:
+
+```text
+Type the text "F1 typing check" into the chat field of the desktop app and prove that the field holds it. The desktop app is already running from this worktree.
+```
+
+```text
+EVENT ttsr_triggered rules={"name":"ui-automation-credentials","path":"~/.omp/agent/rules/ui-automation-credentials.md","content":"# UI automation with real credentials\n\nApplie
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT tool_execution_start #1 read
+  args: {"path":"skill://app-qa-drivers"}
+EVENT tool_execution_start #2 read
+  args: {"path":"skill://weaver-app-qa"}
+EVENT tool_execution_end #1 read isError=false outcome="[Skill file: ~/.omp/agent/skills/app-qa-drivers/SKILL.md]" textLines=145 images=0
+EVENT tool_execution_end #2 read isError=false outcome="[Skill file: ~/git/weaver/.worktrees/f1-cu-weaver/.omp/skills/weaver-app-qa/SKILL.md]" textLines=159 images=0
+EVENT tool_execution_start #3 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop; echo \"exit=$?\""}
+EVENT tool_execution_start #4 grep
+  args: {"pattern":"ComposerTags|composer-field|BasicTextField|TextField\\(","path":"app/designsystem/src/commonMain;app/shell/src/commonMain"}
+EVENT tool_execution_end #4 grep isError=false outcome="# app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/" textLines=34 images=0
+  printed:
+  | # app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/
+  | ## Chrome.kt#80C3
+  |  98:/** Test tags of the composer's regions, used by the inset check. */
+  | *99:object ComposerTags {
+  | *100:    const val Field = "composer-field"
+  |  101:}
+  |  102:
+  |  103:/**
+  | ...
+  |  158:                    .border(BorderStroke(1.dp, c.outlineVariant), fieldShape)
+  | *159:                    .testTag(ComposerTags.Field),
+  |  160:            ) {
+  |  161:                EditableText(
+  |  162:                    value = text,
+  | ## EditableText.kt#7A0B
+  |  3:import androidx.compose.foundation.interaction.MutableInteractionSource
+  | *4:import androidx.compose.foundation.text.BasicTextField
+  |  5:import androidx.compose.foundation.text.KeyboardActions
+  |  6:import androidx.compose.foundation.text.KeyboardOptions
+  |  7:import androidx.compose.runtime.Composable
+  | ...
+  |  18:/**
+  | *19: * A multi-line [BasicTextField] over a plain [value] that owns its own selection and composition.
+  |  20: *
+  | *21: * The `String` overload of [BasicTextField] rebuilds the field's value from [value] on every recomposition and
+  |  22: * restores the selection in a side effect afterwards. On iOS that returns the caret to the start after the first
+  |  23: * typed character, so later characters land in front of it and typed text is scrambled (F1 on iPhone and iPad,
+  |  24: * m5-app-shell). Holding the [TextFieldValue] here keeps text and selection one consistent value; [value] only
+  | ...
+  |  43:    if (held.text != value) held = TextFieldValue(value, TextRange(value.length))
+  | *44:    BasicTextField(
+  |  45:        value = held,
+  |  46:        onValueChange = {
+  |  47:            held = it
+EVENT tool_execution_end #3 bash isError=false outcome="PASS driver: spectre 0.9.0" textLines=7 images=0
+  printed:
+  | PASS driver: spectre 0.9.0
+  | PASS screen capture: granted
+  | PASS screen: unlocked
+  | exit=0
+  | 
+  | 
+  | Wall time: 2.06 seconds
+EVENT tool_execution_start #5 bash
+  args: {"command":"Q=~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs\nnode $Q desktop attach; echo \"attach exit=$?\"\nnode $Q desktop find composer-field; echo \"find exit=$?\"\nnode $Q desktop type composer-field \"F1 typing check\"; echo \"type exit=$?\"\nnode $Q desktop find composer-field --equals \"F1 typing check\"; echo \"find-equals exit=$?\""}
+EVENT tool_execution_end #5 bash isError=false outcome="attach: pid=43757 session=pid-43757" textLines=11 images=0
+  printed:
+  | attach: pid=43757 session=pid-43757
+  | attach exit=0
+  | tag=composer-field count=1 enabled=true focused=false textLength=0
+  | find exit=0
+  | type: tag=composer-field text differs: expected length 15, actual length 0
+  | type exit=1
+  | tag=composer-field count=1 enabled=true focused=false textLength=0 equals=false
+  | find-equals exit=1
+  | 
+  | 
+  | Wall time: 12.42 seconds
+EVENT tool_execution_start #6 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop detach; echo \"exit=$?\""}
+EVENT tool_execution_end #6 bash isError=false outcome="detach: session=pid-43757" textLines=3 images=0
+  printed:
+  | detach: session=pid-43757
+  | exit=0
+  | 
+
+FINAL REPORT:
+I couldn't put the text in the chat field. The field has no test tag, so the driver has nothing to type into, and the field stayed empty. I did not fall back to computer use, because team policy only allows it for dialogs and simulator host menus, not for typing in the main window.
+
+What the shared driver showed (preflight passed; it attached to the app's process, pid 43757, and detached at the end):
+```
+tag=composer-field count=1 enabled=true focused=false textLength=0
+type: tag=composer-field text differs: expected length 15, actual length 0     (exit 1)
+tag=composer-field count=1 enabled=true focused=false textLength=0 equals=false (exit 1)
+```
+
+**Cause:** the tag `composer-field` (`ComposerTags.Field`) sits on the box around the composer, not on the text input inside it. In `app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/Chrome.kt`, the tag is set on that box at line 159, and the text input inside it, `EditableText(...)` from line 161 (defined in `EditableText.kt`), has no tag of its own. The `weaver-app-qa` skill already lists the composer's text input as untagged.
+
+**Fix:** give the text input its own tag, for example a `composer-input` entry in `ComposerTags` applied to the `EditableText` modifier. Then `desktop type composer-input "F1 typing check"` followed by `find composer-input --equals "F1 typing check"` proves the field holds the text. That is a product code change, which the QA rules keep out of a QA session, so I left the source unchanged.
+
+I saved no captures, so there was nothing to scan.
+```
+
+## Observation
+
+PASS, through `ce-typing-a12` (same task, scratch weaver worktree): the rule loaded before the first execution, the team skill and weaver's QA skill were read, every step ran through the shared driver, and no `computer` call or raw scripting ran.
+
+## Earlier attempt, kept
+
+## F1 row rt-typing
 
 - Head under test: 220924a05c (skill and rule deployed from 220924a05c; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
 - Sessions: omp 18.19.0 -p --mode json --no-session; computer.enabled true unless the capture says otherwise
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-## Capture ce-typing-a10
+### Capture ce-typing-a10
 
 Task text:
 
@@ -127,7 +247,7 @@ The weaver-app-qa skill already notes this: the composer's text input is untagge
 I didn't create or scan any evidence folder, and I didn't stop the app, since this session didn't start it.
 ```
 
-## Observation
+### Observation
 
 Attempt 10, head 220924a05c deployed (deployed skill and rule compared equal with `cmp` at the start and end of the unlocked batch). PASS for `ce-typing` and `rt-typing`.
 

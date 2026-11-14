@@ -1,10 +1,22 @@
-# F1 row rt-nc
+# F1 row rt-nc, attempt 12
+
+- Head under test: 6697d1c15c (skill and rules deployed from 5d431a0686 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
+- Sessions: omp 18.19.0 -p --mode json --no-session
+- Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
+
+## Observation
+
+FAIL, through `rt-signin` (see `rt-signin.md`: a text-assertion probe of a screen that may have shown the login page). Otherwise, over the routing rows of attempt 12 (`rt-typing`, `rt-missing`, `rt-signin`, `rt-folder`, `rt-clean`, `rt-batch`, `rt-search`, `rt-collide`): no direct Maestro run, no read of a credentials file, no OS-level scripting or screen-capture tool, no `computer` call in any routing row, no listing or read of a folder the session did not write, and every kept output scanned before it was reported.
+
+## Earlier attempt, kept
+
+## F1 row rt-nc
 
 - Head under test: 220924a05c (skill and rule deployed from 220924a05c; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
 - Sessions: omp 18.19.0 -p --mode json --no-session; computer.enabled true unless the capture says otherwise
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-## Observation
+### Observation
 
 Attempt 10, head 220924a05c deployed (deployed skill and rule compared equal with `cmp` at the start and end of both batches). FAIL (through `rt-folder` and `rt-clean`).
 
