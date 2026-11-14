@@ -1,0 +1,23 @@
+# Gate
+
+- **Mandatory class**: auth-secrets-pii
+- **Depth**: risky (the class is auth-secrets-pii: the lane copies real dev-account credentials into VMs it creates and deletes)
+- **Risk tier**: product
+- **Author's risk assessment**:
+  - The lane handles real credentials: the dev accounts in `.dev-credentials.env` sign in at a remote identity provider. It copies them into guest VMs and relays guest output.
+  - What could leak them: a credential printed through relayed output, left in a clone that survives `vm down` or reclaim, baked into the golden image, or returned to the host inside `--out` files.
+  - Other failures:
+    - A stale artifact or a silent host fallback would report QA as passed on code that was never tested.
+    - A wrong reclaim would delete another session's VM mid-run.
+  - The lane changes behaviour only on machines with a lane file. Repositories on `app-qa/1` are unaffected.
+  - The tier is product because a real credential is in reach. The class is auth-secrets-pii because the delivered change moves that credential across a VM boundary. The slot and lease state machine would also qualify as concurrency-state; only one class is recorded, and the depth is risky either way.
+- **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
+- **Accepted residual risks**:
+  - A lease nobody takes down or reclaims keeps its VM, with the dev credentials inside, running until the next `vm up` or `vm status` on the machine.
+  - The guest runs with SIP off and grants Screen Recording to SSH sessions. It is NAT-only and key-only, and reachable from the host user alone.
+  - A deliberately back-dated worktree file can defeat the artifact freshness check.
+- **Out of scope for blocking**:
+  - onara's and weaver's own configuration and QA skill text: separate changes in those repositories.
+  - Android and Linux runners.
+  - Automation of the SIP Recovery step.
+  - Behaviour of omp's `computer` prelude, which keeps acting on host windows.
