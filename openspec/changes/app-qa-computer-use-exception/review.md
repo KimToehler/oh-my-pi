@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ComputerUseTriageR30
 - **Models**: ComputerUsePlanReviewDelta30 onara/cx/gpt-6.1-sol, ComputerUseTriageR30 onara/cx/gpt-6.1-sol
 - **Round**: 30
-- **Awaiting**: exhaustion
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (round 30 exhaustion ask answered Fix by the user, Tim, 2026-11-14: "Fix: computer only, fixed text")
 
 ## Blockers
 
