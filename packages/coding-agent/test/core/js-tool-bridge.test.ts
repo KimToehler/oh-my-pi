@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "bun:test";
 import { type } from "@oh-my-pi/omptype";
 import type { AgentTool, AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import type { EvalPreludeDefinition } from "@oh-my-pi/pi-coding-agent/eval";
 import { EVAL_TIMEOUT_PAUSE_OP, EVAL_TIMEOUT_RESUME_OP } from "@oh-my-pi/pi-coding-agent/eval/bridge-timeout";
 import { callSessionTool } from "@oh-my-pi/pi-coding-agent/eval/js/tool-bridge";
 import type { EvalShadowCellSession } from "@oh-my-pi/pi-coding-agent/eval/speculation/cell-session";
@@ -958,5 +959,78 @@ describe("callSessionTool", () => {
 			"registered but not available in this session",
 		);
 		expect(rawExecute).not.toHaveBeenCalled();
+	});
+});
+
+describe("callSessionTool prelude status", () => {
+	// A window-miss error lists other apps' window titles after its first line. A cell that catches the error
+	// prints only what it chooses, but the status event is recorded regardless and lands in the session file.
+	const windowMiss = 'no window matches "4803"\nOpen windows by app (id "title"):\n- Other: 4776 "PRIVATE-TITLE"';
+
+	function preludeSession(invoke: EvalPreludeDefinition["invoke"], statusError?: string): ToolSession {
+		const prelude: EvalPreludeDefinition = {
+			name: "probe",
+			documentation: "Probe",
+			javascript: "globalThis.probe = {};",
+			python: "probe = object()",
+			exports: ["probe"],
+			approval: "read",
+			statusError,
+			invoke,
+		};
+		return { ...createSession([]), getEvalPreludes: () => [prelude] };
+	}
+
+	function errorStatuses(statuses: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+		return statuses.filter(event => "error" in event);
+	}
+
+	it("records a prelude's fixed status text for a thrown error while the cell receives all of it", async () => {
+		const session = preludeSession(async () => {
+			throw new Error(windowMiss);
+		}, "failed");
+		const statuses: Array<Record<string, unknown>> = [];
+
+		await expect(
+			callSessionTool(
+				"__prelude__",
+				{ name: "probe", parameters: {} },
+				{ session, emitStatus: e => statuses.push(e) },
+			),
+		).rejects.toThrow(windowMiss);
+		expect(errorStatuses(statuses)).toEqual([{ op: "probe", error: "failed" }]);
+	});
+
+	it("records a prelude's fixed status text for a failed result while the cell receives all of it", async () => {
+		const session = preludeSession(
+			async () => ({ content: [{ type: "text", text: windowMiss }], isError: true }) as AgentToolResult,
+			"failed",
+		);
+		const statuses: Array<Record<string, unknown>> = [];
+
+		const result = await callSessionTool(
+			"__prelude__",
+			{ name: "probe", parameters: {} },
+			{ session, emitStatus: e => statuses.push(e) },
+		);
+
+		expect(result).toEqual(expect.objectContaining({ text: windowMiss, hasError: true }));
+		expect(errorStatuses(statuses)).toEqual([{ op: "probe", error: "failed" }]);
+	});
+
+	it("records the error text of a prelude without a fixed status text", async () => {
+		const session = preludeSession(async () => {
+			throw new Error("navigation timed out");
+		});
+		const statuses: Array<Record<string, unknown>> = [];
+
+		await expect(
+			callSessionTool(
+				"__prelude__",
+				{ name: "probe", parameters: {} },
+				{ session, emitStatus: e => statuses.push(e) },
+			),
+		).rejects.toThrow("navigation timed out");
+		expect(errorStatuses(statuses)).toEqual([{ op: "probe", error: "navigation timed out" }]);
 	});
 });

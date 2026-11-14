@@ -157,6 +157,11 @@ const summarizeToolResult: StatusSummarizer = (name, args, result, text, hasErro
 	}
 };
 
+/** The fixed status text a prelude records for its failures instead of the error, if it sets one. */
+function preludeStatusError(session: ToolSession, name: string): string | undefined {
+	return findEnabledEvalPrelude(session, name)?.statusError;
+}
+
 /**
  * Prelude calls (browser, computer) describe themselves: a bare op name with a
  * byte count is noise, so a prelude without a `status` hook records nothing on
@@ -164,7 +169,7 @@ const summarizeToolResult: StatusSummarizer = (name, args, result, text, hasErro
  */
 function summarizePreludeResult(session: ToolSession): StatusSummarizer {
 	return (name, args, result, text, hasError) => {
-		if (hasError) return { op: name, error: text.slice(0, 500) };
+		if (hasError) return { op: name, error: preludeStatusError(session, name) ?? text.slice(0, 500) };
 		const detail = findEnabledEvalPrelude(session, name)?.status?.(args, result);
 		return detail === undefined ? undefined : { op: name, detail };
 	};
@@ -249,7 +254,9 @@ export async function callSessionTool(name: string, args: unknown, options: Tool
 		} catch (error) {
 			options.emitStatus?.({
 				op: request.name,
-				error: error instanceof Error ? error.message : String(error),
+				error:
+					preludeStatusError(options.session, request.name) ??
+					(error instanceof Error ? error.message : String(error)),
 			});
 			throw error;
 		}

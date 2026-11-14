@@ -157,6 +157,8 @@ export function createComputerPrelude(
 			return await invokeComputer(session, controller, parsed, context);
 		},
 		status: describeComputerCall,
+		// A window miss lists every app's window titles.
+		statusError: "failed",
 	};
 }
 

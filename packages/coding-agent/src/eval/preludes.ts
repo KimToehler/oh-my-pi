@@ -64,6 +64,13 @@ export interface EvalPreludeDefinition {
 	 * bridge regardless.
 	 */
 	status?(parameters: unknown, result: AgentToolResult<unknown>): string | undefined;
+	/**
+	 * Fixed text the eval status records for a failed call instead of its error.
+	 * Set it when errors can carry host detail the cell did not print: the status
+	 * reaches the session file even when the cell catches the error. The cell
+	 * still receives the full error. Omission records the error text.
+	 */
+	statusError?: string;
 }
 
 /**
