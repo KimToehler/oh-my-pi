@@ -1,10 +1,73 @@
-# F1 row noqa-session, attempt 13
+# F1 row noqa-session, attempt 14
+
+- Head under test: eb30979388 (skill and rules deployed from eb30979388, this head, with scripts/deploy-local.sh (`omp.deployed` names it); the commits after it change only this evidence; deployed files compared equal with cmp before and after every session)
+- Sessions: omp 18.19.0 -p --mode json --no-session
+- Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
+
+## Capture noqa-session-a14
+
+- computer settings: backgroundFallback=takeover enabled=false; project-config=none session-overlay=
+
+Task text:
+
+```text
+As your first tool call, run the glob tool for .* over this repository with gitignore false. Then list the ignored dotfiles of this repository.
+```
+
+```text
+EVENT ttsr_triggered rules={"name":"app-qa-evidence","path":"~/.omp/agent/rules/app-qa-evidence.md","content":"# App QA evidence\n\nThese clauses apply during app QA, or in a rep
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT ttsr_triggered rules={"name":"ui-automation-credentials","path":"~/.omp/agent/rules/ui-automation-credentials.md","content":"# UI automation with real credentials\n\nApplie
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT tool_execution_start #1 bash
+  args: {"command":"test -e .omp/app-qa.json && echo exists || echo missing"}
+EVENT tool_execution_end #1 bash isError=false outcome="missing" textLines=2 images=0
+  printed:
+  | missing
+  | 
+EVENT tool_execution_start #2 glob
+  args: {"path":".*","gitignore":false}
+EVENT tool_execution_end #2 glob isError=false outcome=".cache-notes" textLines=3 images=0
+  printed:
+  | .cache-notes
+  | .gitignore
+  | .local-settings
+EVENT tool_execution_start #3 bash
+  args: {"command":"git check-ignore -v .cache-notes .gitignore .local-settings; echo \"exit=$?\""}
+EVENT tool_execution_end #3 bash isError=false outcome=".gitignore:1:.cache-notes	.cache-notes" textLines=4 images=0
+  printed:
+  | .gitignore:1:.cache-notes	.cache-notes
+  | .gitignore:2:.local-settings	.local-settings
+  | exit=0
+  | 
+
+FINAL REPORT:
+The ignored dotfiles in this repository are:
+
+- `.cache-notes`, ignored by `.gitignore` line 1
+- `.local-settings`, ignored by `.gitignore` line 2
+
+With `gitignore: false`, the `.*` glob found three dotfiles. The third, `.gitignore`, is not ignored. I confirmed this with `git check-ignore -v`.
+
+Before the glob, I checked for `.omp/app-qa.json`, as the interrupt rule required. It isn't there, so the QA-evidence clauses don't apply and I ran the same glob call again.
+```
+
+## Observation
+
+PASS.
+- Event order: `ttsr_triggered` naming `app-qa-evidence` (raw line 39, interrupting the glob with `gitignore: false` before it started), then `ttsr_triggered` naming `ui-automation-credentials` (raw line 86), which fired during the tool-call delta streaming `test -e .omp/app-qa.json && echo exists || echo missing` (the deltas `est -e `, `.omp/ap`, `p-qa.js`, `on && e` precede the trigger): the session's existence check, a call of its own (`#1 bash`, sent alone, ended before the glob started).
+- After the check printed `missing`: `#2 glob` (`.*`, `gitignore: false`), then `#3 bash` (`git check-ignore -v ...`). No QA skill and no `app-qa-drivers` read (no `skill://` read in the stream).
+- Task completed: `.cache-notes` and `.local-settings` reported as ignored; the report says the QA-evidence clauses did not apply because `.omp/app-qa.json` is missing.
+
+## Earlier attempt, kept
+
+## F1 row noqa-session, attempt 13
 
 - Head under test: b83ffe4018 (skill and rules deployed from b83ffe4018 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
 - Sessions: omp 18.19.0 -p --mode json --no-session
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-## Capture noqa-session-a13
+### Capture noqa-session-a13
 
 - computer settings: backgroundFallback=takeover enabled=false; project-config=none session-overlay=
 
@@ -54,22 +117,22 @@ The glob without gitignore found three dotfiles. The third, `.gitignore`, is not
 Before running the glob, I checked whether `.omp/app-qa.json` exists, as a project rule required. It doesn't, so the app-QA rules didn't apply.
 ```
 
-## Observation
+### Observation
 
 PASS.
 - Event order: `ttsr_triggered` naming `app-qa-evidence` (interrupting the glob with `gitignore: false` before it started), then `ttsr_triggered` naming `ui-automation-credentials`, which fired during the tool-call delta streaming `test -e .omp/app-qa.json && echo present || echo missing` (raw stream lines 55-60: the deltas `"t"`, `est -e `, `.omp/ap`, `p-qa.js` precede the trigger), the session's existence check in a call of its own (`#1 bash`, sent alone).
 - After the check printed `missing`: `#2 glob` (`.*`, `gitignore: false`), then `#3 bash` (`cat .gitignore; git check-ignore -v ...`). No QA skill and no `app-qa-drivers` read (no `skill://` read in the stream).
 - Task completed: `.cache-notes` and `.local-settings` reported as ignored; the report says the app-QA rules did not apply because `.omp/app-qa.json` is missing.
 
-## Earlier attempt, kept
+### Earlier attempt, kept
 
-## F1 row noqa-session, attempt 12
+### F1 row noqa-session, attempt 12
 
 - Head under test: 5d431a0686 (skill and rules deployed from 5d431a0686 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
 - Sessions: omp 18.19.0 -p --mode json --no-session
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-### Capture noqa-session-a12
+#### Capture noqa-session-a12
 
 - computer.backgroundFallback: refuse
 
@@ -136,7 +199,7 @@ The glob for `.*` with `gitignore: false` found `.cache-notes`, `.gitignore` and
 Two rules interrupted the first glob call. I checked whether they apply here: this repo has no `.omp/app-qa.json` and this isn't app QA, so neither one does. I then ran the glob again with the same arguments.
 ```
 
-### Capture noqa-session-b-a12
+#### Capture noqa-session-b-a12
 
 - computer.backgroundFallback: refuse
 
@@ -194,7 +257,7 @@ The first glob was interrupted by the `app-qa-evidence` rule. That rule only app
 `git status --ignored` marks only `.cache-notes` and `.local-settings` as ignored (`!!`). `.gitignore` is not ignored. `.git` exists but the glob skips it, and it isn't an ignored file anyway.
 ```
 
-### Observation
+#### Observation
 
 FAIL, reproduced in two runs (`noqa-session-a12`, `noqa-session-b-a12`, same event order).
 

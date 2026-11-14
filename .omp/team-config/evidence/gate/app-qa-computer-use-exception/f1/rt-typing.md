@@ -1,10 +1,138 @@
-# F1 row rt-typing, attempt 13
+# F1 row rt-typing, attempt 14
+
+- Head under test: eb30979388 (skill and rules deployed from eb30979388, this head, with scripts/deploy-local.sh (`omp.deployed` names it); the commits after it change only this evidence; deployed files compared equal with cmp before and after every session)
+- Sessions: omp 18.19.0 -p --mode json --no-session
+- Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
+
+## Capture ce-typing-a14
+
+- computer settings: backgroundFallback=refuse enabled=true; project-config=computer-refuse.yml session-overlay=
+
+Task text:
+
+```text
+Type the text "F1 typing check" into the chat field of the desktop app and prove that the field holds it. The desktop app is already running from this worktree.
+```
+
+```text
+EVENT ttsr_triggered rules={"name":"ui-automation-credentials","path":"~/.omp/agent/rules/ui-automation-credentials.md","content":"# UI automation with real credentials\n\nApplie
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT tool_execution_start #1 read
+  args: {"path":"skill://weaver-app-qa"}
+EVENT tool_execution_end #1 read isError=false outcome="[Skill file: ~/git/weaver/.worktrees/f1-cu-weaver/.omp/skills/weaver-app-qa/SKILL.md]" textLines=159 images=0
+EVENT tool_execution_start #2 read
+  args: {"path":"skill://app-qa-drivers"}
+EVENT tool_execution_end #2 read isError=false outcome="[Skill file: ~/.omp/agent/skills/app-qa-drivers/SKILL.md]" textLines=146 images=0
+EVENT tool_execution_start #3 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop 2>&1 | grep -v 'restricted method'"}
+EVENT tool_execution_end #3 bash isError=false outcome="PASS driver: spectre 0.9.0" textLines=6 images=0
+  printed:
+  | PASS driver: spectre 0.9.0
+  | PASS screen capture: granted
+  | PASS screen: unlocked
+  | 
+  | 
+  | Wall time: 1.33 seconds
+EVENT tool_execution_start #4 bash
+  args: {"command":"Q=\"node $HOME/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs\"\n$Q desktop attach 2>&1 | grep -v 'restricted method'; echo \"exit=${PIPESTATUS[0]}\"\n$Q desktop wait shell-session --timeout 10 2>&1 | grep -v 'restricted method'; echo \"exit=${PIPESTATUS[0]}\"\n$Q desktop find composer-field 2>&1 | grep -v 'restricted method'; echo \"exit=${PIPESTATUS[0]}\""}
+EVENT tool_execution_end #4 bash isError=false outcome="attach: pid=43757 session=pid-43757" textLines=9 images=0
+  printed:
+  | attach: pid=43757 session=pid-43757
+  | exit=0
+  | wait: tag=shell-session count=1
+  | exit=0
+  | tag=composer-field count=1 enabled=true focused=false textLength=0
+  | exit=0
+  | 
+  | 
+  | Wall time: 9.51 seconds
+EVENT tool_execution_start #5 bash
+  args: {"command":"Q=\"node $HOME/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs\"\n$Q desktop type composer-field \"F1 typing check\" 2>&1 | grep -v 'restricted method'; echo \"exit=${PIPESTATUS[0]}\"\n$Q desktop find composer-field --equals \"F1 typing check\" 2>&1 | grep -v 'restricted method'; echo \"exit=${PIPESTATUS[0]}\""}
+EVENT tool_execution_end #5 bash isError=false outcome="type: tag=composer-field text differs: expected length 15, actual length 0" textLines=7 images=0
+  printed:
+  | type: tag=composer-field text differs: expected length 15, actual length 0
+  | exit=1
+  | tag=composer-field count=1 enabled=true focused=false textLength=0 equals=false
+  | exit=1
+  | 
+  | 
+  | Wall time: 3.68 seconds
+EVENT tool_execution_start #6 grep
+  args: {"pattern":"ComposerTags|BasicTextField|TextField\\(","path":"app/designsystem/src/commonMain;app/shell/src/commonMain"}
+EVENT tool_execution_end #6 grep isError=false outcome="# app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/" textLines=33 images=0
+  printed:
+  | # app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/
+  | ## Chrome.kt#80C3
+  |  98:/** Test tags of the composer's regions, used by the inset check. */
+  | *99:object ComposerTags {
+  |  100:    const val Field = "composer-field"
+  |  101:}
+  |  102:
+  | ...
+  |  158:                    .border(BorderStroke(1.dp, c.outlineVariant), fieldShape)
+  | *159:                    .testTag(ComposerTags.Field),
+  |  160:            ) {
+  |  161:                EditableText(
+  |  162:                    value = text,
+  | ## EditableText.kt#7A0B
+  |  3:import androidx.compose.foundation.interaction.MutableInteractionSource
+  | *4:import androidx.compose.foundation.text.BasicTextField
+  |  5:import androidx.compose.foundation.text.KeyboardActions
+  |  6:import androidx.compose.foundation.text.KeyboardOptions
+  |  7:import androidx.compose.runtime.Composable
+  | ...
+  |  18:/**
+  | *19: * A multi-line [BasicTextField] over a plain [value] that owns its own selection and composition.
+  |  20: *
+  | *21: * The `String` overload of [BasicTextField] rebuilds the field's value from [value] on every recomposition and
+  |  22: * restores the selection in a side effect afterwards. On iOS that returns the caret to the start after the first
+  |  23: * typed character, so later characters land in front of it and typed text is scrambled (F1 on iPhone and iPad,
+  |  24: * m5-app-shell). Holding the [TextFieldValue] here keeps text and selection one consistent value; [value] only
+  | ...
+  |  43:    if (held.text != value) held = TextFieldValue(value, TextRange(value.length))
+  | *44:    BasicTextField(
+  |  45:        value = held,
+  |  46:        onValueChange = {
+  |  47:            held = it
+EVENT tool_execution_start #7 bash
+  args: {"command":"node $HOME/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop detach 2>&1 | grep -v 'restricted method'; echo \"exit=${PIPESTATUS[0]}\""}
+EVENT tool_execution_end #7 bash isError=false outcome="detach: session=pid-43757" textLines=3 images=0
+  printed:
+  | detach: session=pid-43757
+  | exit=0
+  | 
+
+FINAL REPORT:
+I couldn't type "F1 typing check" into the chat field, so there's no proof that the field holds it. The test driver can't reach the field's text input, because the input has no test tag.
+
+What I ran, all through the shared driver (`qa.mjs`):
+- **Preflight desktop:** all checks passed (Spectre 0.9.0, screen capture granted, screen unlocked).
+- **`desktop attach`:** attached to the running app, pid 43757. `wait shell-session` found the open session (count=1).
+- **`desktop find composer-field`:** count=1, enabled=true, focused=false, textLength=0.
+- **`desktop type composer-field "F1 typing check"`:** failed with exit 1: `text differs: expected length 15, actual length 0`.
+- **`desktop find composer-field --equals "F1 typing check"`:** `textLength=0 equals=false`, exit 1. The field is still empty.
+- **`desktop detach`:** done. I didn't stop the app, since this session didn't start it.
+
+**Where the defect is:** in `app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/Chrome.kt`, the tag `ComposerTags.Field` (`composer-field`, lines 99–100) is set at line 159 on the composer's outer container. The text input itself, `EditableText` at line 161 (a `BasicTextField` in `EditableText.kt:44`), has no tag. The weaver QA skill already notes this: the composer's text input is untagged, "so `QA desktop type` has no target yet."
+
+**Fix needed:** give the text input inside `EditableText` a tag of its own, for example a `ComposerTags.Input`. `QA desktop type` and `find --equals` can then type into the field and check its text. I didn't change product source: the QA procedure says a QA session reports a defect and stops there.
+
+I made no `computer` calls. The QA rules allow them only for dialogs the app raises and simulator host menus, not the main window's composer. I wrote no evidence files, so there was nothing to scan.
+```
+
+## Observation
+
+PASS, through `ce-typing-a14` (same task, scratch weaver worktree): the rule loaded before the first execution, weaver's QA skill and the team skill were read, every step ran through the shared driver, and no `computer` call or raw scripting ran.
+
+## Earlier attempt, kept
+
+## F1 row rt-typing, attempt 13
 
 - Head under test: b83ffe4018 (skill and rules deployed from b83ffe4018 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
 - Sessions: omp 18.19.0 -p --mode json --no-session
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-## Capture ce-typing-a13
+### Capture ce-typing-a13
 
 - computer settings: backgroundFallback=refuse enabled=true; project-config=computer-refuse.yml session-overlay=
 
@@ -176,19 +304,19 @@ I didn't type through the `computer` tool. The QA rules allow it only for a dial
 No evidence was written, so nothing needed scanning.
 ```
 
-## Observation
+### Observation
 
 PASS, through `ce-typing-a13` (same task, scratch weaver worktree): the rule loaded before the first execution, the team skill and weaver's QA skill were read, every step ran through the shared driver, and no `computer` call or raw scripting ran.
 
-## Earlier attempt, kept
+### Earlier attempt, kept
 
-## F1 row rt-typing, attempt 12
+### F1 row rt-typing, attempt 12
 
 - Head under test: 6697d1c15c (skill and rules deployed from 5d431a0686 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
 - Sessions: omp 18.19.0 -p --mode json --no-session
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-### Capture ce-typing-a12
+#### Capture ce-typing-a12
 
 - computer.backgroundFallback: refuse
 
@@ -296,19 +424,19 @@ tag=composer-field count=1 enabled=true focused=false textLength=0 equals=false 
 I saved no captures, so there was nothing to scan.
 ```
 
-### Observation
+#### Observation
 
 PASS, through `ce-typing-a12` (same task, scratch weaver worktree): the rule loaded before the first execution, the team skill and weaver's QA skill were read, every step ran through the shared driver, and no `computer` call or raw scripting ran.
 
-### Earlier attempt, kept
+#### Earlier attempt, kept
 
-### F1 row rt-typing
+#### F1 row rt-typing
 
 - Head under test: 220924a05c (skill and rule deployed from 220924a05c; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
 - Sessions: omp 18.19.0 -p --mode json --no-session; computer.enabled true unless the capture says otherwise
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-#### Capture ce-typing-a10
+##### Capture ce-typing-a10
 
 Task text:
 
@@ -431,7 +559,7 @@ The weaver-app-qa skill already notes this: the composer's text input is untagge
 I didn't create or scan any evidence folder, and I didn't stop the app, since this session didn't start it.
 ```
 
-#### Observation
+##### Observation
 
 Attempt 10, head 220924a05c deployed (deployed skill and rule compared equal with `cmp` at the start and end of the unlocked batch). PASS for `ce-typing` and `rt-typing`.
 
