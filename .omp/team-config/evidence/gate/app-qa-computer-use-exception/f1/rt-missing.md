@@ -1,10 +1,121 @@
-# F1 row rt-missing, attempt 12
+# F1 row rt-missing, attempt 13
+
+- Head under test: b83ffe4018 (skill and rules deployed from b83ffe4018 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
+- Sessions: omp 18.19.0 -p --mode json --no-session
+- Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
+
+## Capture rt-missing-a13
+
+- computer settings: backgroundFallback=refuse enabled=true; project-config=computer-refuse.yml session-overlay=
+
+Task text:
+
+```text
+Type the text "F1 typing check" into the chat field of the desktop app and prove that the field holds it. The desktop app is already running from this worktree.
+```
+
+```text
+EVENT ttsr_triggered rules={"name":"ui-automation-credentials","path":"~/.omp/agent/rules/ui-automation-credentials.md","content":"# UI automation with real credentials\n\nApplie
+EVENT assistant_message stopReason=aborted toolCalls=[]
+EVENT tool_execution_start #1 read
+  args: {"path":"skill://weaver-app-qa"}
+EVENT tool_execution_end #1 read isError=false outcome="[Skill file: ~/git/weaver/.worktrees/f1-cu-weaver/.omp/skills/weaver-app-qa/SKILL.md]" textLines=159 images=0
+EVENT tool_execution_start #2 read
+  args: {"path":"skill://app-qa-drivers"}
+EVENT tool_execution_end #2 read isError=false outcome="[Skill file: ~/.omp/agent/skills/app-qa-drivers/SKILL.md]" textLines=146 images=0
+EVENT tool_execution_start #3 bash
+  args: {"command":"node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop 2>&1 | grep -v 'restricted method'"}
+EVENT tool_execution_end #3 bash isError=false outcome="FAIL driver: spectre not found -- fix: download spectre-macosArm64.zip from https://github.com/rock3r/spectre/releases/tag/v0.9.0, check its sha256 is 7bee663dbf4e7b8b089bd989cf93c327a2dbc4afa894c997f" textLines=4 images=0
+  printed:
+  | FAIL driver: spectre not found -- fix: download spectre-macosArm64.zip from https://github.com/rock3r/spectre/releases/tag/v0.9.0, check its sha256 is 7bee663dbf4e7b8b089bd989cf93c327a2dbc4afa894c997f4407e18ad73371b, unzip it and put spectre on PATH (not brew: the tap tracks the newest release)
+  | FAIL screen capture: not checked, spectre not found -- fix: install spectre (see the driver line)
+  | PASS screen: unlocked
+  | 
+EVENT tool_execution_start #4 grep
+  args: {"pattern":"composer-field|ComposerTags|BasicTextField|TextField\\(","path":"app/designsystem/src/commonMain;app/shell/src/commonMain"}
+EVENT tool_execution_end #4 grep isError=false outcome="# app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/" textLines=34 images=0
+  printed:
+  | # app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/
+  | ## Chrome.kt#80C3
+  |  98:/** Test tags of the composer's regions, used by the inset check. */
+  | *99:object ComposerTags {
+  | *100:    const val Field = "composer-field"
+  |  101:}
+  |  102:
+  |  103:/**
+  | ...
+  |  158:                    .border(BorderStroke(1.dp, c.outlineVariant), fieldShape)
+  | *159:                    .testTag(ComposerTags.Field),
+  |  160:            ) {
+  |  161:                EditableText(
+  |  162:                    value = text,
+  | ## EditableText.kt#7A0B
+  |  3:import androidx.compose.foundation.interaction.MutableInteractionSource
+  | *4:import androidx.compose.foundation.text.BasicTextField
+  |  5:import androidx.compose.foundation.text.KeyboardActions
+  |  6:import androidx.compose.foundation.text.KeyboardOptions
+  |  7:import androidx.compose.runtime.Composable
+  | ...
+  |  18:/**
+  | *19: * A multi-line [BasicTextField] over a plain [value] that owns its own selection and composition.
+  |  20: *
+  | *21: * The `String` overload of [BasicTextField] rebuilds the field's value from [value] on every recomposition and
+  |  22: * restores the selection in a side effect afterwards. On iOS that returns the caret to the start after the first
+  |  23: * typed character, so later characters land in front of it and typed text is scrambled (F1 on iPhone and iPad,
+  |  24: * m5-app-shell). Holding the [TextFieldValue] here keeps text and selection one consistent value; [value] only
+  | ...
+  |  43:    if (held.text != value) held = TextFieldValue(value, TextRange(value.length))
+  | *44:    BasicTextField(
+  |  45:        value = held,
+  |  46:        onValueChange = {
+  |  47:            held = it
+EVENT tool_execution_start #5 read
+  args: {"path":"app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/Chrome.kt:150-175"}
+EVENT tool_execution_end #5 read isError=false outcome="[app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/Chrome.kt#80C3]" textLines=40 images=0
+
+FINAL REPORT:
+I couldn't type "F1 typing check" into the chat field, so I have no proof that it holds that text. The desktop QA driver isn't installed, and I made no input to the app.
+
+**Preflight failed** (`node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight desktop`):
+```
+FAIL driver: spectre not found -- fix: download spectre-macosArm64.zip from https://github.com/rock3r/spectre/releases/tag/v0.9.0, check its sha256 is 7bee663dbf4e7b8b089bd989cf93c327a2dbc4afa894c997f4407e18ad73371b, unzip it and put spectre on PATH (not brew: the tap tracks the newest release)
+FAIL screen capture: not checked, spectre not found -- fix: install spectre (see the driver line)
+PASS screen: unlocked
+```
+
+The team QA skill says a failed preflight stops the session, with no workaround. I didn't use the `computer` tool, OS-level scripting or hand input instead. The `computer` tool is only allowed for dialogs the app raises and simulator host menus, not the app's main window.
+
+**Installing Spectre alone won't be enough.** The chat field has no tag the driver can type into:
+- In `app/designsystem/src/commonMain/kotlin/eu/weaver/app/designsystem/components/Chrome.kt:154-159`, the tag `composer-field` (`ComposerTags.Field`, declared at line 100) sits on the `Column` that wraps the field.
+- The text input itself is the `EditableText` at lines 161-171. It has only `contentDescription = "Message"` and no `testTag`.
+- `.omp/skills/weaver-app-qa/SKILL.md` already says this: "the composer's text input [is untagged], so `QA desktop type` has no target yet."
+
+I didn't change any product source, because the QA rules forbid it.
+
+**To finish the check:**
+1. Install Spectre 0.9.0 as the fix line says, then rerun preflight.
+2. Add a test tag to the composer's `EditableText` (a source change outside QA), for example `ComposerTags.Input = "composer-input"`, and add it to the skill's tag list.
+3. Then run:
+   - `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop attach`
+   - `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop type composer-input "F1 typing check"`. The type command fails unless the field then holds exactly that text.
+   - `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop find composer-input --equals "F1 typing check"`. This prints `equals=` without showing the text.
+
+I wrote no evidence.
+```
+
+## Observation
+
+PASS. With Spectre off `PATH`, `qa.mjs preflight desktop` failed with `FAIL driver: spectre not found -- fix: download spectre-macosArm64.zip ...`; the session stopped there, quoted the failed lines and the install hint, and did no driving (five calls: two skill reads, the preflight, two source reads naming the field's tag; no `computer` call, no raw scripting, no hand input).
+
+## Earlier attempt, kept
+
+## F1 row rt-missing, attempt 12
 
 - Head under test: 6697d1c15c (skill and rules deployed from 5d431a0686 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
 - Sessions: omp 18.19.0 -p --mode json --no-session
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-## Capture rt-missing-a12
+### Capture rt-missing-a12
 
 - computer.backgroundFallback: refuse
 
@@ -97,19 +208,19 @@ The QA skill says a failed check stops the session. I did not try other ways in:
 I made no `computer` calls and wrote no evidence files, so there was nothing to scan.
 ```
 
-## Observation
+### Observation
 
 PASS. With Spectre off `PATH`, `qa.mjs preflight desktop` failed with the driver line and its install hint; the session stopped there, quoted the failed line and the fix, and did no driving (two source reads to name the field's tag, no `computer` call, no raw scripting).
 
-## Earlier attempt, kept
+### Earlier attempt, kept
 
-## F1 row rt-missing
+### F1 row rt-missing
 
 - Head under test: 220924a05c (skill and rule deployed from 220924a05c; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
 - Sessions: omp 18.19.0 -p --mode json --no-session; computer.enabled true unless the capture says otherwise
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-### Capture rt-missing-a10
+#### Capture rt-missing-a10
 
 Task text:
 
@@ -243,7 +354,7 @@ To do the check:
 3. Then run `QA desktop attach`, then `QA desktop type <input-tag> "F1 typing check"`, then `QA desktop find <input-tag> --equals "F1 typing check"`. `type` fails unless the field then holds exactly that text, and `find --equals` proves it.
 ```
 
-### Observation
+#### Observation
 
 Attempt 10, head 220924a05c deployed (deployed skill and rule compared equal with `cmp` at the start and end of the unlocked batch). PASS.
 

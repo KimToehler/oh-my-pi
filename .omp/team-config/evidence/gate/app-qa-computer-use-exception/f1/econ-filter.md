@@ -1,22 +1,34 @@
-# F1 row econ-filter, attempt 12
+# F1 row econ-filter, attempt 13
 
-- Head under test: 6697d1c15c (skill and rules deployed from 5d431a0686 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
+- Head under test: b83ffe4018 (skill and rules deployed from b83ffe4018 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
 - Sessions: omp 18.19.0 -p --mode json --no-session
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
 ## Observation
 
-PASS. Over `ce-dialog-a12`: the cells that read trees printed only filtered button lines, role counts, line counts or attribute objects of buttons; no call printed a whole tree and no `observe()` was called (same over `ce-dialog-dialogfirst-a12`, `ce-dialog-open-a12`, `evid-nc-a12`).
+PASS. Over every attempt-13 capture with an eval cell (`ce-dialog-a13`, `-mainfirst`, `-dialogfirst`, `-open`, `evid-nc-a13`, `ce-window-miss-*`, `ce-takeover-mismatch-a13`, the host-menu runs): tree reads were kept in variables and only filtered lines were printed (button lines, role counts, line counts, sliced neighbourhoods, attribute objects of single elements, a shallow role skeleton built from `children()`); no cell prints a whole `ax()` result and none calls `observe()`.
 
 ## Earlier attempt, kept
 
-## F1 row econ-filter
+## F1 row econ-filter, attempt 12
+
+- Head under test: 6697d1c15c (skill and rules deployed from 5d431a0686 with scripts/deploy-local.sh; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp before and after every session)
+- Sessions: omp 18.19.0 -p --mode json --no-session
+- Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
+
+### Observation
+
+PASS. Over `ce-dialog-a12`: the cells that read trees printed only filtered button lines, role counts, line counts or attribute objects of buttons; no call printed a whole tree and no `observe()` was called (same over `ce-dialog-dialogfirst-a12`, `ce-dialog-open-a12`, `evid-nc-a12`).
+
+### Earlier attempt, kept
+
+### F1 row econ-filter
 
 - Head under test: 220924a05c (skill and rule deployed from 220924a05c; the commits after it change only openspec/ and this evidence; deployed files compared equal with cmp)
 - Sessions: omp 18.19.0 -p --mode json --no-session; computer.enabled true unless the capture says otherwise
 - Capture: tool-call arguments, one-line outcome and printed text lines of each call (no images; read results counted only), ttsr and tool lifecycle events in order, interrupted assistant turns, final report; home directory shown as ~
 
-### Observation
+#### Observation
 
 Attempt 10, head 220924a05c deployed (deployed skill and rule compared equal with `cmp` at the start and end of the unlocked batch). PASS for `econ-filter`, `econ-window` and `econ-nc`; judged over the captures of attempt 10.
 
