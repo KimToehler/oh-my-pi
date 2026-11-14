@@ -219,8 +219,8 @@ With the lane active, the team skill `app-qa-drivers` SHALL lead an agent sessio
 - **THEN** its tool calls run `vm up ios`, the routed preflight and the sign-in flow, and `vm down`, in that order
 
 #### Scenario: Visible change tested through the lane
-- **WHEN** a fresh session is asked to change a visible text of the app and show it on the iOS simulator
-- **THEN** its tool calls edit the source, then run `vm up ios`, then a routed QA command whose screenshot shows the new text, then `vm down`
+- **WHEN** a fresh session is asked to change a visible text on the app's signed-in home screen and show it on the iOS simulator
+- **THEN** its tool calls edit the source, then run `vm up ios`, then a routed QA command whose screenshot, taken after sign-in, shows the new text, then `vm down`
 
 #### Scenario: Negative control
 - **WHEN** a fresh session's tool calls run QA with `--host` after a refused `vm up` without the user asking, skip `vm down`, or test after a code change without a new `vm up`
