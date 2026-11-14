@@ -45,6 +45,8 @@ A routed command is admitted in one critical section of the table lock (D4): the
 - a clone that is not running, or a dead forward pid
 - SSH exiting 255 (no connection)
 
+After the guest command, the clone, the connection and the forward are checked again (D7, dependency loss); a loss turns the result into exit 2 with an infrastructure line.
+
 `--host` is the explicit escape. Android and `scan` stay on the host.
 Alternative: route only when the host screen is locked. Rejected by the user: the lock can start mid-run, and simulator windows on the host disturb the user.
 
@@ -108,7 +110,8 @@ It is user-owned: `scripts/install-team-config.ts` removes only files it install
   - These become `closing` with the sweeper as closer and are torn down, each printed by name: a partial slot; a `starting` lease whose owner is dead; a `closing` lease whose closer is dead (teardown resumes from wherever it stopped: before stop, between stop and delete, or after delete before the slot was removed).
   - A `ready` lease whose clone is gone: its forward is killed and its slot removed.
   - A busy marker whose pid is dead is removed.
-  - A VM named `app-qa-slot-N` with N up to 2 and no slot directory is deleted.
+  - A VM named `app-qa-slot-N` with N up to 2 and no slot directory is an orphan. The sweeper first reserves it under the lock by creating `slot-N` with a `closing` record naming itself as closer and no worktree, then tears the clone down outside the lock and removes the slot under the lock. While that reservation exists, no other sweep touches the clone and no `vm up` can take slot N.
+- **Slot allocation:** a free slot is an N whose `slot-N` directory does not exist. When `lume ls` still lists `app-qa-slot-N` for it, `vm up` treats the clone as an orphan: it reserves the slot as above with itself as closer, deletes the clone, then turns the record into its own `starting` lease in one critical section.
 - **Third worktree:** with every slot busy, starting, closing or used within `idleMinutes`, `vm up` refuses like the flow lock does: exit 2 with each holder's worktree and last use. It does not queue, because a waiting process would hold an agent turn for minutes without output.
 
 ### D5. Staging as a reconcile
@@ -151,7 +154,11 @@ A failure in steps 4 to 8 applies the failure transition too, so the lease never
 | SSH stdin of step 6.4 | the file's bytes | never in an argument vector, a log or a temporary file |
 | guest credentials file | values | 0600 inside the clone; deleted with the clone |
 | guest target processes | the credentials path only (`{credentials}` property) | inside the clone |
-| guest driver output and its kept files | handled by the guest driver's own redaction and `sweepRoot` (`qa.mjs:958`) | relayed through the host redaction (D7); returned flow roots pass `sweepRoot` with the host's values again |
+| guest driver output lines | may hold values | relayed through the host redaction (D7) |
+| guest output folders (flow roots, captures, kept roots) | may hold values: a capture's JSON is copied unswept by `desktop capture` (`qa.mjs:759-773`) | sanitized inside the guest by `vm pack` before any byte leaves the clone (D7) |
+| return archive and its extraction | sanitized files only | in the slot's private `return-PID/` folder (0700); swept again on the host, then copied to the destination and deleted; a leftover of a dead pid is deleted by the next sweep and removed with the slot |
+| SSH private key (lane file `sshKey`) | the lane's key, not a dev credential | user-owned file on the host, passed to `ssh` by path (`-i`), never read or copied by the driver; the guest holds only its public key |
+| `ssh`, `lume` and build process stderr | may hold values | relayed through the host redaction, never stored |
 | lease record, slot `stage/` folder, host return folders | paths, pids, artifacts, returned evidence | never a value; the sentinel test scans them |
 
 ### D6. Target start by one guest-side script
@@ -187,7 +194,18 @@ Translation table, closed:
 
 - **Quoting:** each remote argv element is POSIX single-quoted. The fake `ssh` runs the joined command through `sh -c`, as sshd does, so the tests exercise the quoting.
 - **Output:** stdout and stderr are relayed line by line through the host's redaction values (`loadRedaction`, `qa.mjs:323`), and printed guest paths are rewritten to host paths. The guest driver already redacts; the host pass also covers values the guest configuration lacks. The exit code is the guest's. A non-zero exit appends one line naming the clone and `vm up TARGET` as the way to restart the app, simulator or forward.
-- **Return:** files come back as one tar stream into a 0600 file in the new host folder. The host lists it first (`tar -tvf`) and refuses the whole archive when an entry has an absolute path, a `..` component, or a type other than regular file or folder; only then it extracts with `tar -xf` into that folder and deletes the archive. A returned flow root then passes `sweepRoot` with the host's values (D5 table) before its path is printed.
+- **Return:** one boundary for every returned file. After the guest command, the host runs `qa.mjs vm pack DIR` in the guest over SSH, an internal command of the same driver: it loads the guest copy's configuration and credentials (the same file the host holds, so the same redaction values), sanitizes the lease-private output folder inside the guest (a flow root with `sweepRoot`, `qa.mjs:958`; every other file, captures included, with the `scanPaths` and `neutralize` step it ends with, `qa.mjs:978`, `qa.mjs:400`), and writes the folder as tar to stdout. The host writes that stream into a 0600 archive in the slot's private `return-PID/` folder, lists it (`tar -tvf`) and refuses the whole archive when an entry has an absolute path, a `..` component, or a type other than regular file or folder; only then it extracts there, runs the same sanitization with the host's values again, copies the files to the destination (`--out` or a new host `mkdtemp`) without overwriting, and deletes `return-PID/`. No unsanitized byte is written outside the clone, and an interruption leaves only sanitized files in the slot.
+- **Dependency loss during a run:**
+
+| Dependency | Lifetime | Holder | Check before | Check after | On loss |
+|---|---|---|---|---|---|
+| clone | lease | lume, slot record | running in `lume ls` (D2) | still running | exit 2, infrastructure line |
+| SSH connection of the routed command | one command | host driver | connects | exit status not 255 | exit 2, infrastructure line |
+| port forward | lease, restarted by `vm up` | recorded pid | pid alive (D2) | the same pid still alive | exit 2, infrastructure line |
+| guest console session | clone | autologin of the image (D9) | guest preflight's screen checks, as on the host | none | as on the host today |
+| host backend | outside the lane | the repository's own run command | guest preflight's health check, as on the host | none | an app outcome, as on the host today |
+
+  The infrastructure line reads `lane: infrastructure lost during the run (clone|connection|forward); this is not an app result, run vm up TARGET`, and it replaces the guest's exit code with 2 whatever the guest returned, so a pass is never reported over a lost forward or clone. Returned files of that run are still sanitized and returned as evidence.
 
 ### D8. Schema `app-qa/2`
 `app-qa/1` plus `vm`: `{ ios?: { artifact, build }, desktop?: { artifact, build, systemProperties? } }`.
@@ -227,7 +245,7 @@ That branch changes `SKILL.md` and MODIFIES the routing requirement of `app-qa-d
 - Decision: adopt lume 0.7.2.
 
 ### Build vs. adopt: guest-to-host port forward and file transfer
-- Repository: `packages/coding-agent/src/ssh/file-transfer.ts:191` (content streamed over `ssh` stdin) and `packages/coding-agent/src/skillshare/tar.ts` (tar reader and writer). Both are TypeScript modules of the omp runtime; the driver is a deployed Node script with builtins only (`qa.mjs:19-40`), so it cannot import them. Searched `team-config/`, `scripts/`, `packages/coding-agent/src/`, `packages/utils/src/` for `ssh`, `tar` and `ssh -R`.
+- Repository: `packages/coding-agent/src/ssh/file-transfer.ts:191` (content streamed over `ssh` stdin) and `packages/coding-agent/src/skillshare/tar.ts:83` and `:178` (`writeTar`, `readTar`). Both are TypeScript modules of the omp runtime; the driver is a deployed Node script with builtins only (`qa.mjs:19-40`), so it cannot import them. Searched `team-config/`, `scripts/`, `packages/coding-agent/src/`, `packages/utils/src/` for `ssh`, `tar` and `ssh -R`.
 - Platform: OpenSSH remote forwarding (`ssh -R`, https://man.openbsd.org/ssh#R) and bsdtar (`tar`, https://man.freebsd.org/cgi/man.cgi?tar(1)), both in macOS. bsdtar strips a leading `/` and refuses `..` on extraction by default; the host's listing check (D7) refuses such an archive before extraction anyway.
 - Candidates: not searched, covered above.
 - Decision: adopt OpenSSH `-R` with `ExitOnForwardFailure=yes`, stdin streaming as `file-transfer.ts` does, and `tar` over SSH with list-then-extract on the host.
@@ -235,8 +253,8 @@ That branch changes `SKILL.md` and MODIFIES the routing requirement of `app-qa-d
 ### Build vs. adopt: launcher cfg reader
 - Repository: none; searched `team-config/`, `scripts/`, `packages/coding-agent/src/` for `jpackage`, `app.mainclass` and `java-options`.
 - Platform: the jpackage launcher reads `Contents/app/NAME.cfg` (INI-style sections `[Application]` with `app.classpath` and `app.mainclass`, `[JavaOptions]` with `java-options`, `$APPDIR` expanding to `Contents/app`), https://docs.oracle.com/en/java/javase/21/jpackage/. No JDK tool prints the parsed values, and the launcher itself starts the jlinked runtime that lacks `java.instrument` (Context), so the launcher cannot be used.
-- Candidates: `ini`, https://github.com/npm/ini: 7.0.0, ISC, maintained (modified 2026-09-09). Rejected; gap: the driver is deployed without `node_modules` and runs on Node builtins only.
-- Decision: build a reader for exactly those keys in those two sections with `$APPDIR` expansion; other sections and keys are ignored, a missing main class is refused, and repeated `app.classpath` and `java-options` lines keep their order. It lives in `scripts/vm/start-target.mjs` and is exported for the host check.
+- Candidates: `ini`, https://github.com/npm/ini: newest release 7.0.0 of 2026-05-08, ISC, maintained (registry entry modified 2026-09-09). Rejected; gap: the driver is deployed without `node_modules` and runs on Node builtins only, so no package can be loaded.
+- Decision: build a reader; gap: no repository code reads the format, the platform offers no reader, and the one maintained library cannot be loaded by the deployed driver. The reader handles exactly those keys in those two sections with `$APPDIR` expansion; other sections and keys are ignored, a missing main class is refused, and repeated `app.classpath` and `java-options` lines keep their order. It lives in `scripts/vm/start-target.mjs` and is exported for the host check.
 
 ### Build vs. adopt: host-wide slot table lock
 - Repository: `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs:898-932` (`acquireLock` and `describeLock`: atomic `mkdir` plus pid, with a starting holder's pid awaited).

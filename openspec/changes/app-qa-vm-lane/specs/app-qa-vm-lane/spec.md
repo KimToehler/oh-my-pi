@@ -104,8 +104,8 @@ A slot whose holder died while it was starting or closing, or whose record is pa
 - **THEN** the clone is deleted, the slot is free, and both are printed
 
 #### Scenario: Negative control
-- **WHEN** a teardown was killed before stop, between stop and delete, or after delete before freeing the slot
-- **THEN** the clone or the slot surviving the next `vm status`, or the slot being freed while the clone still exists, MUST fail this requirement
+- **WHEN** a teardown was killed before stop, between stop and delete, or after delete before freeing the slot; a process died between creating a slot and writing its record, leaving the table lock behind; or two sweeps and a `vm up` meet the same orphan clone
+- **THEN** the clone or the slot surviving the next `vm status`, the slot being freed while the clone still exists, the stale table lock blocking the next command, or a clone of a starting lease being deleted MUST fail this requirement
 
 ### Requirement: The lane touches only its own clones
 The lane SHALL delete, stop or run only VMs named as its slot clones, and never the golden image. A lane file whose image name lies in the slot clones' namespace SHALL be refused with exit 2 naming the file and the cause.
@@ -175,8 +175,19 @@ A routed command SHALL print the guest's lines, redacted with the host's values,
 - **THEN** the screenshot exists in a new host folder whose path is printed, and no guest path is printed
 
 #### Scenario: Negative control
-- **WHEN** a guest line holds a configured username or password, a host `--out` path already exists for a flow run, a capture's file exists in the host folder, or a returned archive holds an absolute path, `..` or a link
-- **THEN** printing the value, overwriting a host file, writing outside the target folder, or exiting 0 MUST fail this requirement
+- **WHEN** a guest line holds a configured username or password, a returned flow root or capture JSON holds one, the return is interrupted after the archive reached the host, a host `--out` path already exists for a flow run, a capture's file exists in the host folder, or a returned archive holds an absolute path, `..` or a link
+- **THEN** printing the value, writing a file holding the value anywhere on the host, overwriting a host file, writing outside the target folder, or exiting 0 MUST fail this requirement
+
+### Requirement: Losing the VM or the port forward during a routed command is reported as infrastructure loss
+When the lease's clone stops, its port forward dies or the SSH connection drops while a routed command runs, the command SHALL exit 2 with a line naming the lost dependency and the `vm up` command, whatever the guest driver returned.
+
+#### Scenario: Forward lost mid-flow
+- **WHEN** the lease's port forward is killed while a routed sign-in flow runs
+- **THEN** the command exits 2 with the infrastructure line, and the flow's sanitized files still return to the host
+
+#### Scenario: Negative control
+- **WHEN** the forward dies or the clone stops during a routed command that the guest driver reports as passed
+- **THEN** an exit 0 or a printed pass without the infrastructure line MUST fail this requirement
 
 ### Requirement: Teardown removes the clone and everything copied into it
 `vm down` SHALL stop the port forward, stop and delete the current worktree's clone and release its slot, and exit 0 when the worktree holds no lease. The driver SHALL never boot, change or copy a file into the golden image; credentials SHALL exist only inside leased clones.
