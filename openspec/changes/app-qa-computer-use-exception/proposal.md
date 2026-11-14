@@ -16,6 +16,7 @@ The team skill `app-qa-drivers` forbids every OS-level GUI call (`team-config/ag
 - The skill's section "Proving a QA instruction change" gains the proof for this exception: fresh sessions in both directions, with the same capture-and-scan discipline.
 - The credential rule `ui-automation-credentials` loads before any `computer` helper call and points such a call, in a repository with `.omp/app-qa.json`, to the skill and its credentials and one-window limits; the skill's description routes any computer use there, so a request not phrased as a QA check still reaches the limits.
 - The skill's section "Evidence you did not write" also covers evidence the task does not name: a search never covers an evidence folder, `.omp/` or `.omo/` as a whole, or runs with ignore rules off (F1 found a search that returned another change's gate evidence); the session creates its own output folder with `mkdir` without `-p` in its own step and never passes an `--out` below a folder it did not create.
+- omp's eval bridge records only the first line of a failed prelude call's error in the eval status record, so a caught window-miss error no longer writes other apps' window titles into the session file (design D22(c)).
 - **Not in this change** (assumptions, recorded): `computer.enabled` keeps its default `false` and `computer.backgroundFallback` its default `takeover` in code; enabling it stays a per-user setting (Tim's `~/.omp/agent/config.yml` already has it), so a session without the prelude reports it missing. No change to `qa.mjs`, the prelude, onara's or weaver's repository QA skills, or the DeviceHub input skill.
 
 ## Capabilities
@@ -28,6 +29,7 @@ The team skill `app-qa-drivers` forbids every OS-level GUI call (`team-config/ag
 ## Impact
 
 - Changed: `team-config/agent/skills/app-qa-drivers/SKILL.md` (the "No OS-level GUI scripting" bullet becomes the exception, one new section, the intro line, the failed-preflight bullet, the evidence section and the proof section), `team-config/agent/rules/ui-automation-credentials.md` (two conditions added to the five existing ones, description, one bullet and one guarded paragraph) and the new `team-config/agent/rules/app-qa-evidence.md` (two conditions, the folder and search clauses). `team-config/agent/AGENTS.md:20` and `team-config/README.md` stay unchanged.
+- Changed in omp: `packages/coding-agent/src/eval/js/tool-bridge.ts` (the status event of a failed prelude call), its test and `packages/coding-agent/CHANGELOG.md`.
 - Deployment: `scripts/deploy-local.sh` already mirrors `team-config/agent/**`; no new install.
 - Consumers: every agent session in a repository using the shared driver; effective only where `computer.enabled` is true.
 - Credentials: no credential is handled by the change, but it relaxes a ban next to the credential guardrail; see gate.md.
