@@ -12,7 +12,7 @@ See proposal.md for motivation. Today `SKILL.md:84` forbids all OS-level GUI scr
 - The credential guardrail is not weakened and is loaded before the first `computer` call.
 
 **Non-Goals:**
-- Changing the prelude, its settings or defaults, `qa.mjs`, or any repository's QA skill.
+- Changing the prelude, its settings or defaults, `qa.mjs`, or any repository's QA skill. One exception, design D22(c): the computer prelude's fixed failure status text (`statusError: "failed"`) and what the eval bridge records for a failed `computer` call.
 - A new driver for screen readers.
 
 ## Decisions
