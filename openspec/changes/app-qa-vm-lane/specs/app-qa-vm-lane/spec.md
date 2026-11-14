@@ -175,7 +175,7 @@ A routed command SHALL print the guest's lines, redacted with the host's values,
 - **THEN** the screenshot exists in a new host folder whose path is printed, and no guest path is printed
 
 #### Scenario: Negative control
-- **WHEN** a guest line holds a configured username or password, a returned flow root or capture JSON holds one, the return is interrupted after the archive reached the host, a host `--out` path already exists for a flow run, a capture's file exists in the host folder, or a returned archive holds an absolute path, `..` or a link
+- **WHEN** a guest line holds a configured username or password, a returned flow root or capture JSON holds one, a returned file or folder is named after one, the return is interrupted after the archive reached the host, a host `--out` path already exists for a flow run, a capture's file exists in the host folder, or a returned archive holds an absolute path, `..` or a link
 - **THEN** printing the value, writing a file holding the value anywhere on the host, overwriting a host file, writing outside the target folder, or exiting 0 MUST fail this requirement
 
 ### Requirement: Losing the VM or the port forward during a routed command is reported as infrastructure loss
@@ -187,7 +187,7 @@ When the lease's clone stops, its port forward dies or the SSH connection drops 
 
 #### Scenario: Negative control
 - **WHEN** the forward dies or the clone stops during a routed command that the guest driver reports as passed
-- **THEN** an exit 0 or a printed pass without the infrastructure line MUST fail this requirement
+- **THEN** an exit 0, or any printed line starting with `PASS`, MUST fail this requirement
 
 ### Requirement: Teardown removes the clone and everything copied into it
 `vm down` SHALL stop the port forward, stop and delete the current worktree's clone and release its slot, and exit 0 when the worktree holds no lease. The driver SHALL never boot, change or copy a file into the golden image; credentials SHALL exist only inside leased clones.
