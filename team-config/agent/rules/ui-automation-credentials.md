@@ -16,7 +16,7 @@ interruptMode: always
 
 Applies whenever an agent drives a browser, simulator, emulator or desktop app that signs in with a real account. A credential that reaches a tool result is in the transcript and cannot be scrubbed.
 
-This paragraph applies during app QA, or in a repository with `.omp/app-qa.json`. When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make that read again first. No search, `mkdir`, listing or read of a folder the task names, or `computer` call runs before the team skill `app-qa-drivers` and, in a repository with `.omp/app-qa.json`, its QA skill have been read.
+This paragraph applies during app QA, or in a repository with `.omp/app-qa.json`. Outside a task that is app QA, first find out whether `.omp/app-qa.json` exists, in a tool call of its own that reads nothing else and is sent alone, and read no skill until it has returned; when the file is missing, this paragraph does not apply: make the interrupted call again unchanged and read no QA skill. When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make that read again first. No search, `mkdir`, listing or read of a folder the task names, or `computer` call runs before the team skill `app-qa-drivers` and, in a repository with `.omp/app-qa.json`, its QA skill have been read.
 
 ## Login surfaces
 
