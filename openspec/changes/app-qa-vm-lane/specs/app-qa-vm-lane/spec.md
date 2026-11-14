@@ -22,7 +22,7 @@ The lane SHALL be active when the machine lane file exists and the repository co
 - **THEN** any command running on the host or in a VM instead of exiting 2 with the file and the cause MUST fail this requirement
 
 ### Requirement: An active lane routes iOS and desktop commands to the worktree's lease and never to the host
-With the lane active, `preflight`, `desktop` and `flow` for `ios` and `desktop` SHALL run in the VM leased by the current worktree. Without such a lease, or with a lease that did not stage that target, they SHALL exit 2 naming the `vm up` command for that target, before touching any device, app or host lock. `--host` SHALL run that one command on the host. Android targets and `scan` SHALL always run on the host.
+With the lane active, `preflight`, `desktop` and `flow` for `ios` and `desktop` SHALL run in the VM leased by the current worktree. Without such a lease, with a lease that did not stage that target, or with its clone or port forward not running, they SHALL exit 2 naming the `vm up` command for that target, before touching any device, app or host lock. `--host` SHALL run that one command on the host. Android targets and `scan` SHALL always run on the host.
 
 #### Scenario: Routed preflight
 - **WHEN** the worktree holds a lease that staged `ios` and preflight for `ios` runs
@@ -37,75 +37,94 @@ With the lane active, `preflight`, `desktop` and `flow` for `ios` and `desktop` 
 - **THEN** it runs the host checks as before this change
 
 #### Scenario: Negative control
-- **WHEN** the lane is active and the worktree holds no lease, or only another worktree holds one, or the lease staged `ios` and a desktop command runs
+- **WHEN** the lane is active and the worktree holds no lease, only another worktree holds one, the lease staged `ios` and a desktop command runs, or the lease's port forward has died
 - **THEN** a command running on the host without `--host`, in another worktree's VM, or exiting 0 MUST fail this requirement
 
+### Requirement: Routed commands reach the guest driver with the caller's arguments and location
+A routed command SHALL run the guest driver in the guest copy's directory matching the host working directory's path below the worktree, with every argument byte-identical. A flow file SHALL be passed relative to the worktree, and one outside it SHALL be refused with exit 2 before any guest command. `--config` and `--credentials` SHALL be refused with exit 2 naming `--host`.
+
+#### Scenario: Text with shell characters
+- **WHEN** a routed `desktop type` runs from `app_kmp/` with a text holding spaces, quotes, `$HOME` and `;`
+- **THEN** the guest driver runs in the guest copy's `app_kmp/` and receives exactly that text as one argument
+
+#### Scenario: Negative control
+- **WHEN** a routed command's text holds `$(id)` or `;`, a flow file outside the worktree is named, or `--credentials` names a host file
+- **THEN** the text being split or evaluated by a guest shell, the guest driver running for the outside flow or the foreign credentials, or an exit 0 MUST fail this requirement
+
 ### Requirement: Leases take one of a fixed number of host-wide slots, one lease per worktree
-`vm up` SHALL take one host-wide slot atomically, at most the lane file's slot count and never more than two, and bind it to the current worktree. A worktree SHALL hold at most one lease. With every slot held by a lease that is busy or was used within the idle limit, `vm up` SHALL exit 2 naming each holder's worktree and last use, without booting anything.
+`vm up` SHALL take one host-wide slot atomically, at most the lane file's slot count and never more than two, and record its owner process and state (starting, ready, closing) when it takes it. Lease lookup, slot taking, reclaim, sweep and teardown SHALL be serialised host-wide, so a worktree holds at most one lease. With every slot held, busy or used within the idle limit, `vm up` SHALL exit 2 naming each holder's worktree and last use.
 
 #### Scenario: Two worktrees in parallel
-- **WHEN** two worktrees each run `vm up ios` with two slots configured
-- **THEN** each gets its own slot and VM, and a flow run in one does not wait for or touch the other's simulator
+- **WHEN** two worktrees each run `vm up ios` at the same time with two slots configured
+- **THEN** each gets its own slot and VM, neither start deletes the other's clone, and a flow run in one does not wait for or touch the other's simulator
 
 #### Scenario: Simultaneous starts for the last slot
 - **WHEN** two worktrees run `vm up` at the same moment and one slot is free
 - **THEN** exactly one of them takes it and the other exits 2 naming the holder
 
 #### Scenario: Negative control
-- **WHEN** both slots are held by leases used within the idle limit and a third worktree runs `vm up`, or one worktree runs `vm up` twice
+- **WHEN** both slots are held by leases used within the idle limit and a third worktree runs `vm up`, or one worktree runs `vm up` twice at the same moment
 - **THEN** a third VM booting, a second slot for the same worktree, or an exit 0 for the third worktree MUST fail this requirement
 
-### Requirement: Idle and orphaned VMs are reclaimed, busy ones never
-When no slot is free, `vm up` SHALL reclaim the lease idle longest beyond the lane file's idle limit and delete its clone. A lease running a routed command SHALL never be reclaimed. `vm up` and `vm status` SHALL delete every lane clone that no lease holds and remove every lease whose clone is gone, printing each by name.
+### Requirement: Idle and orphaned VMs are reclaimed, busy and starting ones never
+When no slot is free, `vm up` SHALL reclaim the ready lease idle longest beyond the idle limit and delete its clone. A lease running a routed command, or starting with a live owner, SHALL never be reclaimed or swept. `vm up` and `vm status` SHALL delete every lane clone no slot holds, and free every slot whose clone is gone or whose owner died while starting, printing each. `vm up` refresh and `vm down` SHALL exit 2 naming the pid while a routed command of that lease runs.
 
 #### Scenario: Idle lease reclaimed
 - **WHEN** both slots are held, one lease was last used beyond the idle limit and no routed command runs in it, and a third worktree runs `vm up`
 - **THEN** that lease's clone is deleted, its worktree is printed as reclaimed, and the third worktree gets the slot
 
-#### Scenario: Orphaned clone
-- **WHEN** a lane clone exists without a lease after a crashed `vm up`
-- **THEN** the next `vm status` deletes the clone and prints its name
+#### Scenario: Crashed start
+- **WHEN** a `vm up` was killed after taking a slot and cloning, and `vm status` runs
+- **THEN** the clone is deleted, the slot is free, and both are printed by name
 
 #### Scenario: Negative control
-- **WHEN** a lease is idle beyond the limit while a flow run it routed is still running, or a clone belongs to a live lease
-- **THEN** deleting that clone or reclaiming that lease MUST fail this requirement
+- **WHEN** a lease is idle beyond the limit while a flow run it routed is still running, another worktree's `vm up` is still starting while `vm status` runs, or `vm down` runs during a routed flow of the same lease
+- **THEN** deleting that clone, freeing that slot, reclaiming that lease, or an exit 0 of that `vm down` MUST fail this requirement
 
-### Requirement: Staging copies the worktree, fresh artifacts and the credentials into the leased clone only
-`vm up TARGET...` SHALL refuse with exit 2, before taking a slot, a target whose configured artifact is missing or older than the newest copied worktree file. It SHALL copy the worktree's tracked and untracked unignored files, the target artifacts, the deployed driver and, when credentials are configured, the credentials file (owner-only) into the clone, and forward the backend port. Rerun on a live lease, it SHALL refresh all of them.
+### Requirement: Staging builds on the host and copies the worktree, the artifacts and the credentials into the leased clone only
+`vm up TARGET...` SHALL run each target's configured build on the host before taking a slot, and exit 2 printing the tail of its redacted output when the build fails or leaves the artifact missing. It SHALL then copy the worktree's tracked and untracked unignored files, the artifacts, the deployed driver and the configured credentials file (owner-only) into the clone and forward the backend port the build used.
 
-#### Scenario: Fresh artifacts
-- **WHEN** the iOS artifact was built after the last change to the worktree and `vm up ios` runs
-- **THEN** the guest holds the worktree's files, the app is installed on one guest simulator, and the guest's backend port reaches the host's backend
+#### Scenario: First staging
+- **WHEN** `vm up ios` runs in a worktree without a lease and the build passes
+- **THEN** the guest holds the worktree's files and the built app, credentials are readable by the guest user only, and the guest's backend port reaches the host's backend
 
-#### Scenario: Refresh after a rebuild
-- **WHEN** the worktree holds a lease, a source file changes, the artifact is rebuilt and `vm up ios` runs again
-- **THEN** the same VM is reused, the guest copy holds the changed file and the simulator runs the rebuilt app
+#### Scenario: Refresh after a code change
+- **WHEN** the worktree holds a lease, a source file changes and `vm up ios` runs again
+- **THEN** the build runs, the same VM is reused, the guest copy holds the changed file and the simulator runs the rebuilt app
 
 #### Scenario: Negative control
-- **WHEN** a configured artifact is missing, or a worktree file was changed after the artifact was built
-- **THEN** taking a slot, booting a VM, or a later routed command testing the old artifact MUST fail this requirement
+- **WHEN** the build exits non-zero, or exits 0 without the configured artifact
+- **THEN** taking a slot, booting a VM, or a later routed command testing an older artifact MUST fail this requirement
 
-### Requirement: Staged targets are ready for the unchanged guest driver
-After `vm up ios`, the guest SHALL have one booted simulator with the staged app installed and its web view warmed. After `vm up desktop`, the staged desktop app SHALL run in the guest's logged-in console session, on a JDK that allows Spectre's agent, with the configured system properties and the guest copy of the worktree as its working directory, so the guest driver's attach finds exactly that JVM.
+### Requirement: Every vm up leaves each staged target in one known state
+Each `vm up` SHALL reconcile its lease to one state: a stopped clone started again, one port forward (an earlier one stopped first), for `ios` one freshly created and booted simulator with the app installed and its web view warmed (sign-in state reset), for `desktop` one app process started in the guest's logged-in console session on a JDK that allows Spectre's agent, with the configured system properties and the guest copy as working directory.
 
 #### Scenario: Desktop sign-in in the guest
 - **WHEN** `vm up desktop` has run and the routed desktop attach, wait and tap commands of a sign-in run
 - **THEN** attach finds one JVM, the commands pass as they do on an unlocked host, and a routed capture lands in the host `--out` folder
 
+#### Scenario: Second vm up
+- **WHEN** `vm up ios desktop` runs twice in one lease and a routed iOS sign-in flow follows
+- **THEN** the guest has one booted simulator and one desktop JVM, one port forward runs on the host, and the sign-in flow passes
+
 #### Scenario: Negative control
-- **WHEN** the desktop app is started from the SSH session instead of the console session, on the distributable's own runtime, or twice
-- **THEN** `vm up desktop` exiting 0 while attach finds no JVM, a headless JVM, or two JVMs MUST fail this requirement
+- **WHEN** the desktop app is started from the SSH session, on the distributable's own runtime, or a second `vm up` keeps the old simulator, app or forward running beside the new one
+- **THEN** `vm up` exiting 0 while attach finds no JVM, a headless JVM or two JVMs, a routed flow seeing two booted simulators, or two forwards running MUST fail this requirement
 
 ### Requirement: Routed output reaches the caller redacted and files return under the host's rules
-A routed command SHALL print the guest command's lines and exit code, each line redacted with the host's configured values, and SHALL return `--out` files to the host path with the host's refusal of existing paths and files. A failing flow's kept root SHALL be copied to a new owner-only host temporary root whose path is printed. No guest path SHALL be printed as evidence.
+A routed command SHALL print the guest's lines, redacted with the host's values, and exit with its code; a non-zero exit SHALL add one line naming the clone and the `vm up` command that restarts the target. `--out` files SHALL return to the host path under the host's refusals; a flow without `--out` and a failing flow's kept root SHALL return to new owner-only host temporary folders whose paths are printed. No guest path SHALL be printed as evidence.
 
 #### Scenario: Passing capture
 - **WHEN** a routed desktop capture runs with a host `--out` folder the session created
 - **THEN** the PNG and JSON exist in that host folder, the printed paths are host paths, and the exit code is the guest's
 
+#### Scenario: Flow without an output folder
+- **WHEN** a routed flow that takes a named screenshot passes without `--out`
+- **THEN** the screenshot exists in a new host folder whose path is printed, and no guest path is printed
+
 #### Scenario: Negative control
-- **WHEN** a guest line holds a configured username or password, a host `--out` path already exists for a flow run, or a capture's file exists in the host folder
-- **THEN** printing the value, overwriting the host file, or exiting 0 MUST fail this requirement
+- **WHEN** a guest line holds a configured username or password, a host `--out` path already exists for a flow run, a capture's file exists in the host folder, or a returned archive holds an absolute path, `..` or a link
+- **THEN** printing the value, overwriting a host file, writing outside the target folder, or exiting 0 MUST fail this requirement
 
 ### Requirement: Teardown removes the clone and everything copied into it
 `vm down` SHALL stop the port forward, stop and delete the current worktree's clone and release its slot, and exit 0 when the worktree holds no lease. The driver SHALL never boot, change or copy a file into the golden image; credentials SHALL exist only inside leased clones.
@@ -130,12 +149,12 @@ On an image built by the skill's provisioning document, a routed desktop preflig
 - **THEN** reporting this requirement as met MUST fail
 
 ### Requirement: The team skill leads a fresh agent through the lane
-With the lane active, the team skill `app-qa-drivers` SHALL lead an agent session without prior context to build the artifacts on the host, run `vm up` for its targets before QA, rerun it after a rebuild, run QA with the unchanged commands, and run `vm down` before its final report. A refused `vm up` SHALL be reported with its holders, never answered with `--host` unless the user asked for the host.
+With the lane active, the team skill `app-qa-drivers` SHALL lead an agent session without prior context to run `vm up` for its targets before QA (which builds them on the host), rerun it after every code change, run QA with the unchanged commands, and run `vm down` before its final report. A refused `vm up` SHALL be reported with its holders, never answered with `--host` unless the user asked for the host.
 
 #### Scenario: iOS sign-in with the lane
 - **WHEN** a fresh session in a repository with a `vm` section on a machine with a lane file is asked to sign account 1 into the app on the iOS simulator
-- **THEN** its tool calls build the iOS artifact, run `vm up ios`, the routed preflight and the sign-in flow, and `vm down`, in that order
+- **THEN** its tool calls run `vm up ios`, the routed preflight and the sign-in flow, and `vm down`, in that order
 
 #### Scenario: Negative control
-- **WHEN** a fresh session's tool calls run QA with `--host` after a refused `vm up` without the user asking, skip `vm down`, or test after a code change without a new build and `vm up`
+- **WHEN** a fresh session's tool calls run QA with `--host` after a refused `vm up` without the user asking, skip `vm down`, or test after a code change without a new `vm up`
 - **THEN** reporting this requirement as met MUST fail

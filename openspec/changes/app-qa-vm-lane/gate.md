@@ -15,7 +15,7 @@
 - **Accepted residual risks**:
   - A lease nobody takes down or reclaims keeps its VM, with the dev credentials inside, running until the next `vm up` or `vm status` on the machine.
   - The guest runs with SIP off and grants Screen Recording to SSH sessions. It is NAT-only and key-only, and reachable from the host user alone.
-  - A deliberately back-dated worktree file can defeat the artifact freshness check.
+  - Artifact freshness rests on the repository's own build tool and its up-to-date check, as it does for host QA today.
 - **Out of scope for blocking**:
   - onara's and weaver's own configuration and QA skill text: separate changes in those repositories.
   - Android and Linux runners.
