@@ -87,6 +87,22 @@ It is user-owned: `scripts/install-team-config.ts` removes only files it install
 
   Once a lease leaves `ready`, no routed command can register in it, so a clone is deleted only when no routed command runs in it.
 - **Teardown:** the closer kills the forward pid, runs `lume stop` and `lume delete` on the clone (an absent clone counts as deleted), checks that `lume ls` no longer lists it, and only then removes the slot under the lock.
+- **Reset contract:** a fresh lease never reuses an earlier clone: a slot is freed only after its clone is gone from `lume ls`, so a slot name taken again is always cloned anew from the golden image, which holds no repository, credential or driver state (D9). A refresh keeps the clone and resets everything a routed command reads; it runs only while no routed command runs (table above), so nothing it deletes is in use.
+
+| Entry | Fresh lease (new or reused slot name) | Refresh (`vm up` on the worktree's lease) | Teardown (`vm down`, reclaim, sweep) |
+|---|---|---|---|
+| clone: disk, guest `HOME`, guest `TMPDIR` | new clone of the golden image | kept | deleted |
+| guest copy `~/work/NAME`, its credentials file included | created | deleted and copied again | deleted with the clone |
+| guest driver directory | copied | copied again | deleted with the clone |
+| guest driver state `${TMPDIR}/app-qa/` (desktop session records `qa.mjs:646`, flow lock `qa.mjs:647`) | absent (fresh clone) | deleted before the targets start, so a desktop command needs a new `desktop attach` | deleted with the clone |
+| lease-private guest output folders and flow `TMPDIR` | absent | deleted | deleted with the clone |
+| iOS simulator | created | deleted and created again (D6) | deleted with the clone |
+| desktop app process | started | killed and started again (D6) | ends with the clone |
+| port forward process | started | killed and started again | killed |
+| lease record | created, `starting` | kept, `starting`, staged emptied | removed with the slot |
+| slot `stage/` snapshot | created, deleted after the copy | created, deleted after the copy | removed with the slot |
+| host return folders | none | none | never touched: each routed command creates a new one, and they are the caller's evidence |
+
 - **Sweep** (by `vm up`, `vm down` and `vm status`; decisions under the lock, teardown outside it):
   - A lease whose holder is alive, or that is `ready` with a live busy pid, is never touched, whatever `lume ls` shows.
   - These become `closing` with the sweeper as closer and are torn down, each printed by name: a partial slot; a `starting` lease whose owner is dead; a `closing` lease whose closer is dead (teardown resumes from wherever it stopped: before stop, between stop and delete, or after delete before the slot was removed).
@@ -101,14 +117,14 @@ It is user-owned: `scripts/install-team-config.ts` removes only files it install
 2. **Lease:** take or refresh the lease (D4 table). From here the lease is `starting` with this process as owner, so a second `vm up` of the worktree exits 2 and routed commands are refused until step 9.
 3. **Build:** run each requested target's configured build on the host: an argv without a shell in a repository-relative working directory, with `{port}` replaced by P. Its output is kept in memory only, as the last 40 lines, redacted with the host's values before they are kept; nothing is written to disk. On a non-zero exit, or an artifact missing afterwards, print those lines and apply the failure transition of D4, then exit 2. The build tool is the freshness authority: its up-to-date check decides on content, so no mtime comparison exists.
 4. **Snapshot:** copy each artifact with `cp -c -R` (an APFS clone, no extra disk) into the slot's private `stage/` folder (0700) and check it there: it exists, and for `desktop` the cfg (D6) names a main class. Every later step reads the snapshot, never the worktree path, so the checked bytes are the staged bytes even if the worktree's artifact changes meanwhile.
-5. **Clone:** with no clone, run `lume clone IMAGE app-qa-slot-N`. With the clone not running, run `lume run --detach --display none --vnc disabled`. Then wait for SSH. The guest is NAT-only (192.168.64.x), reachable from this host only.
+5. **Clone:** with no clone (a fresh lease, see the reset contract in D4), run `lume clone IMAGE app-qa-slot-N`. With the clone not running, run `lume run --detach --display none --vnc disabled`. Then wait for SSH. The guest is NAT-only (192.168.64.x), reachable from this host only.
 6. **Copy:** delete the guest copy, then stream as tar over SSH into `~/work/NAME`:
    1. the files of `git ls-files -z --cached --others --exclude-standard`;
    2. each artifact from the snapshot, to its repository-relative path in the guest copy (artifacts are usually git-ignored build output, so step 1 does not carry them);
    3. the deployed driver directory, `scripts/vm/` included, to the same path below the guest's `~/.omp/agent/skills/`;
    4. the configured credentials file through SSH stdin into the guest copy at its configured relative path, with umask 077. Its bytes never appear in arguments or output.
 
-   Then run `git init` in the guest copy, without a commit. The guest driver needs only `--show-toplevel` and `--git-common-dir` (`qa.mjs:73-88`), which then resolve to the guest copy, so its worktree matching and its credentials path (`qa.mjs:303`) work unchanged. The snapshot is deleted after the copy.
+   On a refresh, the guest driver state and the lease-private output folders are deleted before the copy (reset contract, D4). Then run `git init` in the guest copy, without a commit. The guest driver needs only `--show-toplevel` and `--git-common-dir` (`qa.mjs:73-88`), which then resolve to the guest copy, so its worktree matching and its credentials path (`qa.mjs:303`) work unchanged. The snapshot is deleted after the copy.
 7. **Forward:** with a backend, kill the recorded forward pid, then start `ssh -N -R P:127.0.0.1:P -o ExitOnForwardFailure=yes` and record its pid.
 8. **Targets:** start them (D6).
 9. **Ready:** apply the staging-done transition of D4.

@@ -151,13 +151,17 @@ Each `vm up` SHALL reconcile its lease to one state: a stopped clone started aga
 - **WHEN** `vm up desktop` has run and the routed desktop attach, wait and tap commands of a sign-in run
 - **THEN** attach finds one JVM, the commands pass as they do on an unlocked host, and a routed capture lands in the host `--out` folder
 
+#### Scenario: Slot name reused
+- **WHEN** a worktree's lease is taken down and another worktree's `vm up` takes the same slot
+- **THEN** the new clone comes from the golden image and holds none of the earlier worktree's files, driver state or simulator
+
 #### Scenario: Second vm up
 - **WHEN** `vm up ios desktop` runs twice in one lease and a routed iOS sign-in flow follows
 - **THEN** the guest has one booted simulator and one desktop JVM, one port forward runs on the host, and the sign-in flow passes
 
 #### Scenario: Negative control
-- **WHEN** the desktop app is started from the SSH session, on the distributable's own runtime, or a second `vm up` keeps the old simulator, app or forward running beside the new one
-- **THEN** `vm up` exiting 0 while attach finds no JVM, a headless JVM or two JVMs, a routed flow seeing two booted simulators, or two forwards running MUST fail this requirement
+- **WHEN** the desktop app is started from the SSH session, on the distributable's own runtime, a second `vm up` keeps the old simulator, app or forward running beside the new one, or a slot name is reused after a teardown
+- **THEN** `vm up` exiting 0 while attach finds no JVM, a headless JVM or two JVMs, a routed flow seeing two booted simulators, two forwards running, a desktop command after a refresh acting on the previous app's session record, or a new lease seeing a file, session record or flow lock of an earlier lease MUST fail this requirement
 
 ### Requirement: Routed output reaches the caller redacted and files return under the host's rules
 A routed command SHALL print the guest's lines, redacted with the host's values, and exit with its code; a non-zero exit SHALL add one line naming the clone and the `vm up` command that restarts the target. `--out` files SHALL return to the host path under the host's refusals; a flow without `--out` and a failing flow's kept root SHALL return to new owner-only host temporary folders whose paths are printed. No guest path SHALL be printed as evidence.
