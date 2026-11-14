@@ -7,8 +7,8 @@
 - **Verifier**: blocker-verifier, ComputerUseTriageR31
 - **Models**: ComputerUsePlanReviewDelta31 onara/cx/gpt-6.1-sol, ComputerUseTriageR31 onara/cx/gpt-6.1-sol
 - **Round**: 31
-- **Awaiting**: exception
-- **Override**: none
+- **Awaiting**: none
+- **Override**: none (round 31 exception ask answered Fix by the user, Tim, 2026-11-14: "Fix: narrow exception in the three scope lines")
 
 ## Blockers
 
