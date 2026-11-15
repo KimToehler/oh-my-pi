@@ -1484,7 +1484,11 @@ function lumeList() {
   const r = run(lumeBin(), ['ls', '--format', 'json']);
   if (r.error || r.status !== 0) return null;
   try {
-    const list = JSON.parse(r.stdout.slice(r.stdout.indexOf('[')));
+    // lume 0.7.2 may print timestamped log lines (`[2026-11-15T11:35:40Z] INFO: ...`) to stdout before the JSON array,
+    // whose `[` starts a line and is followed by `{` or `]`.
+    const start = /^\[\s*[{\]]/m.exec(r.stdout);
+    if (!start) return null;
+    const list = JSON.parse(r.stdout.slice(start.index));
     return Array.isArray(list) ? list : null;
   } catch {
     return null;

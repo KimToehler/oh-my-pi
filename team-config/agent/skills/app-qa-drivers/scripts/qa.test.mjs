@@ -945,6 +945,22 @@ const plantLock = (L, pid) => {
   if (pid !== null) writeFileSync(join(lockOf(L), 'pid'), `${pid}\n`);
 };
 
+test('lease: lumels - a log line before the JSON of lume ls leaves vm status, a second vm up and a routed command working', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  L.setLume({ lsLogLine: true });
+  const status = await runQa(L, ['vm', 'status']);
+  assert.equal(status.status, 0, outputOf(status));
+  assert.match(status.stdout, /slot 1: ready/);
+  const again = await L.up(['ios']);
+  assert.equal(again.status, 0, outputOf(again));
+  assert.doesNotMatch(outputOf(again), /cannot be read/);
+  const routed = await runQa(L, ['preflight', 'ios']);
+  assert.doesNotMatch(outputOf(routed), /cannot be read|not running|infrastructure lost/);
+  assert.match(routed.lines[0], /^lane: .*app-qa-slot-1/);
+  assert.equal(L.lease(1).state, 'ready');
+});
+
 test('lease: parallel - two worktrees started together get their own slot and neither clone is deleted', async () => {
   const L = laneLayout();
   const wtB = wtOf(L, 'b');
