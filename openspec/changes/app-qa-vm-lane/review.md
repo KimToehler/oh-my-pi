@@ -1,12 +1,12 @@
 # Review
 
 - **Verdict**: OKAY
-- **Reviewed digest**: f5bf4f4235d9c92b5d081a4f1558c0bc81da76c65b5b42c182d698e9d08967b7
+- **Reviewed digest**: e51d50ff3e4f955ad939219c371f372e4434f7ceed55f87d59db73def0d587ec
 - **Depth**: risky
-- **Reviewer**: plan-reviewer, PlanReviewDelta10
+- **Reviewer**: plan-reviewer, PlanReviewDelta11
 - **Verifier**: blocker-verifier, none
-- **Models**: PlanReviewDelta10 onara/cx/gpt-6.1-sol
-- **Round**: 10
+- **Models**: PlanReviewDelta11 onara/cx/gpt-6.1-sol
+- **Round**: 11
 - **Awaiting**: none
 - **Override**: none
 
