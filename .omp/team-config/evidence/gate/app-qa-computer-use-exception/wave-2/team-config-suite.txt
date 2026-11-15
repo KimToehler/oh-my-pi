@@ -1,0 +1,5 @@
+$ bun test team-config/tests team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs scripts/install-team-config.test.ts team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts scripts/ensure-openspec-cli.test.ts team-config/agent/skills/context-review/scripts/measure-context.test.ts team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs --timeout 30000   (head 1106d9b4bd, 2026-11-14T22:10:39Z, load: 20.49, 23.92, 23.47)
+ 886 pass
+ 0 fail
+ 1210 expect() calls
+Ran 886 tests across 10 files. [458.14s]
