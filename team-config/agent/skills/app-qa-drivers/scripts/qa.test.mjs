@@ -181,8 +181,9 @@ function reapRoots() {
 // Every test is over before the next starts; a leftover process of an earlier test would only slow the later ones down.
 afterEach(reapRoots);
 after(() => {
-  reapRoots();
+  // Assert before reaping: reaping first made the assertion unable to fail. Only the per-test reaper above keeps this empty.
   const left = processesIn(roots);
+  reapRoots();
   assert.deepEqual(left, [], 'processes of the tests are still alive after teardown');
 });
 after(() => {
@@ -999,6 +1000,8 @@ test('lease: lsof-probe - lume ls reporting a running clone stopped keeps it rea
   const before = runs();
   L.setLume({ lsStoppedNoIp: true });
   L.set({ ps: [`4242 /usr/local/bin/lume run --detach --display none --vnc disabled ${L.lease(1).clone}`] });
+  // Seen on the driver before 9af7721945: the status line below passes (vm status reads the lease, not lume ls), so it is a control;
+  // the second vm up (exit 2, ssh never accepted; a second lume run) and the routed command (clone "not running") fail there.
   const status = await runQa(L, ['vm', 'status']);
   assert.equal(status.status, 0, outputOf(status));
   assert.match(status.stdout, /slot 1: ready/);
