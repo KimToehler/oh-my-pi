@@ -40,7 +40,8 @@ import { approvalTargetKey } from "@oh-my-pi/pi-coding-agent/tools/approval-targ
 import { AskTool } from "@oh-my-pi/pi-coding-agent/tools/ask";
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
 import { EvalTool } from "@oh-my-pi/pi-coding-agent/tools/eval";
-import type { XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
+import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
+import { resolveXdevTool, type XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
 import { SessionMoveTool } from "@oh-my-pi/pi-coding-agent/tools/session-move";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { getAgentDir, isRecord, setAgentDir, TempDir, withTimeout } from "@oh-my-pi/pi-utils";
@@ -393,6 +394,45 @@ describe("acp approve", () => {
 			[{ path: path.join(cwd, "b.txt") }],
 		]);
 		expect(fs.existsSync(path.join(cwd, "b.txt"))).toBe(true);
+	});
+
+	it("acp approve: xd wire aliases keep edit's approval tier and cannot bypass an ACP rejection", async () => {
+		const client = acpClient(pick("reject_once"), pick("reject_once"));
+		const cwd = workspace({ "keep.txt": "keep\n" });
+		const sessionManager = SessionManager.inMemory(cwd);
+		const runner = acpRunner(sessionManager, cwd, client.request);
+		const session = toolSession(cwd);
+		const edit = new ExtensionToolWrapper(new EditTool(session) as AgentTool, runner);
+		const xdev: XdevState = {
+			tools: new Map([[edit.name, edit]]),
+			mountedNames: new Set(),
+			builtInNames: new Set(["edit"]),
+			isActive: name => name === edit.name,
+			resolve: name => resolveXdevTool(xdev, name),
+		};
+		session.xdev = xdev;
+		const writeTool = new WriteTool(session);
+		const write = new ExtensionToolWrapper(writeTool as AgentTool, runner);
+		const target = path.join(cwd, "keep.txt");
+		const content = JSON.stringify(patch(`*** Delete File: ${target}`));
+
+		for (const name of ["edit", "apply_patch"]) {
+			const args = { path: `xd://${name}`, content };
+			expect(writeTool.approval(args)).toEqual({ tier: "write", policyKey: "edit" });
+			await expect(
+				write.execute(
+					`xd-${name}`,
+					args,
+					undefined,
+					undefined,
+					toolContext(sessionManager, {
+						"tools.approvalMode": "always-ask",
+					}),
+				),
+			).rejects.toThrow("denied by user");
+			expect(fs.readFileSync(target, "utf8")).toBe("keep\n");
+		}
+		expect(client.requests).toHaveLength(2);
 	});
 
 	it("acp approve: a creating session_move asks once as execute and a rejection neither creates nor relocates", async () => {

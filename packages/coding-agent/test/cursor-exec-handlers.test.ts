@@ -319,7 +319,7 @@ describe("Cursor bridge cancellation", () => {
 			sessionManager: SessionManager.inMemory(tempDir.path()),
 			settings,
 			modelRegistry: new ModelRegistry(authStorage, tempDir.join("models.yml")),
-			advisorTools: [probeTool],
+			advisorTools: { names: () => [probeTool.name], create: () => ({ tools: [probeTool] }) },
 			advisorStreamFn,
 			advisorConfigs: [{ name: "Probe reviewer", tools: [PROBE] }],
 		});

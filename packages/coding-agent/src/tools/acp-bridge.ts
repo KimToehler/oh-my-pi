@@ -10,7 +10,8 @@
 
 import * as path from "node:path";
 import { InternalUrlRouter } from "../internal-urls";
-import { FileChangeType, notifyWorkspaceWatchedFiles } from "../lsp/client";
+import { notifyWorkspaceWatchedFiles } from "../lsp/client";
+import { FileChangeType } from "../lsp/types";
 import type { ToolSession } from ".";
 import { resolvePlanPath, targetsLocalSandbox } from "./plan-mode-guard";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";

@@ -60,6 +60,10 @@ import { MCPManager } from "../../mcp/manager";
 import { reconnectMcpManagerServer } from "../../mcp/oauth-reauth";
 import type { MCPServerConfig } from "../../mcp/types";
 import { loadAllExtensions } from "../../modes/components/extensions/state-manager";
+import { AgentRegistry } from "../../registry/agent-registry";
+import { registerPersistedSubagents } from "../../registry/persisted-agents";
+import type { AgentCostSnapshot } from "@oh-my-pi/pi-tui/overlays/agent-hub-projection";
+import { SessionObserverRegistry } from "@oh-my-pi/pi-tui/overlays/session-observer-registry";
 import { theme } from "@oh-my-pi/pi-tui/theme";
 import {
 	normalizePlanTitle,
@@ -91,8 +95,10 @@ import { errorMessage } from "../../slash-commands/helpers/parse";
 import type { SlashCommandRuntime } from "../../slash-commands/types";
 import { DEFAULT_STT_MODEL_KEY, STT_MODELS } from "../../stt/models";
 import { refreshAgentDiscovery } from "../../task";
+import { sumSubagentTreeCost } from "../agent-hub-runtime";
 import { AUTO_THINKING, parseConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
 import {
+	blockText,
 	choiceValue,
 	defaultFormData,
 	fieldQuestions,
@@ -169,6 +175,12 @@ const PLAN_REFINE_VALUE = "refine";
 /** Title of the free-text property each `askDialog` question gets beside its options. */
 const OTHER_OPTION = "Other (type your own)";
 const RECOMMENDED_SUFFIX = " (Recommended)";
+/**
+ * Suffix of the free-text "Other" property beside a choice property, shared by
+ * `askDialog` and HTML forms; clients such as Orca merge `<key>__other` into
+ * the `<key>` choice instead of rendering it as a separate question.
+ */
+const OTHER_SUFFIX = "__other";
 const MODE_CONFIG_ID = ACP_MODE_CONFIG_ID;
 
 /** Display label for an ask option: the recommended one gets the "(Recommended)" suffix unless it already has it. */
@@ -522,6 +534,11 @@ function buildAcpSpeechModelsCatalog(): Record<string, unknown> {
  * the caller's promise resolves to the stub fallback. Late SDK responses that
  * arrive after abort/timeout — both rejections and successful `accept`s —
  * are dropped silently (no `logger.warn`) to keep operator logs clean.
+ *
+ * A client that rejects the request (JSON-RPC error, unrenderable schema,
+ * closed transport) rejects the returned promise with that error as `cause`:
+ * `undefined` means the user dismissed the form, and a failed request is not
+ * a user decision.
  */
 async function elicitFormFromAcpClient(
 	sendFormElicitation: FormElicitationTransport,
@@ -536,16 +553,17 @@ async function elicitFormFromAcpClient(
 	if (signal?.aborted) {
 		return undefined;
 	}
-	const { promise, resolve } = Promise.withResolvers<CreateElicitationResponse | undefined>();
+	const { promise, resolve, reject } = Promise.withResolvers<CreateElicitationResponse | undefined>();
 	let settled = false;
 	let timeoutId: NodeJS.Timeout | undefined;
-	const finish = (value: CreateElicitationResponse | undefined) => {
+	const settle = (done: () => void) => {
 		if (settled) return;
 		settled = true;
 		clearTimeout(timeoutId);
 		signal?.removeEventListener("abort", onAbort);
-		resolve(value);
+		done();
 	};
+	const finish = (value: CreateElicitationResponse | undefined) => settle(() => resolve(value));
 	const onAbort = () => finish(undefined);
 	signal?.addEventListener("abort", onAbort, { once: true });
 	if (dialogOptions?.timeout !== undefined) {
@@ -570,7 +588,8 @@ async function elicitFormFromAcpClient(
 		// Caller may already have moved on via abort/timeout; suppress noise.
 		if (settled) return;
 		logger.warn("ACP elicitation failed", { acpSessionId: sessionId, method, error });
-		finish(undefined);
+		const reason = error instanceof Error ? error.message : String(error);
+		settle(() => reject(new Error(`ACP client failed the ${method} elicitation: ${reason}`, { cause: error })));
 	});
 	const response = await promise;
 	if (!isAcceptedElicitation(response) || !response.content) {
@@ -579,6 +598,11 @@ async function elicitFormFromAcpClient(
 	return response.content;
 }
 
+/**
+ * Single-value elicitation for `select`/`confirm`/`input`/`editor` and plan
+ * approval. A failed client request reads as no answer: these callers already
+ * fail closed on `undefined` (deny, keep plan mode, skip input).
+ */
 async function elicitFromAcpClient(
 	sendFormElicitation: FormElicitationTransport,
 	sessionId: string,
@@ -587,16 +611,20 @@ async function elicitFromAcpClient(
 	property: ElicitationPropertySchema,
 	dialogOptions: ExtensionUIDialogOptions | undefined,
 ): Promise<ElicitationContentValue | undefined> {
-	const content = await elicitFormFromAcpClient(
-		sendFormElicitation,
-		sessionId,
-		method,
-		message,
-		{ value: property },
-		["value"],
-		dialogOptions,
-	);
-	return content?.value;
+	try {
+		const content = await elicitFormFromAcpClient(
+			sendFormElicitation,
+			sessionId,
+			method,
+			message,
+			{ value: property },
+			["value"],
+			dialogOptions,
+		);
+		return content?.value;
+	} catch {
+		return undefined;
+	}
 }
 
 /**
@@ -610,17 +638,8 @@ function formElicitationMessage(form: HtmlForm): string {
 		const title = spansText(section.title).trim();
 		if (title) parts.push(title);
 		for (const block of section.blocks) {
-			if (block.kind === "text") parts.push(spansText(block.spans));
-			else if (block.kind === "pre") parts.push(block.text);
-			else if (block.kind === "list") {
-				parts.push(
-					block.items
-						.map((item, index) => `${block.ordered ? `${index + 1}.` : "-"} ${spansText(item)}`)
-						.join("\n"),
-				);
-			} else if (block.kind === "table") {
-				parts.push(block.rows.map(cells => cells.map(cell => spansText(cell)).join(" | ")).join("\n"));
-			}
+			const text = blockText(block);
+			if (text) parts.push(text);
 		}
 	}
 	return parts.filter(part => part.trim()).join("\n\n") || "Fill in the form";
@@ -628,14 +647,15 @@ function formElicitationMessage(form: HtmlForm): string {
 
 /**
  * Property holding each "Other" choice field's free-text answer:
- * `<name>_other`, with more underscores while another control already uses it.
+ * `<name>__other` ({@link OTHER_SUFFIX}), with more underscores while another
+ * control already uses it.
  */
 function otherProperties(form: HtmlForm): Map<ChoiceField, string> {
 	const taken = new Set([...form.fields.map(field => field.name), ...form.hidden.map(([name]) => name)]);
 	const properties = new Map<ChoiceField, string>();
 	for (const field of form.fields) {
 		if (field.kind !== "choice" || !field.other || !field.name) continue;
-		let property = `${field.name}_other`;
+		let property = `${field.name}${OTHER_SUFFIX}`;
 		while (taken.has(property)) property += "_";
 		taken.add(property);
 		properties.set(field, property);
@@ -797,7 +817,7 @@ function decodeAskAnswer(
 		if (labels.includes(value)) selected.push(value);
 		else addText(value);
 	}
-	addText(content[`${key}__other`]);
+	addText(content[`${key}${OTHER_SUFFIX}`]);
 	const customInput = texts.length > 0 ? texts.join("\n") : undefined;
 	return { selectedOptions: question.multi !== true && customInput !== undefined ? [] : selected, customInput };
 }
@@ -912,7 +932,7 @@ export function createAcpExtensionUiContext(
 						};
 					}
 				}
-				properties[`${key}__other`] = { type: "string", title: OTHER_OPTION };
+				properties[`${key}${OTHER_SUFFIX}`] = { type: "string", title: OTHER_OPTION };
 			}
 
 			let timedOut = false;
@@ -1055,6 +1075,10 @@ export class AcpAgent implements Agent {
 	#foregroundTurns = new WeakMap<ForegroundWork, PromptTurnState>();
 	#surfaceV2: AcpSurface<AcpWireV2>;
 	#v2ClientCapabilities: v2.ClientCapabilities | undefined;
+	/** ACP has no Agent Hub, so tree costs read each subagent's live session directly. */
+	#subagentObservers = new SessionObserverRegistry();
+	#subagentSessionCosts = new WeakMap<object, AgentCostSnapshot>();
+	#subagentCostHydrations = new Map<string, Promise<void>>();
 
 	/** The one send funnel for core-built v1 notifications; the surface sends or converts them. */
 	#emit(notification: SessionNotification, source?: AcpEmitSource): Promise<void> {
@@ -2189,6 +2213,11 @@ export class AcpAgent implements Agent {
 			await this.#disposeStandaloneSession(session);
 			throw error;
 		}
+		// Before the first usage update: persisted background subagents count toward the loaded session's cost.
+		await this.#hydratePersistedSubagentCosts(
+			session.sessionManager.getSessionFile() ?? undefined,
+			session.sessionManager.isSessionOnDisk(),
+		);
 		return await this.#registerPreparedSession(session, mcpServers, setToolUIContext, protocolSessionId);
 	}
 
@@ -3417,7 +3446,7 @@ export class AcpAgent implements Agent {
 		if (!contextUsage) {
 			return;
 		}
-		const usageStats = record.session.sessionManager.getUsageStatistics();
+		const cost = this.#sessionTreeCost(record);
 		await this.#emit({
 			sessionId: record.protocolSessionId,
 			update: {
@@ -3425,7 +3454,7 @@ export class AcpAgent implements Agent {
 				size: contextUsage.contextWindow,
 				// Clients decode token counts as integers (IntelliJ: Kotlin `Long`).
 				used: Math.round(contextUsage.tokens ?? 0),
-				cost: usageStats.cost > 0 ? { amount: usageStats.cost, currency: "USD" } : undefined,
+				cost: cost > 0 ? { amount: cost, currency: "USD" } : undefined,
 			},
 		});
 	}
@@ -3442,6 +3471,45 @@ export class AcpAgent implements Agent {
 				updatedAt: new Date().toISOString(),
 			},
 		});
+	}
+
+	/**
+	 * The session's own spend plus its subagent tree, totalled as the TUI status
+	 * line does. `task` results carry only blocking children's spend, so the tree
+	 * cost adds background children; the task-result sum stays its floor.
+	 * Synchronous on purpose: an await here would let a cancelled turn's
+	 * `usage_update` land after the client already saw the turn go idle.
+	 */
+	#sessionTreeCost(record: ManagedSessionRecord): number {
+		const sessionManager = record.session.sessionManager;
+		const rootSessionFile = sessionManager.getSessionFile() ?? undefined;
+		// Loads hydrate before registering; this only starts it for a session switched in place.
+		void this.#hydratePersistedSubagentCosts(rootSessionFile, sessionManager.isSessionOnDisk());
+		const usage = sessionManager.getUsageStatistics();
+		const treeCost = sumSubagentTreeCost({
+			refs: AgentRegistry.global().list(),
+			observers: this.#subagentObservers,
+			rootSessionFile,
+			sessionCosts: this.#subagentSessionCosts,
+		});
+		return Math.max(0, usage.cost - usage.subagentCost) + Math.max(treeCost, usage.subagentCost);
+	}
+
+	/**
+	 * Register a loaded session's persisted subagent transcripts (with usage
+	 * history) once per root, as the TUI does, so background spend from before a
+	 * restart still counts after `session/load`.
+	 */
+	#hydratePersistedSubagentCosts(rootSessionFile: string | undefined, onDisk: boolean): Promise<void> {
+		if (!rootSessionFile || !onDisk) return Promise.resolve();
+		let hydration = this.#subagentCostHydrations.get(rootSessionFile);
+		if (!hydration) {
+			hydration = registerPersistedSubagents(AgentRegistry.global(), rootSessionFile).catch(error => {
+				logger.warn("Persisted subagent cost hydration failed", { rootSessionFile, error: String(error) });
+			});
+			this.#subagentCostHydrations.set(rootSessionFile, hydration);
+		}
+		return hydration;
 	}
 
 	async #listStoredSessions(cwd?: string): Promise<StoredSessionInfo[]> {

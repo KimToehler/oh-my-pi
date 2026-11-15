@@ -935,7 +935,7 @@ describe("subagent answering models with an advisor", () => {
 				settings,
 				modelRegistry: registry,
 				toolRegistry: new Map(tools.map(entry => [entry.name, entry])),
-				advisorTools: [],
+				advisorTools: { names: () => [], create: () => ({ tools: [] }) },
 				advisorStreamFn,
 			});
 			advisorActive = session.setAdvisorEnabled(true);

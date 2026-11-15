@@ -99,7 +99,7 @@ import { ASYNC_RESULT_MESSAGE_TYPE } from "../session/async-job-delivery";
 import type { AuthStorage } from "../session/auth-storage";
 import { type CostCapRefusal, CostCapError, type CostGateApi } from "../session/cost-gate";
 import { INTERRUPTED_TURN_ERROR } from "../session/exit-diagnostics";
-import { assistantTurnProducedOutput, SKILL_PROMPT_MESSAGE_TYPE } from "../session/messages";
+import { assistantTurnProducedOutput, SKILL_PROMPT_MESSAGE_TYPE, usageContextTokens } from "../session/messages";
 import { hasConversationalHistory, SessionManager } from "../session/session-manager";
 import { truncateTail } from "@oh-my-pi/pi-tui/tools/streaming-output";
 import {
@@ -186,6 +186,7 @@ import {
 	cfgDefaultThinkingLevel,
 } from "../session/settings";
 import { cfgDisabledProviders } from "../config/model-settings";
+import { cfgOffline } from "../config/auxiliary-model-policy";
 import { getRetryFallbackRole, installRetryFallbackRole } from "../session/retry-fallback-chains";
 import {
 	cfgCompactionModelThresholdsEnabled,
@@ -530,6 +531,8 @@ export interface ExecutorOptions {
 	 * if the resolved subagent model has no working credentials. See #985.
 	 */
 	parentActiveModelPattern?: string;
+	/** Active parent provider, independent of whether parent-model auth fallback is allowed. */
+	parentActiveProvider?: string;
 	/** Set for a per-call `model`; every model the child sends to must stay approved by these grants. */
 	perCallModelGrants?: PerCallModelGrants;
 	thinkingLevel?: ConfiguredThinkingLevel;
@@ -1354,6 +1357,8 @@ interface RunMonitorArgs {
 	modelRegistry?: ModelRegistry;
 	/** Parent settings for tiny-model label generation. */
 	settings?: Settings;
+	parentActiveModelPattern?: string;
+	parentActiveProvider?: string;
 	modelOverride?: string | string[];
 	/** Explicit pre-expansion model role alias selected for this run. */
 	modelRole?: string;
@@ -1833,7 +1838,15 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 	// failures just leave the label unset.
 	const labelSource = assignment?.trim();
 	if (!args.description && args.modelRegistry && args.settings && labelSource) {
-		generateTaskLabel(labelSource, args.modelRegistry, args.settings, id, abortSignal)
+		generateTaskLabel(
+			labelSource,
+			args.modelRegistry,
+			args.settings,
+			id,
+			abortSignal,
+			args.parentActiveModelPattern,
+			args.parentActiveProvider,
+		)
 			.then(label => {
 				if (!label || abortSignal.aborted || progress.description) return;
 				progress.description = label;
@@ -2363,11 +2376,15 @@ function createSubagentRunMonitor(args: RunMonitorArgs): SubagentRunMonitor {
 					// Accumulate tokens for progress display
 					progress.tokens += getUsageTokens(messageUsage);
 					// Track latest per-turn context size so the UI can show
-					// "current context", not just cumulative billing volume.
+					// "current context", not just cumulative billing volume. A
+					// segmented provider response bills every continuation request,
+					// so `totalTokens` overshoots the occupied window; the reported
+					// `contextTokens` (or billable total minus orchestration) is the
+					// same accounting the session's own context estimate uses.
 					if (role === "assistant") {
-						const perTurnTotal = getNumberField(messageUsage, "totalTokens");
-						if (perTurnTotal !== undefined && perTurnTotal > 0) {
-							progress.contextTokens = perTurnTotal;
+						const occupied = usageContextTokens(messageUsage);
+						if (occupied > 0) {
+							progress.contextTokens = occupied;
 						}
 					}
 				}
@@ -4893,6 +4910,8 @@ async function runSubprocessOnThisThread(options: ExecutorOptions): Promise<Sing
 		description: options.description,
 		modelRegistry: options.modelRegistry,
 		settings,
+		parentActiveModelPattern: options.parentActiveModelPattern,
+		parentActiveProvider: options.parentActiveProvider,
 		modelOverride,
 		modelRole,
 		modelRoute: options.modelRoute,
@@ -5012,6 +5031,13 @@ async function runSubprocessOnThisThread(options: ExecutorOptions): Promise<Sing
 			if (options.perCallModelGrants) {
 				await awaitAbortable(modelRegistry.awaitBackgroundRefresh());
 			}
+			const allowedProvider = cfgOffline.get(settings)
+				? (options.parentActiveProvider ??
+					(options.parentActiveModelPattern
+						? resolveModelOverride([options.parentActiveModelPattern], modelRegistry, settings).model?.provider
+						: undefined) ??
+					null)
+				: undefined;
 			const configuredModelPatterns = resolveConfiguredModelPatterns(modelPatterns, settings);
 			const inheritedRetryFallbackChain =
 				configuredModelPatterns.length === 1
@@ -5034,9 +5060,12 @@ async function runSubprocessOnThisThread(options: ExecutorOptions): Promise<Sing
 					modelRegistry,
 					settings,
 					id,
-					options.perCallModelGrants ? { exactOnly: true } : undefined,
+					{ exactOnly: !!options.perCallModelGrants, allowedProvider },
 				),
 			);
+			if (cfgOffline.get(settings) && !model) {
+				throw new Error("Offline mode: no subagent model is available on the active parent provider.");
+			}
 			if (options.perCallModelGrants && !model) {
 				throw new PerCallModelError(
 					`Requested exact model ${JSON.stringify(modelPatterns)} is unavailable. Use an exact provider/model[:level] selector; do not substitute another model.`,
@@ -5079,8 +5108,16 @@ async function runSubprocessOnThisThread(options: ExecutorOptions): Promise<Sing
 			const retryFallbackRole = installSubagentRetryFallbackChain({
 				settings: subagentSettings,
 				id,
-				candidates: resolveSubagentRetryFallbackCandidates(modelPatterns, modelRegistry, subagentSettings),
-				inheritedFallbackChain: inheritedRetryFallbackChain,
+				candidates: resolveSubagentRetryFallbackCandidates(modelPatterns, modelRegistry, subagentSettings).filter(
+					candidate => allowedProvider === undefined || candidate.model.provider === allowedProvider,
+				),
+				inheritedFallbackChain:
+					allowedProvider === undefined
+						? inheritedRetryFallbackChain
+						: inheritedRetryFallbackChain?.filter(entry => {
+								const candidate = resolveModelOverride([entry], modelRegistry, subagentSettings).model;
+								return candidate?.provider === allowedProvider;
+							}),
 				model,
 				authFallbackUsed,
 			});
@@ -5252,14 +5289,19 @@ async function runSubprocessOnThisThread(options: ExecutorOptions): Promise<Sing
 					modelPatternDefaultFallbackChain:
 						model || modelOverride === undefined ? undefined : inheritedRetryFallbackChain,
 					thinkingLevel: effectiveThinkingLevel,
-					...(perCallModelGrants
+					...(perCallModelGrants || allowedProvider !== undefined
 						? {
-								// Every request stays on an approved model that can run at or below the spawn's effort ceiling.
 								assertDispatchModel: (dispatchModel: Model) => {
-									assertPerCallModelApproved(dispatchModel, perCallModelGrants, modelRegistry);
-									if (spawnEffortCeiling) assertModelSupportsEffortCeiling(dispatchModel, spawnEffortCeiling);
+									if (allowedProvider !== undefined && dispatchModel.provider !== allowedProvider) {
+										throw new Error("Offline mode: subagent dispatch must use the active parent provider.");
+									}
+									if (perCallModelGrants) {
+										assertPerCallModelApproved(dispatchModel, perCallModelGrants, modelRegistry);
+										if (spawnEffortCeiling)
+											assertModelSupportsEffortCeiling(dispatchModel, spawnEffortCeiling);
+									}
 								},
-								disableModelFallback: true,
+								...(perCallModelGrants ? { disableModelFallback: true } : {}),
 								disableServerSideFallback: true,
 							}
 						: {}),
