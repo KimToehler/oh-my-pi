@@ -520,6 +520,12 @@ function flowFile(L, name = 'scenario') {
   return f;
 }
 
+/** A flow file inside the worktree (a routed flow must lie in it). */
+function repoFlow(L, name = 'scenario') {
+  const f = join(L.repo, `${name}.yaml`);
+  writeFileSync(f, 'appId: org.example.app\n---\n- assertVisible:\n    id: home\n');
+  return f;
+}
 const flow = (L, extra = [], opts) => runQa(L, ['flow', 'ios', flowFile(L), ...extra], opts);
 const maestroRuns = (L) => L.calls('maestro').filter((c) => c.argv?.[0] === 'test');
 const qaDir = (L) => join(L.tmp, 'app-qa');
@@ -708,13 +714,17 @@ function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = []
     const fwd = forward ? { pid: background(), port } : null;
     const lease = { worktree, clone, slot: n, state, holder, targets, inputs: Object.fromEntries(targets.map((t) => [t, { port, argv: [] }])), forward: fwd, lastUsed };
     L.writeLease(n, lease);
-    mkdirSync(L.guestCopy, { recursive: true });
+    mkdirSync(join(L.guestCopy, '.omp'), { recursive: true });
+    copyFileSync(join(L.repo, '.omp', 'app-qa.json'), join(L.guestCopy, '.omp', 'app-qa.json'));
+    copyFileSync(join(L.repo, '.dev-credentials.env'), join(L.guestCopy, '.dev-credentials.env'));
+    if (!existsSync(join(L.guestCopy, '.git'))) git(L.guestCopy, 'init', '-q');
     if (fakeDriver) L.fakeGuestDriver();
     return lease;
   };
   L.fakeGuestDriver = (cfg) => {
     mkdirSync(L.guestDriver, { recursive: true });
     copyFileSync(QA_SOURCE, join(L.guestDriver, 'qa-real.mjs'));
+    cpSync(join(dirname(QA_SOURCE), 'vm'), join(L.guestDriver, 'vm'), { recursive: true });
     copyFileSync(join(FAKE_DIR, 'guest-driver.mjs'), join(L.guestDriver, 'qa.mjs'));
     if (cfg) L.driverCfg(cfg);
   };
@@ -1136,7 +1146,7 @@ test('lease: refresh-busy - vm up in the worktree of a running routed flow exits
   const lease = L.stage();
   writeFileSync(join(L.guestCopy, 'marker.txt'), 'guest copy');
   L.driverCfg({ started: '$HOME/started', pause: '$HOME/release' });
-  const flowRun = startQa(L, ['flow', 'ios', flowFile(L)]);
+  const flowRun = startQa(L, ['flow', 'ios', repoFlow(L)]);
   await waitFor(join(L.guest.home, 'started'));
   const before = L.lease(1);
   const up = await L.up(['ios']);
@@ -1706,6 +1716,273 @@ test('stage: unestablished - a forward process alive with no listener behind it 
   const routed = await runQa(L, ['preflight', 'ios']);
   assert.equal(routed.status, 2, outputOf(routed));
   assert.match(outputOf(routed), /vm up ios/);
+});
+
+// ---------- route: routing, lease health and dependency loss (task 4.1) ----------
+
+/** The staged lease of `L`'s worktree with a guest driver that prints `lines` (after pausing until $HOME/release when `pause`). */
+function routedLease(L, { target = 'ios', lines = [{ s: 'out', t: 'PASS guest check' }], pause = false, exit = 0, ...stage } = {}) {
+  L.stage({ targets: [target], ...stage });
+  L.driverCfg({ started: '$HOME/started', ...(pause ? { pause: '$HOME/release' } : {}), lines, exit });
+}
+const hostTools = (L) => L.calls('xcrun').length + L.calls('spectre').length + L.calls('maestro').length;
+const busyLeft = (L) => (existsSync(join(L.slotDir(1), 'busy')) ? readdirSync(join(L.slotDir(1), 'busy')) : []);
+
+test('route: lane - a routed preflight runs the guest driver, names the lane and the clone first, and leaves the host tools and flow lock untouched', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.lines[0], /^lane: .*app-qa-slot-1/);
+  assert.ok(r.lines.includes('PASS guest check'));
+  assert.deepEqual(L.gcalls('guest-driver').map((c) => c.argv), [['preflight', 'ios']]);
+  assert.equal(hostTools(L), 0);
+  assert.equal(existsSync(lockPath(L)), false);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: nolease - with no lease, and with a lease only another worktree holds, desktop attach exits 2 naming vm up desktop and runs nothing on the host', async () => {
+  const L = laneLayout();
+  const none = await runQa(L, ['desktop', 'attach']);
+  assert.equal(none.status, 2, outputOf(none));
+  assert.match(outputOf(none), /vm up desktop/);
+  routedLease(L, { target: 'desktop' });
+  const wtB = wtOf(L, 'b');
+  const other = await runQa(L, ['desktop', 'attach'], { cwd: wtB });
+  assert.equal(other.status, 2, outputOf(other));
+  assert.match(outputOf(other), /vm up desktop/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.equal(hostTools(L), 0);
+});
+
+test('route: other - a worktree never runs in another worktree\'s clone', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const wtB = wtOf(L, 'b');
+  const r = await runQa(L, ['preflight', 'ios'], { cwd: wtB });
+  assert.equal(r.status, 2, outputOf(r));
+  assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0);
+  assert.deepEqual(L.lease(1).worktree, L.repo);
+});
+
+test('route: target - a lease that staged only ios refuses a desktop command naming vm up desktop', async () => {
+  const L = laneLayout();
+  routedLease(L, { target: 'ios' });
+  const r = await runQa(L, ['desktop', 'attach']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /vm up desktop/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: stopped - a clone that is not running exits 2 naming vm up and leaves no busy marker', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  L.setVmStatus('app-qa-slot-1', 'stopped');
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /vm up ios/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.equal(hostTools(L), 0);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: forward - a dead forward pid and a forward with no listener behind it each exit 2 naming vm up and run no guest driver', async () => {
+  const dead = laneLayout();
+  routedLease(dead, { forward: false });
+  const lease = dead.lease(1);
+  dead.writeLease(1, { ...lease, forward: { pid: await deadPid(), port: PORT } });
+  const a = await runQa(dead, ['preflight', 'ios']);
+  assert.equal(a.status, 2, outputOf(a));
+  assert.match(outputOf(a), /vm up ios/);
+  assert.equal(dead.gcalls('guest-driver').length, 0);
+  assert.deepEqual(busyLeft(dead), []);
+  const silent = laneLayout();
+  routedLease(silent);
+  silent.gset({ ncFails: true });
+  const b = await runQa(silent, ['preflight', 'ios']);
+  assert.equal(b.status, 2, outputOf(b));
+  assert.match(outputOf(b), /vm up ios/);
+  assert.equal(silent.gcalls('guest-driver').length, 0);
+  assert.deepEqual(busyLeft(silent), []);
+});
+
+test('route: unreachable - ssh exiting 255 before the guest command exits 2 naming vm up and leaves no busy marker', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  L.setSsh({ connectFails: true });
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /vm up ios/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.equal(hostTools(L), 0);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: host - --host runs the host checks and no guest driver', async () => {
+  const L = laneLayout();
+  routedLease(L, { target: 'desktop' });
+  const r = await runQa(L, ['preflight', 'desktop', '--host']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(r.lines.length, 4);
+  assert.ok(L.calls('spectre').length > 0);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.equal(L.calls('ssh').length, 0);
+});
+
+test('route: android - preflight android and scan run on the host with the lane active and no lease', async () => {
+  const L = laneLayout();
+  const r = await runQa(L, ['preflight', 'android']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.ok(L.calls('adb').length > 0);
+  const evidence = join(L.root, 'evidence');
+  mkdirSync(evidence);
+  assert.equal((await runQa(L, ['scan', evidence])).status, 0);
+  assert.equal(L.calls('ssh').length, 0);
+});
+
+/** The loss cases of design D7: each happens while the guest driver pauses, or after the guest command. */
+const LOSSES = [
+  ['forward killed', 'forward', async (L) => process.kill(L.lease(1).forward.pid, 'SIGKILL')],
+  ['clone stopped', 'clone', async (L) => L.setVmStatus('app-qa-slot-1', 'stopped')],
+  ['forward probe failing with its pid alive', 'forward', async (L) => L.gset({ ncFails: true })],
+];
+
+test('route: lost - a dependency lost during the guest run gives exit 2, the infrastructure line first after the lane line, and the guest PASS only behind its prefix', async () => {
+  for (const [label, dep, lose] of LOSSES) {
+    const L = laneLayout();
+    routedLease(L, { pause: true });
+    const run = startQa(L, ['preflight', 'ios']);
+    await waitFor(join(L.guest.home, 'started'));
+    await lose(L);
+    writeFileSync(join(L.guest.home, 'release'), '');
+    const r = await run.done;
+    assert.equal(r.status, 2, `${label}: ${outputOf(r)}`);
+    assert.match(r.lines[0], /^lane: /, label);
+    assert.match(r.lines[1], new RegExp(`^lane: infrastructure lost during the run \\(${dep}\\); this is not an app result, run .*vm up ios`), `${label}: ${r.lines[1]}`);
+    assert.ok(r.lines.includes('guest (not an app result): PASS guest check'), label);
+    assert.equal(r.lines.filter((l) => l.startsWith('PASS')).length, 0, label);
+    assert.deepEqual(busyLeft(L), [], label);
+  }
+  const L = laneLayout();
+  routedLease(L);
+  L.setSsh({ exit255: 'after' });
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(r.lines[1], /^lane: infrastructure lost during the run \(connection\)/);
+  assert.ok(r.lines.includes('guest (not an app result): PASS guest check'));
+  assert.equal(r.lines.filter((l) => l.startsWith('PASS')).length, 0);
+});
+
+test('route: lost - no guest line is printed before the guest command has ended, and the lines then appear in order', async () => {
+  const L = laneLayout();
+  routedLease(L, { pause: true, lines: [{ s: 'out', t: 'PASS first' }, { s: 'err', t: 'second' }] });
+  const run = startQa(L, ['preflight', 'ios']);
+  const stamps = [];
+  run.child.stdout.on('data', (c) => stamps.push([Date.now(), String(c)]));
+  await waitFor(join(L.guest.home, 'started'));
+  await sleep(400);
+  const released = Date.now();
+  writeFileSync(join(L.guest.home, 'release'), '');
+  const r = await run.done;
+  assert.equal(r.status, 0, outputOf(r));
+  const guestLines = stamps.filter(([, text]) => text.includes('PASS first'));
+  assert.equal(guestLines.length, 1);
+  assert.ok(guestLines[0][0] >= released, 'the guest line was printed before the guest command ended');
+  assert.ok(stamps[0][1].startsWith('lane: '));
+  assert.ok(r.lines.indexOf('PASS first') >= 0);
+});
+
+// ---------- route: argument and location translation (task 4.2) ----------
+
+/** A staged lease whose host worktree and guest copy both hold `files` (relative path -> content). */
+function routedFiles(L, files, opts = {}) {
+  routedLease(L, opts);
+  for (const [rel, content] of Object.entries(files)) {
+    for (const base of [L.repo, L.guestCopy]) {
+      mkdirSync(dirname(join(base, rel)), { recursive: true });
+      writeFileSync(join(base, rel), content);
+    }
+  }
+}
+const guestCall = (L) => L.gcalls('guest-driver').at(-1);
+
+test('route: quote - a text with spaces, quotes, $HOME, $(id) and ; reaches the guest driver as one byte-identical argument and runs no command', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'app_kmp/keep': 'x' }, { target: 'desktop' });
+  const text = `a b "q" 'single' $HOME $(id) \`id\` ; touch ${join(L.root, 'pwned')} \\ & | > x`;
+  const r = await runQa(L, ['desktop', 'type', 'login-field', text], { cwd: join(L.repo, 'app_kmp') });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(guestCall(L).argv, ['desktop', 'type', 'login-field', text]);
+  assert.equal(existsSync(join(L.root, 'pwned')), false);
+  assert.equal(existsSync(join(L.guest.home, 'pwned')), false);
+  const ssh = L.calls('ssh').filter((c) => !c.forward);
+  assert.ok(ssh.every((c) => !c.argv.join(' ').includes('uid=')));
+});
+
+test('route: cwd - a run from app_kmp/ runs the guest driver in the guest copy\'s app_kmp/', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'app_kmp/keep': 'x' });
+  const r = await runQa(L, ['preflight', 'ios'], { cwd: join(L.repo, 'app_kmp') });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(realpathSync(guestCall(L).cwd), realpathSync(join(L.guestCopy, 'app_kmp')));
+  const root = await runQa(L, ['preflight', 'ios']);
+  assert.equal(root.status, 0, outputOf(root));
+  assert.equal(realpathSync(guestCall(L).cwd), realpathSync(L.guestCopy));
+});
+
+test('route: flowpath - a flow named by its path relative to app_kmp/ opens that same file of the guest copy, never a decoy, and an outside flow exits 2 with no ssh', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'app_kmp/maestro/signin.yaml': 'host\n' });
+  writeFileSync(join(L.guestCopy, 'app_kmp/maestro/signin.yaml'), 'guest\n');
+  mkdirSync(join(L.guestCopy, 'app_kmp/app_kmp/maestro'), { recursive: true });
+  writeFileSync(join(L.guestCopy, 'app_kmp/app_kmp/maestro/signin.yaml'), 'decoy\n');
+  const r = await runQa(L, ['flow', 'ios', 'maestro/signin.yaml'], { cwd: join(L.repo, 'app_kmp') });
+  assert.equal(r.status, 0, outputOf(r));
+  const call = guestCall(L);
+  assert.deepEqual(call.argv, ['flow', 'ios', 'maestro/signin.yaml', '--out', call.argv[4]]);
+  assert.equal(realpathSync(call.flowFile.path), realpathSync(join(L.guestCopy, 'app_kmp/maestro/signin.yaml')));
+  assert.equal(call.flowFile.exists, true);
+  const before = L.calls('ssh').length;
+  const outside = join(L.root, 'outside.yaml');
+  writeFileSync(outside, 'appId: x\n');
+  const out = await runQa(L, ['flow', 'ios', outside], { cwd: join(L.repo, 'app_kmp') });
+  assert.equal(out.status, 2, outputOf(out));
+  assert.match(outputOf(out), /outside the worktree/);
+  assert.equal(L.calls('ssh').length, before);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: flowsub - a flow named from a sibling folder through .. reaches the guest relative to the working directory and the same file opens', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'app_kmp/maestro/signin.yaml': 'host\n', 'app_kmp/other/keep': 'x' });
+  const r = await runQa(L, ['flow', 'ios', '../maestro/signin.yaml'], { cwd: join(L.repo, 'app_kmp/other') });
+  assert.equal(r.status, 0, outputOf(r));
+  const call = guestCall(L);
+  assert.equal(call.argv[2], '../maestro/signin.yaml');
+  assert.equal(realpathSync(call.flowFile.path), realpathSync(join(L.guestCopy, 'app_kmp/maestro/signin.yaml')));
+  const fromRoot = await runQa(L, ['flow', 'ios', 'app_kmp/maestro/signin.yaml']);
+  assert.equal(fromRoot.status, 0, outputOf(fromRoot));
+  assert.equal(guestCall(L).argv[2], 'app_kmp/maestro/signin.yaml');
+});
+
+test('route: config - --config exits 2 naming --host with no ssh call', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const r = await runQa(L, ['preflight', 'ios', '--config', join(L.repo, '.omp', 'app-qa.json')]);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /--config.*--host/);
+  assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: credentials - --credentials exits 2 naming --host with no ssh call', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const r = await runQa(L, ['flow', 'ios', repoFlow(L), '--credentials', join(L.repo, '.dev-credentials.env')]);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /--credentials.*--host/);
+  assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0);
 });
 
 // ---------- target: guest-side target start (task 3.2) ----------

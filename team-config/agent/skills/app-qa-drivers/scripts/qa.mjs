@@ -22,11 +22,14 @@ import {
   appendFileSync,
   chmodSync,
   constants,
+  closeSync,
   copyFileSync,
+  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -35,6 +38,7 @@ import {
   statSync,
   unlinkSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -1060,6 +1064,24 @@ const RECORD = /^commands.*\.json$/;
  * every file and folder whose path below the root holds a credential, then redacts or deletes each file that still
  * holds a credential or token. Returns the printed sweep lines; `say` redacts a value in a printed path.
  */
+/**
+ * The credential half of `sweepRoot`: deletes every file and folder whose path below `root` holds a credential value,
+ * then redacts or deletes every file that still holds one. Returns the `sweep:` lines. A returned tree gets only this half.
+ */
+export function sweepCredentials(root, values) {
+  const lines = [];
+  const rel = (p) => relative(root, p);
+  // A flagged folder's contents are flagged too; only the topmost flagged path of each branch is removed and printed.
+  const names = credentialPattern(values);
+  for (const e of [...walkAll(root)]) {
+    if (!pathHit(rel(e.path), names) || pathHit(rel(dirname(e.path)), names)) continue;
+    rmSync(e.path, { recursive: true, force: true });
+    lines.push(`sweep: deleted ${rel(e.path)}`);
+  }
+  for (const file of scanPaths(root, values)) lines.push(`sweep: ${neutralize(file, values)} ${rel(file)}`);
+  return lines;
+}
+
 export function sweepRoot(root, values, failed) {
   const lines = [];
   const rel = (p) => relative(root, p);
@@ -1073,14 +1095,7 @@ export function sweepRoot(root, values, failed) {
       lines.push(`sweep: deleted ${rel(e.path)}`);
     } else if (failed && IMAGE_EXT.has(extname(e.name).toLowerCase())) unlinkSync(e.path);
   }
-  // A flagged folder's contents are flagged too; only the topmost flagged path of each branch is removed and printed.
-  const names = credentialPattern(values);
-  for (const e of [...walkAll(root)]) {
-    if (!pathHit(rel(e.path), names) || pathHit(rel(dirname(e.path)), names)) continue;
-    rmSync(e.path, { recursive: true, force: true });
-    lines.push(`sweep: deleted ${rel(e.path)}`);
-  }
-  for (const file of scanPaths(root, values)) lines.push(`sweep: ${neutralize(file, values)} ${rel(file)}`);
+  lines.push(...sweepCredentials(root, values));
   return lines;
 }
 
@@ -1653,6 +1668,20 @@ async function finishTeardown(n, { clone, forward }) {
  * The sweep of vm up, vm down and vm status (D4). Decisions run under the table lock, the teardown outside it. A lease
  * with a live holder, or ready with a live busy pid, is never touched. Returns whether every teardown finished.
  */
+/** Deletes the `return-PID/` folders of dead pids in slot N (a return interrupted by SIGKILL leaves only sanitized files). */
+function removeDeadReturns(n) {
+  let entries;
+  try {
+    entries = readdirSync(slotPath(n));
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const m = /^return-(\d+)$/.exec(e);
+    if (m && !alive(Number(m[1]))) rmSync(join(slotPath(n), e), { recursive: true, force: true });
+  }
+}
+
 async function sweep() {
   const torn = [];
   withTable(() => {
@@ -1660,6 +1689,7 @@ async function sweep() {
     if (listed === null) throw new Error('lume ls cannot be read');
     const names = new Set(listed.map((v) => v.name));
     for (let n = 1; n <= MAX_SLOTS; n++) {
+      removeDeadReturns(n);
       const slot = readSlot(n);
       if (slot.free) {
         if (!names.has(cloneName(n))) continue;
@@ -2161,9 +2191,23 @@ async function vmStatus(lane) {
   return ok ? 0 : 2;
 }
 
+/**
+ * The internal `vm pack DIR` (design D7), run in the guest: sanitizes the lease-private folder DIR with
+ * `sweepCredentials` and writes it as tar to stdout, so no unsanitized byte leaves the clone. Sweep lines go to stderr.
+ */
+function vmPack(ctx, args) {
+  const dir = args.positional[1];
+  if (!dir || args.positional.length !== 2 || !isAbsolute(dir)) return usage('vm pack DIR');
+  loadRedaction(ctx);
+  if (!existsSync(dir)) return 0;
+  for (const line of sweepCredentials(dir, redactValues)) complain(line);
+  const r = spawnSync('tar', ['-c', '-f', '-', '-C', dir, '.'], { stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, COPYFILE_DISABLE: '1' } });
+  return r.status === 0 ? 0 : 1;
+}
+
 async function cmdVm(ctx, args) {
   const [verb] = args.positional;
-  if (verb === 'pack') return 2;
+  if (verb === 'pack') return vmPack(ctx, args);
   if (!['up', 'down', 'status'].includes(verb)) return usage('vm up TARGET... [--port N] | vm down | vm status');
   const loaded = loadLane();
   if (loaded.error) {
@@ -2224,10 +2268,185 @@ function releaseBusy(n) {
   });
 }
 
+const ENV_MARK = '@@app-qa-lane-env@@';
+const FORWARD_MARK = '@@app-qa-lane-forward-down@@';
+const LEASE_DIR = 'app-qa-lease';
+
+/**
+ * The routed form of the command line (design D7): `--config` and `--credentials` are refused, the flow file is sent
+ * relative to the working directory, `--out` becomes a lease-private guest folder, every other argument is byte-identical.
+ * Returns `{ tokens, kind, out }` (tokens are `{ lit }` for quoted bytes and `{ raw }` for the guest's own folder) or `{ error }`.
+ */
+function translateRouted(ctx, args, command) {
+  const raw = process.argv.slice(3);
+  const tokens = [{ lit: command }];
+  const capture = command === 'desktop' && args.positional[0] === 'capture';
+  const kind = command === 'flow' ? 'flow' : capture ? 'capture' : null;
+  let positional = 0;
+  for (const a of raw) {
+    if (a === '--config' || a === '--credentials') return { error: `lane: ${a} names a host file; run the command with --host to use it on the host` };
+  }
+  for (let i = 0; i < raw.length; i++) {
+    const a = raw[i];
+    if (!a.startsWith('--')) {
+      if (command === 'flow' && positional === 1) {
+        const abs = resolve(a);
+        if (!existsSync(abs)) return { error: `flow: ${a} not found` };
+        const real = realpathSync(abs);
+        const inside = relative(ctx.worktree, real);
+        if (inside.startsWith('..') || isAbsolute(inside)) return { error: `flow: ${a} is outside the worktree ${ctx.worktree}; the guest holds only the worktree` };
+        tokens.push({ lit: relative(process.cwd(), real) });
+      } else tokens.push({ lit: a });
+      positional++;
+      continue;
+    }
+    const name = a.slice(2);
+    if (name === 'config' || name === 'credentials') return { error: `lane: --${name} names a host file; run the command with --host to use it on the host` };
+    tokens.push({ lit: a });
+    if (VALUE_FLAGS.has(name)) tokens.push(name === 'out' && kind ? { raw: kind === 'flow' ? '"$R"/out/flow' : '"$R"/out' } : { lit: raw[++i] });
+    if (name === 'out' && kind) i++;
+  }
+  if (kind === 'flow' && args.flags.out === undefined) tokens.push({ lit: '--out' }, { raw: '"$R"/out/flow' });
+  const out = args.flags.out === undefined ? null : resolve(args.flags.out);
+  if (kind === 'flow' && out && existsOrLink(out)) return { error: `flow: --out ${out} exists; name a directory that does not exist yet` };
+  if (kind === 'capture' && out) {
+    const [, name] = args.positional;
+    if (name && (existsSync(join(out, `${name}.png`)) || existsSync(join(out, `${name}.json`)))) return { error: `capture: ${name}.png or ${name}.json already exists in ${args.flags.out}` };
+  }
+  return { tokens, kind, out };
+}
+
+/** The guest side of a routed run: environment lines, forward probe, the run folder, the working directory, the driver. */
+function remoteScript(ctx, lease, command, tokens) {
+  const rel = relative(ctx.worktree, process.cwd());
+  const cwd = [guestCopy(ctx), ...(rel && !rel.startsWith('..') ? rel.split('/').map(shq) : [])].join('/');
+  const env = command === 'flow' ? 'TMPDIR="$R"/tmp MAESTRO_DRIVER_STARTUP_TIMEOUT=180000 ' : '';
+  const args = tokens.map((t) => t.raw ?? shq(t.lit)).join(' ');
+  return [
+    `printf '%s\\n' ${shq(ENV_MARK)} "$HOME" "\${TMPDIR:-/tmp}"`,
+    ...(lease.forward ? [`nc -z 127.0.0.1 ${lease.forward.port} >/dev/null 2>&1 || { printf '%s\\n' ${shq(FORWARD_MARK)}; exit 97; }`] : []),
+    runFolder(),
+    'rm -rf "$R" && mkdir -p "$R"/out "$R"/tmp',
+    `cd ${cwd} || exit 98`,
+    `${env}node ${GUEST_DRIVER}/qa.mjs ${args}`,
+  ].join('\n');
+}
+const runFolder = () => `R="\${TMPDIR:-/tmp}"; R="\${R%/}"/${LEASE_DIR}/run-${process.pid}`;
+
+/** Runs the guest command; every line is redacted with the host's values and held, none is printed. */
+function runHeld(lane, ip, script) {
+  return new Promise((done) => {
+    const held = [];
+    const head = [];
+    let forwardDown = false;
+    const child = spawn(sshBin(), [...sshBase(lane, ip), script], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const sinks = [['out', child.stdout], ['err', child.stderr]].map(([name, stream]) => {
+      const sink = lineSink((line) => {
+        if (name === 'out' && head.length < 3 && (head.length > 0 || line === ENV_MARK)) head.push(line);
+        else if (line === FORWARD_MARK) forwardDown = true;
+        else held.push({ stream: name, text: redact(line, redactValues) });
+      });
+      stream.setEncoding('utf8');
+      stream.on('data', (c) => sink.push(c));
+      return [sink, stream];
+    });
+    child.on('error', () => done({ status: -1, held, head, forwardDown }));
+    child.on('close', (code) => {
+      for (const [sink] of sinks) sink.end();
+      done({ status: code ?? -1, held, head, forwardDown });
+    });
+  });
+}
+
+/** Copies a returned folder's entries into `dest` without overwriting anything. */
+function copyInto(src, dest) {
+  mkdirSync(dest, { recursive: true });
+  cpSync(src, dest, { recursive: true, force: false, errorOnExist: true });
+}
+
+/**
+ * Returns the files of the run (design D7): `vm pack` runs in the guest and streams the sanitized run folder as tar into
+ * a 0600 archive in the slot's `return-PID/`; the host lists it, refuses an absolute path, a `..` component or any type
+ * but file and folder, extracts, sweeps with its own values, copies without overwriting and deletes the folder.
+ * Returns `{ lines, rewrites, failed }`.
+ */
+async function returnFiles(ctx, lane, ip, n, info, { kind, out }) {
+  const lines = [];
+  const rewrites = [];
+  const dir = join(slotPath(n), `return-${process.pid}`);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const fail = (why) => {
+    lines.push(`lane: the files of the run were not returned: ${why}`);
+    return { lines, rewrites, failed: true };
+  };
+  try {
+    const archive = join(dir, 'archive.tar');
+    const fd = openSync(archive, 'w', 0o600);
+    const packLines = [];
+    const status = await new Promise((done) => {
+      const child = spawn(sshBin(), [...sshBase(lane, ip), `${runFolder()}; cd ${guestCopy(ctx)} && node ${GUEST_DRIVER}/qa.mjs vm pack "$R"`], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const sink = lineSink((line) => packLines.push(redact(line, redactValues)));
+      child.stdout.on('data', (c) => writeSync(fd, c));
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (c) => sink.push(c));
+      child.on('error', () => done(-1));
+      child.on('close', (code) => {
+        sink.end();
+        done(code ?? -1);
+      });
+    });
+    closeSync(fd);
+    lines.push(...packLines);
+    if (status !== 0) return fail(`vm pack exited ${status}`);
+    const names = run('tar', ['-tf', archive]);
+    const types = run('tar', ['-tvf', archive]);
+    if (names.status !== 0 || types.status !== 0) return fail('the archive cannot be listed');
+    const nameList = names.stdout.split('\n').filter(Boolean);
+    const typeList = types.stdout.split('\n').filter(Boolean);
+    if (nameList.length !== typeList.length) return fail('the archive listing is inconsistent');
+    for (let i = 0; i < nameList.length; i++) {
+      const name = nameList[i];
+      if (name.startsWith('/') || name.split('/').includes('..')) return fail('the archive holds an absolute path or a .. component; nothing was extracted');
+      if (!['-', 'd'].includes(typeList[i][0])) return fail('the archive holds an entry that is neither a file nor a folder; nothing was extracted');
+    }
+    const root = join(dir, 'x');
+    mkdirSync(root, { mode: 0o700 });
+    if (run('tar', ['-xf', archive, '-C', root]).status !== 0) return fail('extraction failed');
+    lines.push(...sweepCredentials(root, redactValues).map((l) => redact(l, redactValues)));
+    const exists = (p) => existsSync(join(root, p));
+    if (kind === 'flow') {
+      const dest = out ?? mkdtempSync(join(tmpdir(), 'app-qa-out-'));
+      if (exists('out/flow')) copyInto(join(root, 'out/flow'), dest);
+      else mkdirSync(dest, { recursive: true });
+      rewrites.push([`${info.runDir}/out/flow`, dest]);
+      for (const e of existsSync(join(root, 'tmp')) ? readdirSync(join(root, 'tmp')) : []) {
+        if (!e.startsWith('app-qa-flow-')) continue;
+        const kept = mkdtempSync(join(tmpdir(), 'app-qa-root-'));
+        copyInto(join(root, 'tmp', e), kept);
+        rewrites.push([`${info.runDir}/tmp/${e}`, kept]);
+      }
+    } else if (kind === 'capture' && out) {
+      if (exists('out')) copyInto(join(root, 'out'), out);
+      rewrites.push([`${info.runDir}/out`, out]);
+    }
+    return { lines, rewrites, failed: false };
+  } catch (e) {
+    return fail(e.message);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 async function cmdRouted(ctx, args, command, lane) {
   const target = routeTarget(command, args);
-  const admitted = admitRouted(ctx.worktree, target);
   const restart = `run ${INVOKE} vm up ${target}`;
+  const translated = translateRouted(ctx, args, command);
+  if (translated.error) {
+    say(translated.error);
+    return 2;
+  }
+  const admitted = admitRouted(ctx.worktree, target);
   if (admitted.refuse) {
     say(`lane: ${admitted.refuse}; ${restart}`);
     return 2;
@@ -2243,12 +2462,49 @@ async function cmdRouted(ctx, args, command, lane) {
       say(`lane: the port forward of ${lease.clone} is not running; ${restart}`);
       return 2;
     }
-    const remote = `cd "$HOME"/work/${shq(ctx.config.name)} && node "$HOME"/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs ${process.argv.slice(2).join(' ')}`;
-    const child = spawn(sshBin(), [...sshBase(lane, ip), remote], { stdio: 'inherit' });
-    return await new Promise((done) => {
-      child.on('error', () => done(2));
-      child.on('close', (code) => done(code === 255 || code === null ? 2 : code));
-    });
+    say(`lane: ${command} ${target} runs in ${lease.clone} (slot ${n})`);
+    const result = await runHeld(lane, ip, remoteScript(ctx, lease, command, translated.tokens));
+    if (result.head.length < 3) {
+      say(`lane: ${lease.clone} cannot be reached over ssh; ${restart}`);
+      return 2;
+    }
+    if (result.forwardDown) {
+      say(`lane: the port forward of ${lease.clone} accepts no connection; ${restart}`);
+      return 2;
+    }
+    const guestHome = result.head[1];
+    const guestTmp = result.head[2].replace(/\/+$/, '');
+    const runDir = `${guestTmp}/${LEASE_DIR}/run-${process.pid}`;
+    // Dependency checks after the run (D7): the clone, the connection and the forward.
+    const ipAfter = cloneIp(lease.clone);
+    let lost = null;
+    if (!ipAfter) lost = 'clone';
+    else if (result.status === 255) lost = 'connection';
+    else if (lease.forward) {
+      if (!alive(lease.forward.pid)) lost = 'forward';
+      else {
+        const probe = run(sshBin(), [...sshBase(lane, ipAfter), `nc -z 127.0.0.1 ${lease.forward.port}`]);
+        lost = probe.status === 255 ? 'connection' : probe.status !== 0 ? 'forward' : null;
+      }
+    }
+    const returned = ipAfter ? await returnFiles(ctx, lane, ipAfter, n, { runDir }, translated) : { lines: [], rewrites: [], failed: false };
+    const rewrites = [...returned.rewrites, [`${guestHome}/work/${ctx.config.name}`, ctx.worktree]]
+      .sort((a, b) => b[0].length - a[0].length);
+    const keptGone = new RegExp(`${runDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/tmp/app-qa-flow-[^\\s/]+`, 'g');
+    const toHost = (text) => {
+      let t = text;
+      for (const [from, to] of rewrites) t = t.split(from).join(to);
+      return t.replace(keptGone, '(not kept)');
+    };
+    const emit = (line, stream) => (stream === 'err' ? complain(line) : say(line));
+    if (lost) {
+      say(`lane: infrastructure lost during the run (${lost}); this is not an app result, ${restart}`);
+      for (const h of result.held) emit(`guest (not an app result): ${toHost(h.text)}`, h.stream);
+    } else for (const h of result.held) emit(toHost(h.text), h.stream);
+    for (const line of returned.lines) say(toHost(line));
+    if (lost || returned.failed) return 2;
+    if (result.status !== 0) say(`lane: ${lease.clone}: the guest command exited ${result.status}; to restart the app, simulator or forward ${restart}`);
+    return result.status;
   } finally {
     releaseBusy(n);
   }

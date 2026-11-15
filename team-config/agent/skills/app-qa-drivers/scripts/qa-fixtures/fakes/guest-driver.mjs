@@ -3,7 +3,7 @@
 // a pause until a file exists, a started marker and the exit code. `vm ...` goes to the real driver (qa-real.mjs).
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const argv = process.argv.slice(2);
@@ -19,7 +19,7 @@ const tokens = { $OUT: outIndex >= 0 ? argv[outIndex + 1] : '', $TMP: process.en
 const sub = (s) => Object.entries(tokens).reduce((t, [k, v]) => t.split(k).join(v), s);
 appendFileSync(
   process.env.FAKE_CALLS,
-  `${JSON.stringify({ tool: 'guest-driver', argv, cwd: process.cwd(), env: { TMPDIR: process.env.TMPDIR, MAESTRO_DRIVER_STARTUP_TIMEOUT: process.env.MAESTRO_DRIVER_STARTUP_TIMEOUT ?? null } })}\n`,
+  `${JSON.stringify({ tool: 'guest-driver', argv, cwd: process.cwd(), flowFile: argv[0] === 'flow' ? { path: resolve(argv[2]), exists: existsSync(resolve(argv[2])) } : null, env: { TMPDIR: process.env.TMPDIR, MAESTRO_DRIVER_STARTUP_TIMEOUT: process.env.MAESTRO_DRIVER_STARTUP_TIMEOUT ?? null } })}\n`,
 );
 if (cfg.started) writeFileSync(sub(cfg.started), String(process.pid));
 for (const f of cfg.files ?? []) {
