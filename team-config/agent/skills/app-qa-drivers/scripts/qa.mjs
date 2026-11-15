@@ -39,6 +39,7 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readLauncherCfg } from './vm/start-target.mjs';
 
 export const SCHEMAS = ['app-qa/1', 'app-qa/2'];
 export const SPECTRE_VERSION = '0.9.0';
@@ -1899,6 +1900,13 @@ function snapshotArtifacts(ctx, n, targets) {
     const r = run('cp', ['-c', '-R', join(ctx.root, artifact), dest]);
     if (r.error || r.status !== 0) return `cannot snapshot ${artifact}`;
     if (!existsSync(dest)) return `${target} snapshot of ${artifact} is missing`;
+    if (target === 'desktop') {
+      try {
+        readLauncherCfg(dest);
+      } catch (e) {
+        return `desktop artifact ${artifact}: ${e.message}`;
+      }
+    }
   }
   return null;
 }
@@ -1941,6 +1949,16 @@ async function copyToGuest(ctx, lane, ip, n, targets) {
   const init = await sshRun(lane, ip, `cd ${guestCopy(ctx)} && git init -q`);
   if (init.status !== 0) return 'git init in the guest copy failed';
   return null;
+}
+
+/** Runs the guest-side start of one target (design D6); returns an error line or null. */
+async function startGuestTarget(ctx, lane, ip, target, port) {
+  const { artifact } = ctx.config.vm[target];
+  const flags = ['--artifact', artifact];
+  if (target === 'ios') flags.push('--device-type', lane.ios.deviceType);
+  if (target === 'ios' && port !== null) flags.push('--port', String(port));
+  const r = await sshRun(lane, ip, `cd ${guestCopy(ctx)} && node ${GUEST_DRIVER}/vm/start-target.mjs ${target} ${flags.map(shq).join(' ')}`);
+  return r.status === 0 ? null : `starting ${target} in the guest failed`;
 }
 
 async function vmUp(ctx, args, lane) {
@@ -2038,6 +2056,14 @@ async function vmUp(ctx, args, lane) {
       return 2;
     }
     rmSync(join(slotPath(n), 'stage'), { recursive: true, force: true });
+    for (const target of targets) {
+      const started = await startGuestTarget(ctx, lane, ip, target, port);
+      if (started) {
+        say(`vm up: ${started}`);
+        failStart(n, true);
+        return 2;
+      }
+    }
     withTable(() => {
       const slot = readSlot(n);
       if (!slot.lease || slot.lease.state !== 'starting' || slot.lease.holder !== process.pid) return;

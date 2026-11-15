@@ -662,6 +662,7 @@ function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = []
     FAKE_CALLS: L.guest.callFile,
     FAKE_FIXTURES: FIXTURES,
     FAKE_JAVA_HOME: L.guest.jdk,
+    QA_TARGET_WARM_MS: '0',
   };
   const fakeFile = (name, file, dir) => {
     writeFileSync(join(dir, name), `#!${NODE}\n${readFileSync(join(FAKE_DIR, file), 'utf8')}`);
@@ -1655,6 +1656,84 @@ test('stage: vnc - lume run starts the clone with --vnc disabled and --display n
   assert.equal(at('--display'), 'none');
   assert.ok(run[0].argv.includes('--detach'));
   assert.equal(run[0].argv.at(-1), 'app-qa-slot-1');
+});
+
+// ---------- target: guest-side target start (task 3.2) ----------
+
+test('target: ios - two vm up runs leave one simulator, created fresh the second time, with the app installed and WebKit warmed', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  const first = L.gstate().sims;
+  assert.equal(first.length, 1);
+  assert.equal(first[0].name, 'app-qa-lane');
+  assert.equal(first[0].deviceType, 'iPhone 17 Pro');
+  assert.equal(first[0].state, 'Booted');
+  assert.equal(first[0].installed.length, 1);
+  assert.equal(realpathSync(first[0].installed[0]), realpathSync(join(L.guestCopy, 'build/App.app')));
+  const second = await L.up(['ios']);
+  assert.equal(second.status, 0, outputOf(second));
+  const sims = L.gstate().sims;
+  assert.equal(sims.length, 1);
+  assert.notEqual(sims[0].udid, first[0].udid);
+  assert.equal(sims[0].udid, 'LANE-SIM-2');
+  const verbs = L.gcalls('xcrun').map((c) => c.argv.slice(1, 3));
+  assert.ok(verbs.some(([v]) => v === 'delete'), 'the earlier simulator is deleted');
+  const open = L.gcalls('xcrun').filter((c) => c.argv[1] === 'openurl');
+  assert.equal(open.length, 2);
+  assert.match(open[0].argv[3], new RegExp(`^http://127\\.0\\.0\\.1:${PORT}/`));
+  assert.ok(L.gcalls('xcrun').some((c) => c.argv[1] === 'terminate' && c.argv[3] === 'com.apple.mobilesafari'));
+});
+
+test('target: desktop - two vm up runs leave one app process and the first is killed', async () => {
+  const L = laneLayout();
+  const up1 = await L.up(['desktop']);
+  assert.equal(up1.status, 0, outputOf(up1));
+  await waitUntil(() => L.gcalls('java').length === 1);
+  const [first] = L.gcalls('java');
+  assert.ok(isAlive(first.pid));
+  const second = await L.up(['desktop']);
+  assert.equal(second.status, 0, outputOf(second));
+  await waitUntil(() => L.gcalls('java').length === 2);
+  const javas = L.gcalls('java');
+  assert.equal(javas.length, 2);
+  await waitUntil(() => !isAlive(javas[0].pid));
+  assert.ok(isAlive(javas[1].pid));
+});
+
+test('target: desktop - the command line holds the classpath, both options in order, the headless flag, the property and the launchctl prefix', async () => {
+  const L = laneLayout();
+  const r = await L.up(['desktop']);
+  assert.equal(r.status, 0, outputOf(r));
+  const appDir = join(realpathSync(L.guestCopy), 'build/Onara.app/Contents/app');
+  await waitUntil(() => L.gcalls('java').length === 1);
+  const [java] = L.gcalls('java');
+  assert.equal(java.argv.at(-1), 'eu.onara.app.MainKt');
+  assert.deepEqual(java.argv.slice(java.argv.indexOf('-cp')), ['-cp', `${appDir}/onara.jar:${appDir}/lib/compose.jar`, 'eu.onara.app.MainKt']);
+  const opts = java.argv.slice(0, java.argv.indexOf('-cp'));
+  assert.equal(opts[0], '-Djava.awt.headless=false');
+  assert.deepEqual(opts.filter((o) => ['-Dfirst=1', '-Xmx512m', `-Dapp.dir=${appDir}`].includes(o)), ['-Dfirst=1', '-Xmx512m', `-Dapp.dir=${appDir}`]);
+  assert.ok(opts.includes(`-Donara.devCredentialsFile=${realpathSync(L.guestCopy)}/.dev-credentials.env`), opts.join(' '));
+  assert.equal(realpathSync(java.cwd), realpathSync(L.guestCopy));
+  assert.match(java.argv[0], /^-D|^-X/);
+  const [launch] = L.gcalls('launchctl');
+  assert.deepEqual(launch.argv.slice(0, 5), ['asuser', String(process.getuid()), 'sudo', '-u', launch.argv[4]]);
+  assert.ok(L.gcalls('java_home').some((c) => c.argv.join(' ') === '-v 21'));
+});
+
+test('target: desktop - a launcher cfg without app.mainclass is refused by the host with exit 2 before any clone', async () => {
+  const L = laneLayout();
+  L.setControl({ artifacts: { ...BUILD_ARTIFACTS, desktop: { ...BUILD_ARTIFACTS.desktop, files: { 'Contents/app/Onara.cfg': '[Application]\napp.classpath=$APPDIR/onara.jar\n' } } } });
+  const r = await L.up(['desktop']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(r.stdout, /app\.mainclass/);
+  for (const verb of ['clone', 'run', 'stop', 'delete']) assert.equal(L.lumeCalls(verb).length, 0, verb);
+  assert.deepEqual(L.slots(), []);
+});
+
+test('target: cfg - the reader ignores other sections and keys, expands $APPDIR and keeps repeated lines in order', async () => {
+  const { parseLauncherCfg } = await import(pathToFileURL(join(dirname(QA_SOURCE), 'vm', 'start-target.mjs')).href);
+  const cfg = parseLauncherCfg('[Other]\napp.mainclass=wrong\n\n[Application]\napp.version=1\napp.classpath=$APPDIR/a.jar\napp.classpath=$APPDIR/b.jar\napp.mainclass=x.Main\n\n[JavaOptions]\njava-options=-Da=1\njava-options=-Db=$APPDIR\n', '/d');
+  assert.deepEqual(cfg, { classpath: ['/d/a.jar', '/d/b.jar'], mainClass: 'x.Main', javaOptions: ['-Da=1', '-Db=/d'] });
 });
 
 /** Malformed configurations, each with the cause its refusal must name. */
