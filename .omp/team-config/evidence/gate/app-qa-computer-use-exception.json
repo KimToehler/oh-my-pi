@@ -1,0 +1,329 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/app-qa-computer-use-exception",
+  "plan_sha256": "096461c7794a48f7cd85c9050eeb638fbc32dfb09bdebef5d76a336d5f69c9a0",
+  "reviewed_sha": "1106d9b4bd1a7c5ce4416423242b845486542203",
+  "diff_base": "75bceb541a742a90b89009a982ceafac82ea423a",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "gate.md Depth risky (mandatory class auth-secrets-pii), Risk tier product: both invocations; 46 QA rows, one per spec scenario plus minimum, D5 probe and task 3.1/3.2 rows",
+  "mandatory_class": "auth-secrets-pii",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "Q1 Routes: Desktop typing task",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-typing.md",
+      "artifact_sha256": "e190dfda64090a7a39c923fedd4744dc942719519b6269c3ae9bc3abe7c50837"
+    },
+    {
+      "name": "Q2 Routes: Missing driver",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-missing.md",
+      "artifact_sha256": "17a4b61e0fbd8600b024ac770354e88d10ebdc27316a75834756df7a41e9d50c"
+    },
+    {
+      "name": "Q3 Routes: Simulator sign-in task",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-signin.md",
+      "artifact_sha256": "01d561fcd1350d1769cab3b3dee759e03e89901eea3fffcb81ff4929559339b6"
+    },
+    {
+      "name": "Q4 Routes: Failed sign-in or sign-out flow",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-signin.md",
+      "artifact_sha256": "01d561fcd1350d1769cab3b3dee759e03e89901eea3fffcb81ff4929559339b6"
+    },
+    {
+      "name": "Q5 Routes: Folder the session did not write",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-folder.md",
+      "artifact_sha256": "a1cd7d9a0f5872519db9564a5a58027e4a1947f788fc2871d86821c59e1f4c14"
+    },
+    {
+      "name": "Q6 Routes: Clean folder that gains a token after the scan",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-clean.md",
+      "artifact_sha256": "11e71619490056e0973a4962188efc575c03a4b884a2a50e9e979508f418227a"
+    },
+    {
+      "name": "Q7 Routes: Listing sent in the same reply as the skill read",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-batch.md",
+      "artifact_sha256": "6d4c8e6079ec4b7a4883558f38aafbfe90abcfe2efbac5c08465fb1c2d944af0"
+    },
+    {
+      "name": "Q8 Routes: Search across the repository",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-search.md",
+      "artifact_sha256": "76b2fb655be3764574e54d17f2b3e76009b2ef33d0b625424aab32c79c639488"
+    },
+    {
+      "name": "Q9 Routes: Output folder name already taken",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-collide.md",
+      "artifact_sha256": "2ea9dd3633818e5be4d41b0f1a3282b91b03d2300b7f66421c9ce971e2b2c395"
+    },
+    {
+      "name": "Q10 Routes: Evidence folder created before the skill read",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-collide.md",
+      "artifact_sha256": "2ea9dd3633818e5be4d41b0f1a3282b91b03d2300b7f66421c9ce971e2b2c395"
+    },
+    {
+      "name": "Q11 Routes: Search with ignore rules off before the skill read",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rule-ignoreoff.md",
+      "artifact_sha256": "d652a930cc6614a7679c13560d8124fe225d97fd6af188ea12f329bc0170d16a"
+    },
+    {
+      "name": "Q12 Routes: Search with ignore rules off outside app QA",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/noqa-session.md",
+      "artifact_sha256": "502530a8d60086196013ff700993b3537f2090037c86cbaf692a0c8534942b95"
+    },
+    {
+      "name": "Q13 Routes: Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-nc.md",
+      "artifact_sha256": "9b191a5ec8f2d9f2ccaef9233e49551d7ddf23ba9dcd1d54dfad15a0d8944744"
+    },
+    {
+      "name": "Q14 Exception: Screen reader check",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-voiceover.md",
+      "artifact_sha256": "2bc7865e12e3cb1e0f3334caa27a22356c4a59d95496d1587429861448de406f"
+    },
+    {
+      "name": "Q15 Exception: Dialog of the app under test",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-dialog.md",
+      "artifact_sha256": "ea417914439f4b7d423fa830c92282850a16594b86c7a07ca6ce63210927f187"
+    },
+    {
+      "name": "Q16 Exception: Dialog of another process",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-dialog-other.md",
+      "artifact_sha256": "9fbc60a5431cc8c72187ea77f2a692e251143de8ac0e8a3f93f5ae17e2eaebd3"
+    },
+    {
+      "name": "Q17 Exception: Simulator host menu",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-hostmenu.md",
+      "artifact_sha256": "4b22a3ee44274ab2e19c3fc07d4d246a67bd68e1b4c3b5ac594f8dea9451617e"
+    },
+    {
+      "name": "Q18 Exception: Tag-reachable task stays on the driver",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-typing.md",
+      "artifact_sha256": "bd4e73fde262fe8c3ac4d15214439bbae088c5467683e7ec04b74ab97ffdbe72"
+    },
+    {
+      "name": "Q19 Exception: Prelude not available",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-missing.md",
+      "artifact_sha256": "3bf62c8abdf33a48b907fa9dfaadc55ad0d1648501e6a76b11ceff2b891d7b94"
+    },
+    {
+      "name": "Q20 Exception: Setting is not refuse",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-takeover.md",
+      "artifact_sha256": "b422873aa66c16cd5ea7439404395809eca605ad10c6b8af790269c5e8ac1e59"
+    },
+    {
+      "name": "Q21 Exception: Outcome says it ran in takeover",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-takeover.md",
+      "artifact_sha256": "b422873aa66c16cd5ea7439404395809eca605ad10c6b8af790269c5e8ac1e59"
+    },
+    {
+      "name": "Q22 Exception: Host app not running",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-host-absent.md",
+      "artifact_sha256": "2afaf0e635eba0d18cac4d9a70afcb75477ce83a6300d91252ae9e2924d8bea3"
+    },
+    {
+      "name": "Q23 Exception: Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-nc.md",
+      "artifact_sha256": "4fc6e154a824430b45622eacaa224235e3be85adae5cab5ca3a99fe831be2b2f"
+    },
+    {
+      "name": "Q24 Sign-in surface: Configuration without credentials",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-dialog.md",
+      "artifact_sha256": "ea417914439f4b7d423fa830c92282850a16594b86c7a07ca6ce63210927f187"
+    },
+    {
+      "name": "Q25 Sign-in surface: Configuration with accounts",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/scope-accounts.md",
+      "artifact_sha256": "04408a8a3630e2f595073c861ce00baa6423f74da8f52e7e91c954bdb0e53fa8"
+    },
+    {
+      "name": "Q26 Sign-in surface: Rule loaded before a computer call",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/login-rule.md",
+      "artifact_sha256": "25a5babb5540ea062a8ebb350fa0500932c33a3230fbeabb40fd4a5393d649e9"
+    },
+    {
+      "name": "Q27 Sign-in surface: Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/login-nc.md",
+      "artifact_sha256": "63e0a19179f1fc4dca7d47408d86ec0eb3334dc7823b919ecafc6d4117a43286"
+    },
+    {
+      "name": "Q28 One window: Window-scoped read",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/econ-window.md",
+      "artifact_sha256": "1f974adbc3674f08b20d55940c495ce6714ece08eb155c4cac3cdbe4fe4b3564"
+    },
+    {
+      "name": "Q29 One window: Host menu only",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-hostmenu.md",
+      "artifact_sha256": "4b22a3ee44274ab2e19c3fc07d4d246a67bd68e1b4c3b5ac594f8dea9451617e"
+    },
+    {
+      "name": "Q30 One window: Missing target window",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/ce-window-miss.md",
+      "artifact_sha256": "2d1bfdd4b059148f949ad630be673a331136e8fd73c9ca7fe328d4fec9864495"
+    },
+    {
+      "name": "Q31 One window: Dialog closes after it was resolved",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/ce-window-miss.md",
+      "artifact_sha256": "2d1bfdd4b059148f949ad630be673a331136e8fd73c9ca7fe328d4fec9864495"
+    },
+    {
+      "name": "Q32 One window: Dialog beside the main window",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-dialog.md",
+      "artifact_sha256": "ea417914439f4b7d423fa830c92282850a16594b86c7a07ca6ce63210927f187"
+    },
+    {
+      "name": "Q33 One window: Dialog already open",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-dialog.md",
+      "artifact_sha256": "ea417914439f4b7d423fa830c92282850a16594b86c7a07ca6ce63210927f187"
+    },
+    {
+      "name": "Q34 One window: Request for the whole screen",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/scope-window.md",
+      "artifact_sha256": "61421741ef66dda9ec41a4a10db188fb83a7df34234667e7be6e848e2601a58f"
+    },
+    {
+      "name": "Q35 One window: Request to read another app's window",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/scope-window.md",
+      "artifact_sha256": "61421741ef66dda9ec41a4a10db188fb83a7df34234667e7be6e848e2601a58f"
+    },
+    {
+      "name": "Q36 One window: Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/econ-nc.md",
+      "artifact_sha256": "dcae0324fd42fda726571871b34ca1fd6120f0a39d55e0bcfc4cbaa82f2df09f"
+    },
+    {
+      "name": "Q37 Reads only what it needs: Filtered accessibility read",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/econ-filter.md",
+      "artifact_sha256": "7837684166618a76913c74ceee55fd4bebae3756fc488bc53e1854e6591f834f"
+    },
+    {
+      "name": "Q38 Reads only what it needs: Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/econ-nc.md",
+      "artifact_sha256": "dcae0324fd42fda726571871b34ca1fd6120f0a39d55e0bcfc4cbaa82f2df09f"
+    },
+    {
+      "name": "Q39 Evidence: Evidence with a statement",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/evid-stmt.md",
+      "artifact_sha256": "90339f49eabe865d21e595b07c80386616eecc382df9a763269ba0a3645860d4"
+    },
+    {
+      "name": "Q40 Evidence: Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/evid-nc.md",
+      "artifact_sha256": "e38096175475b43f42622f1e299c46d37cfdff11d356e05814a1540e31237233"
+    },
+    {
+      "name": "Q41 Minimum: happy path",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-dialog.md",
+      "artifact_sha256": "ea417914439f4b7d423fa830c92282850a16594b86c7a07ca6ce63210927f187"
+    },
+    {
+      "name": "Q42 Minimum: riskiest edge",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/scope-accounts.md",
+      "artifact_sha256": "04408a8a3630e2f595073c861ce00baa6423f74da8f52e7e91c954bdb0e53fa8"
+    },
+    {
+      "name": "Q43 Minimum: regression on adjacent behaviour",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/rt-typing.md",
+      "artifact_sha256": "e190dfda64090a7a39c923fedd4744dc942719519b6269c3ae9bc3abe7c50837"
+    },
+    {
+      "name": "Q44 Design D5 isolation probe",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/f1/ce-overlap.md",
+      "artifact_sha256": "477c37136dbcfbca01172df287cb4d28487dfe3290321d6bb923c7b75697b462"
+    },
+    {
+      "name": "Q45 Task 3.2: failed `computer` call records the fixed status text",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-1/statuserror-tests.txt",
+      "artifact_sha256": "4f68901a041927df29987910b884ce2113035988bcf812a677fe8ab08e1c15b1"
+    },
+    {
+      "name": "Q46 Task 3.1 Verify: team-config suite",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/team-config-suite.txt",
+      "artifact_sha256": "e637a1f362d2f82894d7db9fb69961dd8a1af09f186c9e5a5c0d36a67f230e58"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/implementation-audit-trailer.md",
+      "trailer_sha256": "dad3a029336efd9d95789752532925d1dce91e8174a3968598f93a16b6a497f2",
+      "note": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/implementation-audit-trailer.md; QA matrix .omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/qa-matrix.md"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/strategic-risk-review-trailer.md",
+      "trailer_sha256": "55d4ef2aa80661eb9b5536f1ebfb7131fac042eea785c698c2c96a8f70d638da",
+      "note": ".omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/strategic-risk-review-trailer.md; QA matrix .omp/team-config/evidence/gate/app-qa-computer-use-exception/wave-2/qa-matrix.md"
+    }
+  ],
+  "blockers": []
+}
