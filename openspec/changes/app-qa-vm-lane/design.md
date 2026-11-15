@@ -164,7 +164,7 @@ A failure in steps 4 to 8 applies the failure transition too, so the lease never
 ### D6. Target start by one guest-side script
 `scripts/vm/start-target.mjs ios|desktop` ships with the driver directory (step 6.3) and runs through one SSH command per target. It records each app pid in the guest, so the host sends no series of remote shell strings.
 - **ios:**
-  1. Delete the lane's earlier simulator, then create one of `ios.deviceType` on the guest's only iOS runtime and boot it. Recreating it on every `vm up` resets the sign-in state; a signed-in app or a live provider session would make the sign-in subflow fail (`SKILL.md:97`).
+  1. Delete the lane's earlier simulator, then create one of `ios.deviceType` on the guest's only iOS runtime and boot it. Recreating it on every `vm up` resets the sign-in state; a signed-in app or a live provider session would make the sign-in subflow fail (`SKILL.md:113`).
   2. Install the artifact.
   3. With a backend, open its health URL once to warm WebKit, then terminate Safari.
 
