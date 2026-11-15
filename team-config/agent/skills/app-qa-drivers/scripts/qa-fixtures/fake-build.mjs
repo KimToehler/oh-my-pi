@@ -1,7 +1,7 @@
 // Fake build tool for qa.test.mjs, the argv of a vm build: node fake-build.mjs CONTROL TARGET [PORT]. CONTROL is a JSON
 // file: print/printErr (lines per target), hold (wait after printing until CONTROL.release exists), exit (per target),
-// noArtifact (per target), artifacts (per target: {path, files}), watch ({untilCall, rewrite: {path, content}}: a
-// detached child rewrites that worktree file once the call log holds an entry with that tool). Every run is logged to
+// noArtifact (per target), artifacts (per target: {path, files}), watch ({untilTool, untilVerb, calls, rewrite: {path, content}}: a
+// detached child rewrites that artifact file once the call log CALLS holds an entry of that tool with that verb). Every run is logged to
 // CONTROL.runs with whether its stdout and stderr are pipes.
 import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, fstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -34,9 +34,9 @@ for (const [rel, content] of Object.entries(art.files)) {
 if (cfg.watch) {
   const script = `
     const fs = require('fs');
-    const { untilCall, calls, file, content } = ${JSON.stringify({ ...cfg.watch, calls: cfg.watch.calls, file: join(root, art.path, cfg.watch.rewrite.path), content: cfg.watch.rewrite.content })};
+    const { untilTool, untilVerb, calls, file, content } = ${JSON.stringify({ ...cfg.watch, file: join(root, art.path, cfg.watch.rewrite.path), content: cfg.watch.rewrite.content })};
     const deadline = Date.now() + 20000;
-    const seen = () => fs.existsSync(calls) && fs.readFileSync(calls, 'utf8').split('\\n').some((l) => l && JSON.parse(l).tool === untilCall);
+    const seen = () => fs.existsSync(calls) && fs.readFileSync(calls, 'utf8').split('\\n').some((l) => { if (!l) return false; const c = JSON.parse(l); return c.tool === untilTool && c.argv?.[0] === untilVerb; });
     const tick = () => { if (seen()) { fs.writeFileSync(file, content); process.exit(0); } if (Date.now() > deadline) process.exit(1); setTimeout(tick, 10); };
     tick();`;
   spawn(process.execPath, ['-e', script], { detached: true, stdio: 'ignore' }).unref();

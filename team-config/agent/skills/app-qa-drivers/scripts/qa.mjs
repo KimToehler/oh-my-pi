@@ -1826,6 +1826,123 @@ async function runBuilds(ctx, targets, port) {
   return { tail };
 }
 
+/** The remote path of the guest copy: `"$HOME"/work/NAME`, ready for a remote shell. */
+const guestCopy = (ctx) => `"$HOME"/work/${shq(ctx.config.name)}`;
+const GUEST_DRIVER = '"$HOME"/.omp/agent/skills/app-qa-drivers/scripts';
+/** Copies the guest holds only for one lease: the driver state and the lease-private output folders below the guest's TMPDIR. */
+const GUEST_RESET = 'T="${TMPDIR:-/tmp}"; rm -rf "${T%/}"/app-qa "${T%/}"/app-qa-lease';
+
+/** One ssh call; every output line goes through the host redaction. */
+function sshRun(lane, ip, remote, input) {
+  return runStreaming(sshBin(), [...sshBase(lane, ip), remote], {
+    input,
+    onLine: (line, stream) => (stream === 'err' ? complain(`ssh: ${line}`) : say(`ssh: ${line}`)),
+  });
+}
+
+/** Streams `tar -c` of a local directory (names from `names` when given) into a remote command's stdin. */
+function tarOver(lane, ip, { cwd, names, paths, excludes = [] }, remote) {
+  return new Promise((done) => {
+    const out = names
+      ? ['-c', '-f', '-', '--null', '-T', '-', ...excludes.flatMap((e) => ['--exclude', e])]
+      : ['-c', '-f', '-', ...excludes.flatMap((e) => ['--exclude', e]), ...paths];
+    const local = spawn('tar', out, { cwd, env: { ...process.env, COPYFILE_DISABLE: '1' }, stdio: [names ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
+    const remoteChild = spawn(sshBin(), [...sshBase(lane, ip), remote], { stdio: [local.stdout ?? 'ignore', 'pipe', 'pipe'] });
+    if (names) {
+      local.stdin.on('error', () => {});
+      local.stdin.end(names.join('\0'));
+    }
+    let codes = 0;
+    const result = { status: 0 };
+    const finish = (code, who, error) => {
+      if (code !== 0 && result.status === 0) result.status = code ?? -1;
+      if (error) result.error = error;
+      if (++codes === 2) done(result);
+    };
+    for (const [child, name] of [[local, 'tar'], [remoteChild, 'ssh']]) {
+      for (const stream of child === local ? [child.stderr] : [child.stderr, child.stdout]) {
+        const sink = lineSink((line) => complain(`${name}: ${line}`));
+        stream.setEncoding('utf8');
+        stream.on('data', (c) => sink.push(c));
+        stream.on('end', () => sink.end());
+      }
+      child.on('error', (error) => finish(-1, name, error));
+      // A stdout handed to the next process never closes in this one, so the local tar is awaited by its exit.
+      child.on(child === local ? 'exit' : 'close', (code) => finish(code, name));
+    }
+  });
+}
+
+/** The worktree's tracked and untracked unignored files (existing, not folders), relative to the root. */
+function worktreeFiles(root) {
+  const r = run('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard']);
+  if (r.error || r.status !== 0) return null;
+  return r.stdout.split('\0').filter((f) => {
+    if (!f) return false;
+    try {
+      return !lstatSync(join(root, f)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Copies each target's artifact by `cp -c -R` into the slot's private `stage/TARGET/ARTIFACT`; returns an error line or null. */
+function snapshotArtifacts(ctx, n, targets) {
+  const stage = join(slotPath(n), 'stage');
+  rmSync(stage, { recursive: true, force: true });
+  mkdirSync(stage, { recursive: true, mode: 0o700 });
+  for (const target of targets) {
+    const { artifact } = ctx.config.vm[target];
+    const dest = join(stage, target, artifact);
+    mkdirSync(dirname(dest), { recursive: true });
+    const r = run('cp', ['-c', '-R', join(ctx.root, artifact), dest]);
+    if (r.error || r.status !== 0) return `cannot snapshot ${artifact}`;
+    if (!existsSync(dest)) return `${target} snapshot of ${artifact} is missing`;
+  }
+  return null;
+}
+
+/** Deletes and fills the guest copy: worktree files, artifacts from the snapshot, the driver, the credentials over stdin. Returns an error line or null. */
+async function copyToGuest(ctx, lane, ip, n, targets) {
+  const root = ctx.root;
+  const reset = await sshRun(lane, ip, `rm -rf ${guestCopy(ctx)} ${GUEST_DRIVER}; ${GUEST_RESET}`);
+  if (reset.status !== 0) return 'cannot clear the guest copy';
+  const credsRel = ctx.config.credentials?.file ?? null;
+  const names = worktreeFiles(root);
+  if (names === null) return 'cannot list the worktree files with git';
+  const into = `mkdir -p ${guestCopy(ctx)} && tar -x -f - -C ${guestCopy(ctx)}`;
+  const files = await tarOver(lane, ip, { cwd: root, names: names.filter((f) => f !== credsRel) }, into);
+  if (files.status !== 0) return 'copying the worktree files failed';
+  for (const target of targets) {
+    const art = await tarOver(lane, ip, { cwd: join(slotPath(n), 'stage', target), paths: [ctx.config.vm[target].artifact] }, into);
+    if (art.status !== 0) return `copying the ${target} artifact failed`;
+  }
+  const driverDir = dirname(fileURLToPath(import.meta.url));
+  const driver = await tarOver(
+    lane,
+    ip,
+    { cwd: driverDir, paths: ['.'], excludes: ['qa-fixtures', '*.test.mjs', 'qa-test-preload*'] },
+    `mkdir -p ${GUEST_DRIVER} && tar -x -f - -C ${GUEST_DRIVER}`,
+  );
+  if (driver.status !== 0) return 'copying the driver failed';
+  if (credsRel) {
+    const file = credentialsPath(ctx);
+    let bytes;
+    try {
+      bytes = readFileSync(file);
+    } catch {
+      return `cannot read the credentials file ${file}`;
+    }
+    const rel = credsRel.split('/').map(shq).join('/');
+    const put = await sshRun(lane, ip, `umask 077 && mkdir -p "$(dirname ${guestCopy(ctx)}/${rel})" && cat > ${guestCopy(ctx)}/${rel}`, bytes);
+    if (put.status !== 0) return 'copying the credentials failed';
+  }
+  const init = await sshRun(lane, ip, `cd ${guestCopy(ctx)} && git init -q`);
+  if (init.status !== 0) return 'git init in the guest copy failed';
+  return null;
+}
+
 async function vmUp(ctx, args, lane) {
   const targets = args.positional.slice(1);
   const synopsis = 'vm up TARGET... [--port N]';
@@ -1883,7 +2000,12 @@ async function vmUp(ctx, args, lane) {
       failStart(n, cloneExists);
       return 2;
     }
-    // Clone and start (staging of the copy follows in the next steps of D5).
+    const snapError = snapshotArtifacts(ctx, n, targets);
+    if (snapError) {
+      say(`vm up: ${snapError}`);
+      failStart(n, cloneExists);
+      return 2;
+    }
     const listed = lumeList();
     const vm = listed?.find((v) => v.name === clone);
     if (!vm) {
@@ -1909,9 +2031,21 @@ async function vmUp(ctx, args, lane) {
       failStart(n, true);
       return 2;
     }
-    say(`vm up: ${clone} is running at ${ip}; staging of ${targets.join(', ')} is not finished`);
-    failStart(n, true);
-    return 2;
+    const copyError = await copyToGuest(ctx, lane, ip, n, targets);
+    if (copyError) {
+      say(`vm up: ${copyError}`);
+      failStart(n, true);
+      return 2;
+    }
+    rmSync(join(slotPath(n), 'stage'), { recursive: true, force: true });
+    withTable(() => {
+      const slot = readSlot(n);
+      if (!slot.lease || slot.lease.state !== 'starting' || slot.lease.holder !== process.pid) return;
+      const inputs = Object.fromEntries(targets.map((t) => [t, { port, argv: ctx.config.vm[t].build.argv }]));
+      writeLease(n, { ...slot.lease, state: 'ready', holder: null, targets, inputs, lastUsed: Date.now() });
+    });
+    say(`vm up: ${clone} holds ${targets.join(', ')}`);
+    return 0;
   } catch (e) {
     failStart(n, cloneExists);
     say(`vm up: ${e.message}`);

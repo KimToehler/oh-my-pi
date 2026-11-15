@@ -1,4 +1,5 @@
 // Fake lume 0.7.2 for qa.test.mjs: a clone list in the state file FAKE_LUME_STATE, every call logged to FAKE_CALLS.
+// state.guestWipe: directories emptied when a clone is deleted (the clone's disk).
 // state.deleteFails: `delete` exits 1 and keeps the clone.
 // state.hold.{stop,delete,clone,run,lsAfterDelete}: the call writes FAKE_HOLD_DIR/<name>.held and waits for <name>.release.
 const fs = require('fs');
@@ -95,6 +96,11 @@ if (argv[0] === '--version') {
     st.vms = st.vms.filter((v) => v.name !== name);
     st.afterDelete = true;
   });
+  // A deleted clone takes its disk with it: the directories the test lists as the guest's HOME and TMPDIR are emptied.
+  for (const dir of load().guestWipe ?? []) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir, { recursive: true });
+  }
 } else {
   log({});
   process.exit(64);
