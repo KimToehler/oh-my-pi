@@ -1501,7 +1501,7 @@ function destroyClone(clone) {
   if (list === null) return { ok: false, why: 'lume ls cannot be read' };
   const vm = list.find((v) => v.name === clone);
   if (!vm) return { ok: true, existed: false };
-  if (vm.status !== 'stopped') lume(['stop', clone]);
+  if (vm.status !== 'stopped' || cloneRunAlive(clone)) lume(['stop', clone]);
   lume(['delete', clone, '--force']);
   list = lumeList();
   if (list === null || list.some((v) => v.name === clone)) return { ok: false, why: `${clone} is still listed after lume delete` };
@@ -1627,6 +1627,7 @@ const newLease = (n, worktree, state, forward = null) => ({
   targets: [],
   inputs: {},
   forward,
+  ip: null,
   lastUsed: Date.now(),
 });
 
@@ -1767,7 +1768,7 @@ function admitUp(worktree, lane) {
         const busy = liveBusy(n);
         if (busy.length) return { refuse: `vm up: a routed command of this worktree's lease runs (pid ${busy.join(', ')}); wait for it to finish` };
         writeLease(n, { ...lease, state: 'starting', holder: process.pid, targets: [], inputs: {}, lastUsed: Date.now() });
-        return { mode: 'refresh', n, forward: lease.forward };
+        return { mode: 'refresh', n, forward: lease.forward, ip: lease.ip ?? null };
       }
       if (lease.holder !== null && alive(lease.holder)) {
         return { refuse: `vm up: this worktree's lease is ${lease.state} (pid ${lease.holder}); wait for it to finish` };
@@ -1826,17 +1827,45 @@ const sshBase = (lane, ip) => [
   `${lane.user}@${ip}`,
 ];
 
-/** The IP of a running clone from `lume ls`, or null. */
-function cloneIp(clone) {
-  const vm = lumeList()?.find((v) => v.name === clone);
-  return vm?.status === 'running' && vm.ipAddress ? vm.ipAddress : null;
+/**
+ * True while the detached `lume run ... --vnc disabled CLONE` process of a slot clone is alive. For a VNC-off run, lume 0.7.2
+ * decides liveness in `lume ls` by an `lsof` probe of the clone's config.json with a hard 2 s timeout and reports an
+ * inconclusive probe as `stopped` with no address (LumeController.swift:355-398, Utils/RunLockProbe.swift:52-115), so on a
+ * loaded host the `lume ls` status is not proof that a clone is down (design D5).
+ */
+function cloneRunAlive(clone) {
+  const r = run('ps', ['-Ao', 'pid=,args=']);
+  if (r.error || r.status !== 0) return false;
+  return r.stdout.split('\n').some((line) => {
+    const t = line.trim().split(/\s+/).slice(1);
+    const at = t.findIndex((a) => basename(a) === 'lume');
+    const vnc = t.indexOf('--vnc');
+    return at >= 0 && t[at + 1] === 'run' && vnc > at && t[vnc + 1] === 'disabled' && t.at(-1) === clone;
+  });
+}
+
+/** Whether a listed slot clone is running: `lume ls` says so, or its own run process is alive. A clone not listed is not running. */
+function cloneRunning(clone, listed) {
+  const vm = listed?.find((v) => v.name === clone);
+  return vm !== undefined && (vm.status === 'running' || cloneRunAlive(clone));
+}
+
+/**
+ * The address of a running clone: the one `lume ls` reports, else `known` (the address the lease recorded when `vm up` first
+ * reached the guest); null when the clone is not running.
+ */
+function cloneIp(clone, known = null) {
+  const listed = lumeList();
+  if (!cloneRunning(clone, listed)) return null;
+  const vm = listed.find((v) => v.name === clone);
+  return (vm.status === 'running' && vm.ipAddress) || known;
 }
 
 /** Waits until the clone has an address and accepts an ssh connection; returns the address or null after `seconds`. */
-async function waitForSsh(lane, clone, seconds = 180) {
+async function waitForSsh(lane, clone, known = null, seconds = 180) {
   const end = Date.now() + seconds * 1000;
   while (Date.now() < end) {
-    const ip = cloneIp(clone);
+    const ip = cloneIp(clone, known);
     if (ip) {
       const r = run(sshBin(), [...sshBase(lane, ip), 'true']);
       if (r.status === 0) return ip;
@@ -2096,7 +2125,7 @@ async function vmUp(ctx, args, lane) {
       }
     }
     cloneExists = true;
-    if (vm?.status !== 'running') {
+    if (!cloneRunning(clone, listed)) {
       const r = lume(['run', '--detach', '--display', 'none', '--vnc', 'disabled', clone]);
       if (r.error || r.status !== 0) {
         say(`vm up: lume run ${clone} failed`);
@@ -2104,7 +2133,7 @@ async function vmUp(ctx, args, lane) {
         return 2;
       }
     }
-    const ip = await waitForSsh(lane, clone);
+    const ip = await waitForSsh(lane, clone, admission.ip ?? null);
     if (!ip) {
       say(`vm up: ${clone} did not accept an ssh connection`);
       failStart(n, true);
@@ -2137,7 +2166,7 @@ async function vmUp(ctx, args, lane) {
       const slot = readSlot(n);
       if (!slot.lease || slot.lease.state !== 'starting' || slot.lease.holder !== process.pid) return;
       const inputs = Object.fromEntries(targets.map((t) => [t, { port, argv: ctx.config.vm[t].build.argv }]));
-      writeLease(n, { ...slot.lease, state: 'ready', holder: null, targets, inputs, lastUsed: Date.now() });
+      writeLease(n, { ...slot.lease, state: 'ready', holder: null, targets, inputs, ip, lastUsed: Date.now() });
     });
     say(`vm up: ${clone} holds ${targets.join(', ')}`);
     return 0;
@@ -2463,7 +2492,7 @@ async function cmdRouted(ctx, args, command, lane) {
   }
   const { n, lease } = admitted;
   try {
-    const ip = cloneIp(lease.clone);
+    const ip = cloneIp(lease.clone, lease.ip);
     if (!ip) {
       say(`lane: ${lease.clone} is not running; ${restart}`);
       return 2;
@@ -2486,7 +2515,7 @@ async function cmdRouted(ctx, args, command, lane) {
     const guestTmp = result.head[2].replace(/\/+$/, '');
     const runDir = `${guestTmp}/${LEASE_DIR}/run-${process.pid}`;
     // Dependency checks after the run (D7): the clone, the connection and the forward.
-    const ipAfter = cloneIp(lease.clone);
+    const ipAfter = cloneIp(lease.clone, ip);
     let lost = null;
     if (!ipAfter) lost = 'clone';
     else if (result.status === 255) lost = 'connection';

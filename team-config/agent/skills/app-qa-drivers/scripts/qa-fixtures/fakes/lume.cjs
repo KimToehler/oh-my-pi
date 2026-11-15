@@ -1,6 +1,7 @@
 // Fake lume 0.7.2 for qa.test.mjs: a clone list in the state file FAKE_LUME_STATE, every call logged to FAKE_CALLS.
 // state.guestWipe: directories emptied when a clone is deleted (the clone's disk).
 // state.lsLogLine: `ls` prints a timestamped INFO line before the JSON.
+// state.lsStoppedNoIp: `ls` reports every clone stopped without an address, with the log line (lume's 2 s lsof probe timing out).
 // state.deleteFails: `delete` exits 1 and keeps the clone.
 // state.hold.{stop,delete,clone,run,lsAfterDelete}: the call writes FAKE_HOLD_DIR/<name>.held and waits for <name>.release.
 const fs = require('fs');
@@ -57,8 +58,8 @@ if (argv[0] === '--version') {
     hold('lsAfterDelete');
   }
   // state.lsLogLine: lume 0.7.2 writes a timestamped log line to stdout before the JSON on some reads (exit 0, stderr empty).
-  if (st.lsLogLine) out('[2026-11-15T11:35:40Z] INFO: Could not verify VNC-disabled session marker; preserving it name=app-qa-slot-1');
-  out(JSON.stringify(load().vms.map((v) => ({ name: v.name, status: v.status, ipAddress: v.ipAddress, os: 'macOS' })), null, 2));
+  if (st.lsLogLine || st.lsStoppedNoIp) out('[2026-11-15T11:35:40Z] INFO: Could not verify VNC-disabled session marker; preserving it name=app-qa-slot-1');
+  out(JSON.stringify(load().vms.map((v) => ({ name: v.name, status: st.lsStoppedNoIp ? 'stopped' : v.status, ipAddress: st.lsStoppedNoIp ? null : v.ipAddress, os: 'macOS' })), null, 2));
 } else if (cmd === 'clone') {
   log({});
   hold('clone', argv[2]);
