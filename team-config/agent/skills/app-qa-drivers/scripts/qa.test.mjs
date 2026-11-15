@@ -685,7 +685,9 @@ function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = []
   L.setSsh = (patch) => patchJson(L.sshFile, patch);
   fakeFile('lume', 'lume.cjs', L.bin);
   fakeFile('ssh', 'ssh.cjs', L.bin);
-  for (const [n, p] of [['tar', '/usr/bin/tar'], ['cp', '/bin/cp']]) symlinkSync(p, join(L.bin, n));
+  fakeFile('tar', 'tar.cjs', L.bin);
+  fakeFile('tar', 'tar.cjs', L.guest.bin);
+  symlinkSync('/bin/cp', join(L.bin, 'cp'));
   Object.assign(L.env, { FAKE_LUME_STATE: L.lumeFile, FAKE_SSH_STATE: L.sshFile, FAKE_HOLD_DIR: L.holds, FAKE_VM_DIR: join(L.tmp, 'app-qa', 'vm') });
   // lane file
   L.laneFile = join(L.home, '.omp', 'agent', 'app-qa-vm.json');
@@ -1983,6 +1985,235 @@ test('route: credentials - --credentials exits 2 naming --host with no ssh call'
   assert.equal(r.status, 2, outputOf(r));
   assert.match(outputOf(r), /--credentials.*--host/);
   assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0);
+});
+
+// ---------- route: output return (task 4.3) ----------
+
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]).toString('base64');
+const VALUES = [USER1, PW1];
+/** Host files below `dirs` that hold a credential value of account 1 (the worktree's own credentials file excluded). */
+const hostLeaks = (L, extra = []) => filesHolding([L.tmp, L.home, ...extra], VALUES);
+/** The names of every entry below `dirs`, folders included. */
+const entryNames = (dirs) => dirs.flatMap((d) => (existsSync(d) ? readdirSync(d, { recursive: true }).map(String) : []));
+
+test('route: redact - a guest line holding account 1\'s password is printed [redacted] and no output holds a value', async () => {
+  const L = laneLayout();
+  routedLease(L, { lines: [{ s: 'out', t: `typed ${PW1} for ${USER1}` }, { s: 'err', t: `err ${PW1}` }] });
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.ok(r.lines.includes('typed [redacted] for [redacted]'), r.stdout);
+  assert.deepEqual(leaks(outputOf(r), VALUES), []);
+});
+
+test('route: sweep - a guest flow root and a guest capture JSON holding values return redacted, with host paths and the vm up line', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' }, {
+    lines: [{ s: 'out', t: 'out: $OUT' }, { s: 'out', t: 'root kept: $TMP/app-qa-flow-abc' }, { s: 'out', t: 'guest copy $CWD' }],
+    exit: 1,
+  });
+  L.driverCfg({
+    started: '$HOME/started',
+    lines: [{ s: 'out', t: 'out: $OUT' }, { s: 'out', t: 'root kept: $TMP/app-qa-flow-abc' }],
+    files: [
+      { dir: '$TMP', path: 'app-qa-flow-abc/note.log', content: `typed ${PW1}\n` },
+      { dir: '$OUT', path: 'shot.json', content: JSON.stringify({ field: USER1 }) },
+    ],
+    exit: 1,
+  });
+  const r = await runQa(L, ['flow', 'ios', 'flows/x.yaml']);
+  assert.equal(r.status, 1, outputOf(r));
+  const root = valueAfter(r, 'root kept: ');
+  const out = valueAfter(r, 'out: ');
+  assert.equal(dirname(root), L.tmp);
+  assert.equal(statSync(root).mode & 0o777, 0o700);
+  assert.equal(readFileSync(join(root, 'note.log'), 'utf8'), 'typed [redacted]\n');
+  assert.equal(readFileSync(join(out, 'shot.json'), 'utf8'), '{"field":"[redacted]"}');
+  assert.ok(r.lines.some((l) => /^lane: .*vm up ios/.test(l)), r.stdout);
+  assert.ok(!outputOf(r).includes(L.guest.dir), outputOf(r));
+  assert.deepEqual(hostLeaks(L, [out, root]), []);
+});
+
+test('route: capture - a routed desktop capture lands its PNG and JSON in the host folder with host paths printed and the guest\'s exit code', async () => {
+  const L = laneLayout();
+  routedLease(L, { target: 'desktop' });
+  L.driverCfg({
+    started: '$HOME/started',
+    lines: [{ s: 'out', t: 'capture: $OUT/commands.png' }, { s: 'out', t: 'capture: $OUT/commands.json' }],
+    files: [
+      { dir: '$OUT', path: 'commands.png', content: PNG_BYTES, base64: true },
+      { dir: '$OUT', path: 'commands.json', content: '{"tree":"credential-free"}' },
+    ],
+  });
+  const out = join(L.root, 'evidence');
+  mkdirSync(out);
+  const r = await runQa(L, ['desktop', 'capture', 'commands', '--out', out]);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(readFileSync(join(out, 'commands.png')), Buffer.from(PNG_BYTES, 'base64'));
+  assert.equal(readFileSync(join(out, 'commands.json'), 'utf8'), '{"tree":"credential-free"}');
+  assert.deepEqual(r.lines.filter((l) => l.startsWith('capture: ')), [`capture: ${join(out, 'commands.png')}`, `capture: ${join(out, 'commands.json')}`]);
+  assert.ok(!outputOf(r).includes(L.guest.dir));
+});
+
+test('route: sweep - a capture named after account 1\'s username returns neither file, prints a sweep line with the name redacted and leaves no host path holding it', async () => {
+  const L = laneLayout();
+  routedLease(L, { target: 'desktop' });
+  L.driverCfg({
+    started: '$HOME/started',
+    files: [
+      { dir: '$OUT', path: `${USER1}.png`, content: PNG_BYTES, base64: true },
+      { dir: '$OUT', path: `${USER1}.json`, content: '{}' },
+      { dir: '$OUT', path: 'keep.json', content: '{"ok":1}' },
+    ],
+  });
+  const out = join(L.root, 'evidence');
+  mkdirSync(out);
+  const r = await runQa(L, ['desktop', 'capture', USER1, '--out', out]);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(readdirSync(out), ['keep.json']);
+  assert.ok(r.lines.some((l) => /^sweep: deleted .*\[redacted\]/.test(l)), r.stdout);
+  assert.deepEqual(leaks(outputOf(r), VALUES), []);
+  assert.deepEqual(entryNames([L.tmp, L.home, out]).filter((n) => n.includes(USER1)), []);
+});
+
+test('route: noout - a passing flow without --out returns its screenshot to a printed new host folder and prints no guest path', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' });
+  L.driverCfg({
+    started: '$HOME/started',
+    lines: [{ s: 'out', t: 'out: $OUT' }, { s: 'out', t: 'screenshot: $OUT/home.png' }, { s: 'out', t: 'PASS scenario 1s' }],
+    files: [{ dir: '$OUT', path: 'home.png', content: PNG_BYTES, base64: true }],
+  });
+  const r = await runQa(L, ['flow', 'ios', 'flows/x.yaml']);
+  assert.equal(r.status, 0, outputOf(r));
+  const out = valueAfter(r, 'out: ');
+  assert.equal(dirname(out), L.tmp);
+  assert.match(out, /app-qa-out-/);
+  assert.deepEqual(readFileSync(join(out, 'home.png')), Buffer.from(PNG_BYTES, 'base64'));
+  assert.ok(r.lines.includes(`screenshot: ${join(out, 'home.png')}`));
+  assert.ok(!outputOf(r).includes(L.guest.dir));
+});
+
+test('route: out - an existing flow --out and an existing capture file each exit 2 with no guest command, and a new --out receives the files', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' });
+  const existing = join(L.root, 'existing');
+  mkdirSync(existing);
+  const f = await runQa(L, ['flow', 'ios', 'flows/x.yaml', '--out', existing]);
+  assert.equal(f.status, 2, outputOf(f));
+  assert.match(outputOf(f), /exists/);
+  routedLease(L, { target: 'desktop' });
+  writeFileSync(join(existing, 'commands.png'), 'old');
+  const c = await runQa(L, ['desktop', 'capture', 'commands', '--out', existing]);
+  assert.equal(c.status, 2, outputOf(c));
+  assert.match(outputOf(c), /already exists/);
+  assert.equal(readFileSync(join(existing, 'commands.png'), 'utf8'), 'old');
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.deepEqual(busyLeft(L), []);
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' }, { files: undefined });
+  L.driverCfg({ started: '$HOME/started', files: [{ dir: '$OUT', path: 'home.png', content: PNG_BYTES, base64: true }] });
+  const fresh = join(L.root, 'fresh');
+  const ok = await runQa(L, ['flow', 'ios', 'flows/x.yaml', '--out', fresh]);
+  assert.equal(ok.status, 0, outputOf(ok));
+  assert.deepEqual(readdirSync(fresh), ['home.png']);
+});
+
+test('route: pack - vm pack sanitizes the whole folder before it writes the tar, so no member name holds a value', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const dir = join(L.guest.tmp, 'pack-me');
+  mkdirSync(dir);
+  writeFileSync(join(dir, `${USER1}.png`), 'x');
+  writeFileSync(join(dir, 'note.log'), `p ${PW1}\n`);
+  writeFileSync(join(dir, 'fine.txt'), 'fine');
+  const r = spawnSync(NODE, [join(L.guestDriver, 'qa-real.mjs'), 'vm', 'pack', dir], { cwd: L.guestCopy, env: L.guestEnv, encoding: 'buffer' });
+  assert.equal(r.status, 0, String(r.stderr));
+  const names = spawnSync('/usr/bin/tar', ['-tf', '-'], { input: r.stdout, encoding: 'utf8' }).stdout;
+  assert.ok(names.includes('fine.txt') && names.includes('note.log'));
+  assert.ok(!names.includes(USER1));
+  assert.match(String(r.stderr), /sweep: deleted \[redacted\]/);
+  assert.deepEqual(leaks(r.stdout.toString('latin1'), VALUES), []);
+});
+
+/** A routed capture whose guest files hold values and whose host return is held at an extraction point. */
+async function heldReturn(L, when) {
+  routedLease(L, { target: 'desktop' });
+  L.driverCfg({
+    started: '$HOME/started',
+    files: [
+      { dir: '$OUT', path: `${USER1}.png`, content: PNG_BYTES, base64: true },
+      { dir: '$OUT', path: 'note.txt', content: `typed ${PW1}\n` },
+    ],
+  });
+  const out = join(L.root, 'evidence');
+  mkdirSync(out);
+  const run = startQa(L, ['desktop', 'capture', 'c', '--out', out], { env: { FAKE_TAR_HOLD: when } });
+  await waitFor(join(L.holds, `tar-x-${when}.held`));
+  return { run, out };
+}
+
+for (const when of ['before', 'after']) {
+  test(`route: interrupt - a host killed ${when} the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID`, async () => {
+    const L = laneLayout();
+    const { run, out } = await heldReturn(L, when);
+    const returnDir = join(L.slotDir(1), `return-${run.child.pid}`);
+    assert.equal(existsSync(join(returnDir, 'archive.tar')), true);
+    assert.equal(statSync(join(returnDir, 'archive.tar')).mode & 0o777, 0o600);
+    const members = spawnSync('/usr/bin/tar', ['-tf', join(returnDir, 'archive.tar')], { encoding: 'utf8' }).stdout;
+    assert.ok(!members.includes(USER1), members);
+    assert.deepEqual(hostLeaks(L, [out]), []);
+    run.child.kill('SIGKILL');
+    await run.done;
+    assert.deepEqual(hostLeaks(L, [out]), []);
+    assert.deepEqual(entryNames([L.tmp, L.home, out]).filter((n) => n.includes(USER1)), []);
+    const status = await runQa(L, ['vm', 'status']);
+    assert.equal(status.status, 0, outputOf(status));
+    assert.equal(existsSync(returnDir), false);
+  });
+}
+
+/** Guest archives the host must refuse whole, each with the guest-side control that builds it. */
+const EVIL = [
+  ['a .. component', (L) => ({ env: { FAKE_PACK_EVIL: 'dotdot' }, escaped: () => join(L.slotDir(1), 'escape') })],
+  ['an absolute path', (L) => ({ env: { FAKE_PACK_EVIL: 'absolute', EVIL_ABS_DIR: join(L.root, 'evil-abs') }, escaped: () => join(L.root, 'evil-abs') })],
+  ['a symlink', () => ({ cfg: { links: [{ dir: '$OUT', path: 'link', target: '/etc/hosts' }] } })],
+  ['a FIFO', () => ({ cfg: { fifos: [{ dir: '$OUT', path: 'pipe' }] } })],
+];
+
+test('route: tar - a guest archive with .., an absolute path, a symlink or a FIFO is refused whole with nothing extracted', async () => {
+  for (const [label, make] of EVIL) {
+    const L = laneLayout();
+    routedLease(L, { target: 'desktop' });
+    const evil = make(L);
+    L.driverCfg({ started: '$HOME/started', files: [{ dir: '$OUT', path: 'ok.txt', content: 'fine' }], ...(evil.cfg ?? {}) });
+    if (evil.env) L.setSsh({ env: { ...L.guestEnv, ...evil.env } });
+    const out = join(L.root, 'evidence');
+    mkdirSync(out);
+    const r = await runQa(L, ['desktop', 'capture', 'c', '--out', out]);
+    assert.equal(r.status, 2, `${label}: ${outputOf(r)}`);
+    assert.match(outputOf(r), /not returned/, label);
+    assert.deepEqual(readdirSync(out), [], label);
+    if (evil.escaped) assert.equal(existsSync(evil.escaped()), false, label);
+    assert.equal(existsSync(join(L.slotDir(1), `return-${r.pid}`)), false, label);
+    assert.deepEqual(busyLeft(L), [], label);
+  }
+});
+
+test('route: root - a failing flow\'s kept root returns to a new 0700 host folder whose path replaces the guest path', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' });
+  L.driverCfg({
+    started: '$HOME/started',
+    lines: [{ s: 'out', t: 'root kept: $TMP/app-qa-flow-zzz' }, { s: 'out', t: 'FAIL scenario' }],
+    files: [{ dir: '$TMP', path: 'app-qa-flow-zzz/console.log', content: 'log\n' }],
+    exit: 1,
+  });
+  const r = await runQa(L, ['flow', 'ios', 'flows/x.yaml']);
+  assert.equal(r.status, 1, outputOf(r));
+  const root = valueAfter(r, 'root kept: ');
+  assert.equal(statSync(root).mode & 0o777, 0o700);
+  assert.equal(readFileSync(join(root, 'console.log'), 'utf8'), 'log\n');
+  assert.ok(!outputOf(r).includes('app-qa-flow-zzz'));
+  assert.ok(r.lines.some((l) => /^lane: .*app-qa-slot-1.*vm up ios/.test(l)));
 });
 
 // ---------- target: guest-side target start (task 3.2) ----------

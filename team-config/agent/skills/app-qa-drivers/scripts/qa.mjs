@@ -9,6 +9,10 @@
 //   node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios|android FLOW [--account ID] [--expect SCREEN]
 //                                                          [--device ID] [--out DIR] [--credentials FILE]
 //   node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan PATH [--credentials FILE]
+//   node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios|desktop... [--port N] | vm down | vm status
+// VM lane (openspec change app-qa-vm-lane): where ~/.omp/agent/app-qa-vm.json exists and the configuration (schema
+// app-qa/2) has a `vm` section, preflight, desktop and flow for ios and desktop run in the leased lume VM of the worktree
+// after `vm up`; --host runs one command on the host, android and scan always do. `vm pack DIR` is internal (guest).
 // Every command also takes --config FILE. Without it the configuration is .omp/app-qa.json at the root of the
 // repository holding the working directory; it is validated strictly (schema app-qa/1) before anything else runs.
 // Exit: 0 pass, 1 a check, action or flow failed or the scan found a file, 2 usage, configuration or refused start.
@@ -24,7 +28,6 @@ import {
   constants,
   closeSync,
   copyFileSync,
-  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -43,7 +46,6 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readLauncherCfg } from './vm/start-target.mjs';
 
 export const SCHEMAS = ['app-qa/1', 'app-qa/2'];
 export const SPECTRE_VERSION = '0.9.0';
@@ -1919,7 +1921,7 @@ function worktreeFiles(root) {
 }
 
 /** Copies each target's artifact by `cp -c -R` into the slot's private `stage/TARGET/ARTIFACT`; returns an error line or null. */
-function snapshotArtifacts(ctx, n, targets) {
+async function snapshotArtifacts(ctx, n, targets) {
   const stage = join(slotPath(n), 'stage');
   rmSync(stage, { recursive: true, force: true });
   mkdirSync(stage, { recursive: true, mode: 0o700 });
@@ -1932,7 +1934,7 @@ function snapshotArtifacts(ctx, n, targets) {
     if (!existsSync(dest)) return `${target} snapshot of ${artifact} is missing`;
     if (target === 'desktop') {
       try {
-        readLauncherCfg(dest);
+        (await import('./vm/start-target.mjs')).readLauncherCfg(dest);
       } catch (e) {
         return `desktop artifact ${artifact}: ${e.message}`;
       }
@@ -2073,7 +2075,7 @@ async function vmUp(ctx, args, lane) {
       failStart(n, cloneExists);
       return 2;
     }
-    const snapError = snapshotArtifacts(ctx, n, targets);
+    const snapError = await snapshotArtifacts(ctx, n, targets);
     if (snapError) {
       say(`vm up: ${snapError}`);
       failStart(n, cloneExists);
@@ -2358,10 +2360,13 @@ function runHeld(lane, ip, script) {
   });
 }
 
-/** Copies a returned folder's entries into `dest` without overwriting anything. */
+/** Copies a returned folder's entries into `dest` (created when absent) without overwriting any file. */
 function copyInto(src, dest) {
   mkdirSync(dest, { recursive: true });
-  cpSync(src, dest, { recursive: true, force: false, errorOnExist: true });
+  for (const e of readdirSync(src, { withFileTypes: true })) {
+    if (e.isDirectory()) copyInto(join(src, e.name), join(dest, e.name));
+    else if (e.isFile()) copyFileSync(join(src, e.name), join(dest, e.name), constants.COPYFILE_EXCL);
+  }
 }
 
 /**
@@ -2441,6 +2446,7 @@ async function returnFiles(ctx, lane, ip, n, info, { kind, out }) {
 async function cmdRouted(ctx, args, command, lane) {
   const target = routeTarget(command, args);
   const restart = `run ${INVOKE} vm up ${target}`;
+  loadRedaction(ctx);
   const translated = translateRouted(ctx, args, command);
   if (translated.error) {
     say(translated.error);

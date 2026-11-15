@@ -2,7 +2,7 @@
 // ~/fake-driver.json says: lines (out or err, with $OUT, $TMP and $CWD tokens), files to write, a kept flow root,
 // a pause until a file exists, a started marker and the exit code. `vm ...` goes to the real driver (qa-real.mjs).
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,6 +27,11 @@ for (const f of cfg.files ?? []) {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, Buffer.from(f.content, f.base64 ? 'base64' : 'utf8'));
 }
+for (const l of cfg.links ?? []) {
+  mkdirSync(dirname(join(sub(l.dir), l.path)), { recursive: true });
+  symlinkSync(l.target, join(sub(l.dir), l.path));
+}
+for (const f of cfg.fifos ?? []) spawnSync('mkfifo', [join(sub(f.dir), f.path)]);
 for (const l of cfg.lines ?? []) (l.s === 'err' ? process.stderr : process.stdout).write(`${sub(l.t)}\n`);
 while (cfg.pause && !existsSync(sub(cfg.pause))) await new Promise((r) => setTimeout(r, 20));
 for (const l of cfg.linesAfter ?? []) (l.s === 'err' ? process.stderr : process.stdout).write(`${sub(l.t)}\n`);
