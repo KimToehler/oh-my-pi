@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Grants Screen Recording in the guest's system TCC database. Needs SIP off (vm-image.md). Runs as the lane user in the guest,
-# after provision-guest.sh (passwordless sudo) and after the first Spectre run created its capture helper.
+# after provision-guest.sh (passwordless sudo) and after 'spectre permissions check' unpacked its capture helper.
 # TCC attributes a capture to the responsible process: from an SSH session that is sshd-keygen-wrapper, so both
 # Spectre's capture helper and sshd-keygen-wrapper need a kTCCServiceScreenCapture row, each with its own code requirement.
 set -euo pipefail
@@ -10,7 +10,7 @@ REQ="$(mktemp)"
 trap 'rm -f "$REQ"' EXIT
 
 [[ "$(csrutil status)" == *disabled* ]] || { echo "grant-screen-capture: SIP is on; see vm-image.md" >&2; exit 1; }
-[[ -d "$HELPER" ]] || { echo "grant-screen-capture: run 'spectre' once as this user so it unpacks its capture helper" >&2; exit 1; }
+[[ -d "$HELPER" ]] || { echo "grant-screen-capture: run 'spectre permissions check' once in the console session so Spectre unpacks its capture helper" >&2; exit 1; }
 
 grant() { # client client_type code_path
   local req hex

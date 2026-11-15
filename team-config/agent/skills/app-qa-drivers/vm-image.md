@@ -38,9 +38,9 @@ Use one VM name for the build, `app-qa-build`, and the golden name `app-qa-golde
 6. **Add the iOS runtime** with `xcrun simctl runtime add`. Copy the `.dmg` with `scp`, then `ssh -i KEY lume@ADDRESS 'xcrun simctl runtime add /tmp/ios-runtime.dmg && xcrun simctl runtime list'`. The guest must end with exactly one iOS runtime: `vm up` creates its simulator on the guest's only iOS runtime.
 7. **Reboot once**: `lume stop app-qa-build`, then boot as in step 2. Right after the Xcode copy, Gatekeeper blocks every `xcodebuild` exec (log line `ASP: Security policy would not allow process`) and the process hangs in `_dyld_start`; one reboot clears it. Check `ssh ... 'xcodebuild -version'` returns.
 8. **Turn SIP off, by hand** (below). Then boot normally and check `csrutil status` prints `disabled`.
-9. **Grant Screen Recording.** Run `spectre` once in the guest's console session so it unpacks its capture helper (`sudo launchctl asuser $(id -u) sudo -u lume spectre --help` does it), then `ssh -i KEY lume@ADDRESS 'zsh /tmp/app-qa-vm/grant-screen-capture.sh'`. It writes two `kTCCServiceScreenCapture` rows with their code requirements: Spectre's capture helper and `sshd-keygen-wrapper`. TCC attributes a capture started over SSH to `sshd-keygen-wrapper`, so the helper's row alone is not enough.
+9. **Grant Screen Recording.** Run `spectre permissions check` once in the guest's console session so Spectre unpacks its capture helper (`sudo launchctl asuser $(id -u) sudo -u lume spectre permissions check`; it prints `Screen Recording: DENIED`, and `spectre --help` unpacks nothing), then `ssh -i KEY lume@ADDRESS 'zsh /tmp/app-qa-vm/grant-screen-capture.sh'`. It writes two `kTCCServiceScreenCapture` rows with their code requirements: Spectre's capture helper and `sshd-keygen-wrapper`. TCC attributes a capture started over SSH to `sshd-keygen-wrapper`, so the helper's row alone is not enough. `ssh ... 'spectre permissions check'` then prints `Screen Recording: granted`.
 10. **Check the guest's console session**: the guest must show its desktop, not the login window or a Setup Assistant "MiniBuddy" window. Killing that window logs the session out and the VM then stays on the login window; `lume stop` and `lume run` bring autologin back, so leave the window alone and let provisioning's Setup Assistant settings prevent it.
-11. **Remove build leftovers**: `ssh ... 'rm -rf /tmp/app-qa-vm /tmp/ios-runtime.dmg'`. Put no repository, credentials file or token into the VM. Then `lume stop app-qa-build`.
+11. **Remove build leftovers**: `ssh ... 'rm -rf /tmp/app-qa-vm /tmp/ios-runtime.dmg ~/.vnc.env'`. A boot with VNC on makes lume write `~/.vnc.env` (port and VNC password) into the guest over SSH, so the SIP step leaves one. Put no repository, credentials file or token into the VM. Then shut the guest down cleanly (`ssh ... 'sudo shutdown -h now'`) and wait until `lume ls` shows it stopped.
 12. **Clone to the golden name**: `lume clone app-qa-build app-qa-golden`. Keep `app-qa-build` for the next image update, or delete it.
 13. **Write the lane file** `~/.omp/agent/app-qa-vm.json`:
    ```
@@ -58,12 +58,13 @@ Use one VM name for the build, `app-qa-build`, and the golden name `app-qa-golde
 
 ## The manual SIP step
 
-Screen Recording for SSH sessions needs a TCC row that only exists with SIP off. `lume sip off` (0.7.2) fails: it presses Enter on Recovery's language screen, which keeps the German language, and its English text search then misses the `csrutil` prompt. Do it over VNC instead, once per image:
+Screen Recording for SSH sessions needs a TCC row that only exists with SIP off. `lume sip off` (0.7.2) fails: Recovery's language screen comes up German and stays German (setting `nvram prev-lang:kbd=en-US:0` in the guest first does not change that), and its English text search then misses the `csrutil` prompt. Do it over VNC instead, once per image:
 
 1. `lume stop app-qa-build`, then `lume run app-qa-build --recovery-mode true --display none --vnc-port 5939 --vnc-password PASSWORD` with a throwaway password. VNC listens on all interfaces when enabled, so connect to `localhost` only and keep the window short.
 2. In a VNC client (for example `vncdo`) press Options (right, right, Enter). On the language screen click **English**, then continue. Recovery's language must be English.
-3. Menu Utilities, Terminal. Run `csrutil disable`, answer `y`, and give the admin user's password when asked. Close Terminal and shut down.
-4. `lume stop app-qa-build`; every later boot passes `--vnc disabled`.
+3. Menu Utilities, Terminal. Run `csrutil disable`, answer `y`, and give the admin user's password when asked. Check `csrutil status` prints `disabled`.
+4. Shut Recovery down from its Terminal with `shutdown -h now` and wait until `lume ls` shows the VM stopped. Never end Recovery with `lume stop`: in this build that dropped the change, and the next normal boot still printed `enabled`.
+5. Boot normally once with VNC on (`--vnc-port 5939 --vnc-password PASSWORD`) and look at the console. A first try that lost the change showed a boot-time password prompt for the disk and then Setup Assistant's MiniBuddy; enter the preset password there, and click MiniBuddy through (sign in later, no analytics, no FileVault, updates download only) rather than killing it (step 10). Every later boot passes `--vnc disabled`.
 
 The step is manual because it depends on Recovery's screen geometry.
 
@@ -81,11 +82,11 @@ The step is manual because it depends on Recovery's screen geometry.
 1. **Shared folder.** virtiofs breaks Xcode's framework symlinks. Stream with `tar` over SSH (step 5), and treat `--shared-dir` as unused.
 2. **Gatekeeper after the Xcode copy.** `xcodebuild` hangs in `_dyld_start` until one reboot (step 7).
 3. **GUI processes need the console session.** A JVM or `open` started straight from SSH has no WindowServer (`java.awt.HeadlessException`, launchd error 125). The driver's guest start script uses `sudo launchctl asuser UID sudo -u USER`, which is why the lane user has passwordless sudo.
-4. **Setup Assistant's MiniBuddy window** stays open after a boot unless the settings of `provision-guest.sh` are in place. Killing it logs the session out (step 10).
+4. **Setup Assistant's MiniBuddy window** stays open after a boot unless the settings of `provision-guest.sh` are in place. Killing it logs the session out (step 10). In this build it still appeared once, after the reboot that followed a lost SIP change (`MiniBuddyLaunchReason = 13`); clicking it through over VNC ended it for good.
 5. **Clean simulator for sign-in.** A signed-in app skips the sign-in entry, and the browser's live identity-provider session skips the form, so the sign-in subflow fails (the intended safe failure). `vm up` therefore creates a fresh simulator every time. The first web view after a boot needs about 40 s, longer than the subflow waits, so `vm up` opens the health URL once to warm WebKit.
 6. **Maestro's iOS driver startup.** One run failed with `Unknown application display identifier dev.mobile.maestro-driver-iosUITests.xctrunner`; a retry with `MAESTRO_DRIVER_STARTUP_TIMEOUT=180000` passed. Routed flow runs set it.
 7. **The Compose distributable's runtime lacks `java.instrument`**, so Spectre's agent cannot load (`Module java.instrument not found`). The driver starts the app's jars on the guest's JDK 21 with the launcher's options from `Contents/app/*.cfg`, which is why `provision-guest.sh` installs a full JDK 21 where `/usr/libexec/java_home -v 21` finds it.
-8. **`lume sip off` fails** on a Recovery that comes up German (see the SIP step).
+8. **`lume sip off` fails** on a Recovery that comes up German (see the SIP step). Its credential preflight also needs SSH password login, which step 4 turns off.
 9. **Screen Recording rows.** Without both rows, `preflight desktop` in the guest prints `screen capture: denied`.
 
 ## Updating the image
