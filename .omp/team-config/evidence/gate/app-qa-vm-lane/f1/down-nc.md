@@ -39,11 +39,11 @@ $ (cwd .worktrees/app-qa-vm-f1) lume ls --format json 2>/dev/null | awk 'f||/^\[
 
 Golden disk `~/.lume/app-qa-golden/disk.img` modification time: recorded before F1 1794761145 (2026-11-15 17:45:45); now 1794761145.
 
-`app-qa-build` is the image build VM of `vm-image.md` (step 12: "Keep `app-qa-build` for the next image update, or delete it"), stopped, not a lane clone; no `app-qa-slot-*` name remains. The row's wording "lists only `app-qa-golden`" does not allow for the kept build VM; recorded as a wording finding for the plan, not as a lane defect.
+`app-qa-build` is the image build VM of `vm-image.md` (step 12: "Keep `app-qa-build` for the next image update, or delete it"), stopped, not a lane clone; no `app-qa-slot-*` name remains. The row's first wording "lists only `app-qa-golden`" did not allow for the kept build VM; the plan now reads "lists no `app-qa-slot-*` clone (the stopped image build VM `app-qa-build` … may remain)", which this observation meets.
 
 ## Observation
 
-After `vm down` in all three scratch worktrees, `vm status` shows both slots free and `lume ls` lists no lane clone (`app-qa-golden` plus the stopped image build VM `app-qa-build`, which `vm-image.md` keeps for image updates); the golden disk's modification time is unchanged (1794761145 before and after). Wording finding: the row says "only `app-qa-golden`".
+After `vm down` in all three scratch worktrees, `vm status` shows both slots free and `lume ls` lists no lane clone (`app-qa-golden` plus the stopped image build VM `app-qa-build`, which `vm-image.md` keeps for image updates); the golden disk's modification time is unchanged (1794761145 before and after).
 
 ## Verdict
 
