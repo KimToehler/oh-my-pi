@@ -1,5 +1,6 @@
 // Fake lume 0.7.2 for qa.test.mjs: a clone list in the state file FAKE_LUME_STATE, every call logged to FAKE_CALLS.
-// state.hold.{stop,delete,clone,lsAfterDelete}: the call writes FAKE_HOLD_DIR/<name>.held and waits for <name>.release.
+// state.deleteFails: `delete` exits 1 and keeps the clone.
+// state.hold.{stop,delete,clone,run,lsAfterDelete}: the call writes FAKE_HOLD_DIR/<name>.held and waits for <name>.release.
 const fs = require('fs');
 const path = require('path');
 const argv = process.argv.slice(2);
@@ -65,6 +66,7 @@ if (argv[0] === '--version') {
   if (failed) process.exit(1);
 } else if (cmd === 'run') {
   log({});
+  hold('run', name);
   const failed = mutate((st) => {
     const vm = st.vms.find((v) => v.name === name);
     if (!vm || st.runFails) return true;
@@ -84,8 +86,11 @@ if (argv[0] === '--version') {
     }
   });
 } else if (cmd === 'delete') {
-  log({});
+  // The slot directories that exist when the delete starts, so a test can tell a clone is deleted before its slot is freed.
+  const dir = process.env.FAKE_VM_DIR;
+  log({ slots: dir && fs.existsSync(dir) ? fs.readdirSync(dir).filter((e) => /^slot-\d+$/.test(e)) : [] });
   hold('delete', name);
+  if (load().deleteFails) process.exit(1);
   mutate((st) => {
     st.vms = st.vms.filter((v) => v.name !== name);
     st.afterDelete = true;

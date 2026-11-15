@@ -678,7 +678,7 @@ function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = []
   fakeFile('lume', 'lume.cjs', L.bin);
   fakeFile('ssh', 'ssh.cjs', L.bin);
   for (const [n, p] of [['tar', '/usr/bin/tar'], ['cp', '/bin/cp']]) symlinkSync(p, join(L.bin, n));
-  Object.assign(L.env, { FAKE_LUME_STATE: L.lumeFile, FAKE_SSH_STATE: L.sshFile, FAKE_HOLD_DIR: L.holds });
+  Object.assign(L.env, { FAKE_LUME_STATE: L.lumeFile, FAKE_SSH_STATE: L.sshFile, FAKE_HOLD_DIR: L.holds, FAKE_VM_DIR: join(L.tmp, 'app-qa', 'vm') });
   // lane file
   L.laneFile = join(L.home, '.omp', 'agent', 'app-qa-vm.json');
   L.sshKey = join(L.root, 'id_test');
@@ -893,6 +893,492 @@ test('lane: the lane file path is fixed under HOME and the file may not be an en
   const r = await L.up(['ios'], { env: { APP_QA_VM_FILE: elsewhere, APP_QA_VM: elsewhere } });
   assert.equal(r.status, 2);
   assert.ok(r.stderr.includes(L.laneFile), r.stderr);
+});
+
+// ---------- lease: slots, leases, admission, sweep and teardown ----------
+
+const outputOf = (r) => r.stdout + r.stderr;
+async function waitUntil(fn, ms = 20000) {
+  const end = Date.now() + ms;
+  while (!(await fn())) {
+    if (Date.now() > end) throw new Error('timed out waiting for a condition');
+    await sleep(25);
+  }
+}
+async function deadPid() {
+  const child = spawn(NODE, ['-e', '0']);
+  await new Promise((ok) => child.on('close', ok));
+  return child.pid;
+}
+const releaseBuilds = (L) => writeFileSync(`${L.control}.release`, '');
+const wtOf = (L, name) => L.worktree(L.repo, join(L.root, `wt-${name}`));
+/** Every lume run, stop or delete names a slot clone and never the image (spec "The lane touches only its own clones"). */
+function assertOwnClonesOnly(L) {
+  for (const c of L.lumeCalls()) {
+    if (!['run', 'stop', 'delete'].includes(c.argv[0])) continue;
+    const name = c.argv.filter((a) => !a.startsWith('--')).at(-1);
+    assert.match(name, /^app-qa-slot-[12]$/, `lume ${c.argv.join(' ')}`);
+  }
+}
+const lockOf = (L) => join(L.vmDir, 'table.lock');
+const plantLock = (L, pid) => {
+  mkdirSync(lockOf(L), { recursive: true });
+  if (pid !== null) writeFileSync(join(lockOf(L), 'pid'), `${pid}\n`);
+};
+
+test('lease: parallel - two worktrees started together get their own slot and neither clone is deleted', async () => {
+  const L = laneLayout();
+  const wtB = wtOf(L, 'b');
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  const b = startQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  await waitUntil(() => L.builds().length === 2);
+  assert.deepEqual(L.slots(), ['slot-1', 'slot-2']);
+  const leases = [L.lease(1), L.lease(2)];
+  assert.deepEqual(leases.map((l) => l.worktree).sort(), [L.repo, wtB].sort());
+  assert.deepEqual(leases.map((l) => l.state), ['starting', 'starting']);
+  assert.deepEqual(leases.map((l) => l.holder).sort(), [a.child.pid, b.child.pid].sort());
+  assert.deepEqual(leases.map((l) => l.clone).sort(), ['app-qa-slot-1', 'app-qa-slot-2']);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  releaseBuilds(L);
+  await Promise.all([a.done, b.done]);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  assert.equal(L.lumeCalls('clone').length, 2);
+});
+
+test('lease: same-worktree - two vm up started together give one slot, one build and one exit 2 naming the owner', async () => {
+  const L = laneLayout();
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  const b = startQa(L, ['vm', 'up', 'ios']);
+  const [loser, winner] = await Promise.race([a.done.then((r) => [r, b]), b.done.then((r) => [r, a])]);
+  assert.equal(loser.status, 2, outputOf(loser));
+  assert.ok(outputOf(loser).includes(String(winner.child.pid)), outputOf(loser));
+  assert.deepEqual(L.slots(), ['slot-1']);
+  await waitUntil(() => L.builds().length === 1);
+  releaseBuilds(L);
+  await winner.done;
+  assert.equal(L.builds().length, 1);
+});
+
+test('lease: refuse - a third worktree is refused naming each holder, with no build and no lume clone', async () => {
+  const L = laneLayout();
+  const [wtB, wtC] = [wtOf(L, 'b'), wtOf(L, 'c')];
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  const b = startQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  await waitUntil(() => L.builds().length === 2);
+  const c = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  assert.equal(c.status, 2, outputOf(c));
+  for (const wt of [L.repo, wtB]) assert.ok(outputOf(c).includes(wt), outputOf(c));
+  assert.match(outputOf(c), /last used/);
+  assert.equal(L.builds().length, 2);
+  assert.equal(L.lumeCalls('clone').length, 0);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  assert.deepEqual(L.slots(), ['slot-1', 'slot-2']);
+  releaseBuilds(L);
+  await Promise.all([a.done, b.done]);
+});
+
+test('lease: simultaneous - two worktrees started together for one free slot give one holder, one build and one clone', async () => {
+  const L = laneLayout({ lane: { slots: 1 } });
+  const wtB = wtOf(L, 'b');
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  const b = startQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  const [loser, winner] = await Promise.race([a.done.then((r) => [r, b]), b.done.then((r) => [r, a])]);
+  assert.equal(loser.status, 2, outputOf(loser));
+  assert.ok(outputOf(loser).includes(String(winner.child.pid)), outputOf(loser));
+  assert.deepEqual(L.slots(), ['slot-1']);
+  releaseBuilds(L);
+  await winner.done;
+  assert.equal(L.builds().length, 1);
+  assert.equal(L.lumeCalls('clone').length, 1);
+});
+
+test('lease: stale-lock - a table lock left by a dead pid is taken over by the next vm status', async () => {
+  const L = laneLayout();
+  const pid = await deadPid();
+  plantLock(L, pid);
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, new RegExp(`took over.*table lock.*${pid}`));
+  assert.equal(existsSync(lockOf(L)), false);
+  const again = await runQa(L, ['vm', 'status']);
+  assert.equal(again.status, 0);
+  assert.doesNotMatch(again.stdout, /took over/);
+});
+
+test('lease: stale-lock - a table lock whose holder never wrote its pid is taken over too', async () => {
+  const L = laneLayout();
+  plantLock(L, null);
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, /took over/);
+  assert.equal(existsSync(lockOf(L)), false);
+});
+
+test('lease: busy - a routed command registers busy/PID while it runs and removes it at its end, setting lastUsed at both ends', async () => {
+  const L = laneLayout();
+  const before = Date.now() - 600000;
+  L.stage({ lastUsed: before });
+  L.driverCfg({ started: '$HOME/started', pause: '$HOME/release', lines: [{ s: 'out', t: 'GUEST OUT' }] });
+  const run = startQa(L, ['preflight', 'ios']);
+  await waitFor(join(L.guest.home, 'started'));
+  assert.deepEqual(readdirSync(join(L.slotDir(1), 'busy')), [String(run.child.pid)]);
+  const during = L.lease(1).lastUsed;
+  assert.ok(during > before);
+  writeFileSync(join(L.guest.home, 'release'), '');
+  const r = await run.done;
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(readdirSync(join(L.slotDir(1), 'busy')), []);
+  assert.ok(L.lease(1).lastUsed >= during);
+  assert.equal(L.lease(1).state, 'ready');
+});
+
+/** Leases a routed command must refuse, each with the lease the test plants. */
+const NOT_ROUTABLE = [
+  ['a starting lease with a live holder', (L) => L.stage({ state: 'starting', holder: background(), targets: [] })],
+  ['a closing lease', (L) => L.stage({ state: 'closing', holder: background() })],
+  ['a lease that did not stage the target', (L) => L.stage({ targets: ['desktop'] })],
+  ['a truncated lease.json', (L) => {
+    L.stage();
+    writeFileSync(join(L.slotDir(1), 'lease.json'), '{"worktree": "');
+  }],
+  ['a slot without lease.json', (L) => {
+    L.stage();
+    rmSync(join(L.slotDir(1), 'lease.json'));
+  }],
+  ['no lease at all', () => {}],
+];
+
+test('lease: admit - a routed command against a lease that is not ready for its target exits 2 naming vm up and runs no guest command', async () => {
+  for (const [label, plant] of NOT_ROUTABLE) {
+    const L = laneLayout();
+    plant(L);
+    L.fakeGuestDriver();
+    const r = await runQa(L, ['preflight', 'ios']);
+    assert.equal(r.status, 2, `${label}: ${outputOf(r)}`);
+    assert.match(outputOf(r), /vm up ios/, label);
+    assert.equal(L.gcalls('guest-driver').length, 0, label);
+    assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0, label);
+    assert.equal(L.calls('xcrun').length + L.calls('spectre').length, 0, label);
+    assert.equal(existsSync(join(L.slotDir(1), 'busy')) ? readdirSync(join(L.slotDir(1), 'busy')).length : 0, 0, label);
+  }
+});
+
+test('lease: reclaim - the ready lease idle longest beyond the limit is reclaimed for a third worktree', async () => {
+  const L = laneLayout();
+  const [wtB, wtC] = [wtOf(L, 'b'), wtOf(L, 'c')];
+  const old = L.stage({ n: 1, worktree: L.repo, lastUsed: Date.now() - 3 * 3600e3 });
+  L.stage({ n: 2, worktree: wtB, lastUsed: Date.now() - 2 * 3600e3 });
+  L.setControl({ hold: true });
+  const c = startQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  await waitUntil(() => L.builds().length === 1);
+  assert.equal(L.lease(1).worktree, wtC);
+  assert.equal(L.lease(1).state, 'starting');
+  assert.equal(L.lease(2).worktree, wtB);
+  assert.equal(isAlive(old.forward.pid), false);
+  const verbs = L.lumeCalls().filter((x) => x.argv.filter((a) => !a.startsWith('--')).at(-1) === 'app-qa-slot-1' && ['stop', 'delete'].includes(x.argv[0])).map((x) => x.argv[0]);
+  assert.deepEqual(verbs, ['stop', 'delete']);
+  assert.ok(L.lumeCalls('delete').every((x) => x.slots.includes('slot-1')), 'deleted while its slot still existed');
+  releaseBuilds(L);
+  const r = await c.done;
+  assert.match(r.stdout, new RegExp(`reclaimed.*${L.repo.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}`));
+  assertOwnClonesOnly(L);
+});
+
+test('lease: reclaim - an idle lease with a live busy pid is not reclaimed', async () => {
+  const L = laneLayout();
+  const [wtB, wtC] = [wtOf(L, 'b'), wtOf(L, 'c')];
+  const old = Date.now() - 3 * 3600e3;
+  L.stage({ n: 1, worktree: L.repo, lastUsed: old });
+  L.stage({ n: 2, worktree: wtB, lastUsed: Date.now() });
+  mkdirSync(join(L.slotDir(1), 'busy'));
+  writeFileSync(join(L.slotDir(1), 'busy', String(background())), '');
+  const r = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  assert.equal(r.status, 2, outputOf(r));
+  assert.equal(L.lumeCalls('delete').length + L.lumeCalls('stop').length, 0);
+  assert.equal(L.lease(1).worktree, L.repo);
+  assert.equal(L.builds().length, 0);
+  // With the other lease idle too, that one is reclaimed instead.
+  L.stage({ n: 2, worktree: wtB, lastUsed: Date.now() - 2 * 3600e3 });
+  L.setControl({ hold: true });
+  const c = startQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  await waitUntil(() => L.builds().length === 1);
+  assert.equal(L.lease(2).worktree, wtC);
+  assert.equal(L.lease(1).worktree, L.repo);
+  releaseBuilds(L);
+  await c.done;
+});
+
+test('lease: admit - during a reclaim whose delete is held a routed command of the reclaimed worktree exits 2 and runs no guest command', async () => {
+  const L = laneLayout();
+  const [wtB, wtC] = [wtOf(L, 'b'), wtOf(L, 'c')];
+  L.stage({ n: 1, worktree: L.repo, lastUsed: Date.now() - 3 * 3600e3 });
+  L.stage({ n: 2, worktree: wtB });
+  L.hold('delete');
+  const c = startQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  await waitFor(L.held('delete'));
+  assert.equal(L.lease(1).state, 'closing');
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /vm up ios/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  L.release('delete');
+  await c.done;
+});
+
+test('lease: refresh-busy - vm up in the worktree of a running routed flow exits 2 naming the busy pid and changes nothing', async () => {
+  const L = laneLayout();
+  const lease = L.stage();
+  writeFileSync(join(L.guestCopy, 'marker.txt'), 'guest copy');
+  L.driverCfg({ started: '$HOME/started', pause: '$HOME/release' });
+  const flowRun = startQa(L, ['flow', 'ios', flowFile(L)]);
+  await waitFor(join(L.guest.home, 'started'));
+  const before = L.lease(1);
+  const up = await L.up(['ios']);
+  assert.equal(up.status, 2, outputOf(up));
+  assert.ok(outputOf(up).includes(String(flowRun.child.pid)), outputOf(up));
+  const after = L.lease(1);
+  for (const key of ['state', 'holder', 'targets', 'forward', 'clone', 'worktree']) assert.deepEqual(after[key], before[key], key);
+  assert.equal(isAlive(lease.forward.pid), true);
+  assert.equal(readFileSync(join(L.guestCopy, 'marker.txt'), 'utf8'), 'guest copy');
+  assert.equal(L.builds().length, 0);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  writeFileSync(join(L.guest.home, 'release'), '');
+  assert.equal((await flowRun.done).status, 0);
+});
+
+test('lease: down-busy - vm down during a routed command exits 2 naming the busy pid', async () => {
+  const L = laneLayout();
+  const lease = L.stage();
+  L.driverCfg({ started: '$HOME/started', pause: '$HOME/release' });
+  const run = startQa(L, ['preflight', 'ios']);
+  await waitFor(join(L.guest.home, 'started'));
+  const down = await runQa(L, ['vm', 'down']);
+  assert.equal(down.status, 2, outputOf(down));
+  assert.ok(outputOf(down).includes(String(run.child.pid)), outputOf(down));
+  assert.equal(L.lease(1).state, 'ready');
+  assert.equal(isAlive(lease.forward.pid), true);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  writeFileSync(join(L.guest.home, 'release'), '');
+  await run.done;
+});
+
+test('lease: starting - vm status during another worktree\'s starting vm up deletes nothing and leaves its lease', async () => {
+  const L = laneLayout();
+  L.setControl({ hold: true });
+  const up = startQa(L, ['vm', 'up', 'ios']);
+  await waitUntil(() => L.builds().length === 1);
+  const r = await runQa(L, ['vm', 'status'], { cwd: wtOf(L, 'b') });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lumeCalls('delete').length + L.lumeCalls('stop').length, 0);
+  assert.equal(L.lease(1).state, 'starting');
+  assert.equal(L.lease(1).holder, up.child.pid);
+  assert.match(r.stdout, /slot 1.*starting/);
+  releaseBuilds(L);
+  await up.done;
+});
+
+test('lease: crashed - a killed vm up after its clone appeared is cleaned by vm status, both printed', async () => {
+  const L = laneLayout();
+  L.hold('run');
+  const up = startQa(L, ['vm', 'up', 'ios']);
+  await waitFor(L.held('run'));
+  assert.deepEqual(L.clones(), ['app-qa-slot-1']);
+  up.child.kill('SIGKILL');
+  await up.done;
+  process.kill(Number(readFileSync(L.held('run'), 'utf8')), 'SIGKILL');
+  L.setLume({ hold: {} });
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, /app-qa-slot-1/);
+  assert.match(r.stdout, /slot-1/);
+  assert.deepEqual(L.clones(), []);
+  assert.deepEqual(L.slots(), []);
+  assert.ok(L.lumeCalls('delete').every((x) => x.slots.includes('slot-1')));
+  assertOwnClonesOnly(L);
+});
+
+/** A vm down killed at each of its three points (D4 sweep): before stop, between stop and delete, after delete. */
+for (const [point, hold] of [['before stop', 'stop'], ['between stop and delete', 'delete'], ['after delete before the slot removal', 'lsAfterDelete']]) {
+  test(`lease: closing - a vm down killed ${point} is completed by the next vm status`, async () => {
+    const L = laneLayout();
+    const lease = L.stage();
+    L.hold(hold);
+    const down = startQa(L, ['vm', 'down']);
+    await waitFor(L.held(hold));
+    down.child.kill('SIGKILL');
+    await down.done;
+    if (hold !== 'lsAfterDelete') process.kill(Number(readFileSync(L.held(hold), 'utf8')), 'SIGKILL');
+    assert.equal(L.lease(1).state, 'closing');
+    assert.equal(L.lease(1).holder, down.child.pid);
+    L.setLume({ hold: {} });
+    const r = await runQa(L, ['vm', 'status']);
+    assert.equal(r.status, 0, outputOf(r));
+    assert.deepEqual(L.clones(), []);
+    assert.deepEqual(L.slots(), []);
+    assert.match(r.stdout, /app-qa-slot-1/);
+    assert.equal(isAlive(lease.forward.pid), false);
+    for (const c of L.lumeCalls('delete')) assert.ok(c.slots.includes('slot-1'), 'the slot outlived the delete call');
+    assertOwnClonesOnly(L);
+  });
+}
+
+test('lease: closing - a slot is never freed while the fake lume ls still lists its clone', async () => {
+  const L = laneLayout();
+  L.stage({ state: 'closing', holder: await deadPid() });
+  L.setLume({ deleteFails: true });
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.deepEqual(L.slots(), ['slot-1']);
+  assert.deepEqual(L.clones(), ['app-qa-slot-1']);
+  assert.match(outputOf(r), /app-qa-slot-1.*still/);
+});
+
+test('lease: partial - a slot with a truncated lease.json is torn down with its clone by vm status', async () => {
+  const L = laneLayout();
+  L.stage();
+  writeFileSync(join(L.slotDir(1), 'lease.json'), '{"worktree"');
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(L.clones(), []);
+  assert.deepEqual(L.slots(), []);
+});
+
+test('lease: foreign - vm status leaves every VM that is not a slot clone of this lane alone', async () => {
+  const L = laneLayout();
+  for (const name of ['app-qa-slot-golden', 'app-qa-slot-3', 'other-vm', 'app-qa-golden-copy']) L.addVm(name, 'running');
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lumeCalls('delete').length + L.lumeCalls('stop').length, 0);
+  assert.deepEqual(L.lume().vms.map((v) => v.name).sort(), ['app-qa-golden', 'app-qa-golden-copy', 'app-qa-slot-3', 'app-qa-slot-golden', 'other-vm']);
+});
+
+test('lease: orphan - an orphan app-qa-slot-2 is deleted by the sweep, printed by name', async () => {
+  const L = laneLayout();
+  L.addVm('app-qa-slot-2', 'running');
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, /app-qa-slot-2/);
+  assert.deepEqual(L.clones(), []);
+  assert.deepEqual(L.slots(), []);
+  assert.ok(L.lumeCalls('delete').every((x) => x.slots.includes('slot-2')), 'reserved before the delete');
+});
+
+test('lease: orphan - with the orphan\'s delete held a second sweep leaves it alone and vm up never takes slot 2 until it is free', async () => {
+  const L = laneLayout();
+  const wtB = wtOf(L, 'b');
+  L.addVm('app-qa-slot-2', 'running');
+  L.hold('delete');
+  const first = startQa(L, ['vm', 'status']);
+  await waitFor(L.held('delete'));
+  const second = await runQa(L, ['vm', 'status']);
+  assert.equal(second.status, 0, outputOf(second));
+  assert.equal(L.lumeCalls('delete').length, 1);
+  assert.deepEqual(L.slots(), ['slot-2']);
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  await waitUntil(() => L.builds().length === 1);
+  assert.equal(L.lease(1).worktree, L.repo);
+  const refused = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  assert.equal(refused.status, 2, outputOf(refused));
+  assert.equal(L.lumeCalls('clone').length, 0);
+  L.setLume({ hold: {} });
+  L.release('delete');
+  assert.equal((await first.done).status, 0);
+  releaseBuilds(L);
+  await a.done;
+  const b = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  assert.ok(L.lumeCalls('clone').some((c) => c.argv.at(-1) === 'app-qa-slot-2'), outputOf(b));
+  assert.equal(L.lease(2).worktree, wtB);
+});
+
+test('lease: publish - a vm up killed after creating slot-N before its record is recovered by one vm status', async () => {
+  const L = laneLayout();
+  const marker = join(L.root, 'slot-blocked');
+  const up = startQa(L, ['vm', 'up', 'ios'], {
+    env: { QA_TEST_BLOCK_MARKER: marker, QA_TEST_BLOCK_RELEASE: join(L.root, 'never') },
+    argv0: (script, args) => [NODE, ['--import', PRELOAD_SLOT, script, ...args]],
+  });
+  await waitFor(marker);
+  up.child.kill('SIGKILL');
+  await up.done;
+  assert.deepEqual(L.slots(), ['slot-1']);
+  assert.equal(existsSync(join(L.slotDir(1), 'lease.json')), false);
+  assert.equal(existsSync(lockOf(L)), true);
+  assert.equal(L.builds().length + L.lumeCalls('clone').length, 0);
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, /took over/);
+  assert.match(r.stdout, /slot-1/);
+  assert.deepEqual(L.slots(), []);
+  assert.equal(existsSync(lockOf(L)), false);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  L.setControl({ hold: true });
+  const again = startQa(L, ['vm', 'up', 'ios']);
+  await waitUntil(() => L.builds().length === 1);
+  assert.equal(L.lease(1).worktree, L.repo);
+  releaseBuilds(L);
+  assert.equal((await again.done).status !== undefined, true);
+});
+
+test('lease: publish - slot-1 without a record, a dead-pid table lock and a listed clone are recovered by one vm status', async () => {
+  const L = laneLayout();
+  plantLock(L, await deadPid());
+  mkdirSync(L.slotDir(1));
+  L.addVm('app-qa-slot-1', 'running');
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(L.clones(), []);
+  assert.deepEqual(L.slots(), []);
+  assert.equal(existsSync(lockOf(L)), false);
+  const deletes = L.lumeCalls('delete');
+  assert.equal(deletes.length, 1);
+  assert.ok(deletes[0].slots.includes('slot-1'), 'the clone was deleted before slot-1 was removed');
+});
+
+test('lease: image - the golden image is never named in a lume run, stop or delete call', async () => {
+  const L = laneLayout();
+  L.stage({ n: 1 });
+  L.addVm('app-qa-slot-2', 'running');
+  assert.equal((await runQa(L, ['vm', 'status'])).status, 0);
+  assert.equal((await runQa(L, ['vm', 'down'])).status, 0);
+  assert.ok(L.lumeCalls('delete').length >= 2);
+  for (const c of L.lumeCalls()) {
+    if (['run', 'stop', 'delete'].includes(c.argv[0])) assert.ok(!c.argv.includes('app-qa-golden'), c.argv.join(' '));
+  }
+  assertOwnClonesOnly(L);
+});
+
+test('lease: down removes the clone, the forward and the slot, and vm status shows the slot free', async () => {
+  const L = laneLayout();
+  const lease = L.stage();
+  const r = await runQa(L, ['vm', 'down']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(L.clones(), []);
+  assert.equal(isAlive(lease.forward.pid), false);
+  assert.deepEqual(L.slots(), []);
+  const status = await runQa(L, ['vm', 'status']);
+  assert.equal(status.status, 0);
+  assert.match(status.stdout, /slot 1: free/);
+  assert.deepEqual(L.lumeCalls().filter((c) => ['stop', 'delete'].includes(c.argv[0])).map((c) => c.argv[0]), ['stop', 'delete']);
+});
+
+test('lease: down in another worktree leaves the lease alone and exits 0 without a lease', async () => {
+  const L = laneLayout();
+  const lease = L.stage();
+  const r = await runQa(L, ['vm', 'down'], { cwd: wtOf(L, 'b') });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lease(1).state, 'ready');
+  assert.equal(L.lease(1).worktree, L.repo);
+  assert.equal(isAlive(lease.forward.pid), true);
+  assert.deepEqual(L.clones(), ['app-qa-slot-1']);
+  assert.equal(L.lumeCalls('delete').length + L.lumeCalls('stop').length, 0);
+  const none = laneLayout();
+  const empty = await runQa(none, ['vm', 'down']);
+  assert.equal(empty.status, 0, outputOf(empty));
 });
 
 /** Malformed configurations, each with the cause its refusal must name. */

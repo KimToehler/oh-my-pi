@@ -30,6 +30,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   unlinkSync,
@@ -1401,24 +1402,663 @@ function laneRoutes(command, args, ctx) {
   return command === 'flow' && first === 'ios';
 }
 
-function cmdVm(ctx, args) {
-  const [verb, ...targets] = args.positional;
-  if (verb === 'pack') return 2;
-  if (!['up', 'down', 'status'].includes(verb)) return usage('vm up TARGET... [--port N] | vm down | vm status');
-  const lane = loadLane();
-  if (lane.error) {
-    complain(lane.error);
+// ---------- vm lane: quoting, processes ----------
+
+/** POSIX single quoting of one argv element: the remote shell receives exactly these bytes. */
+const shq = (s) => `'${String(s).replaceAll("'", "'\\''")}'`;
+
+/** Runs a command without a shell; each stdout and stderr line goes to `onLine(line, 'out' | 'err')`. */
+function runStreaming(cmd, args, { cwd, env, input, onLine } = {}) {
+  return new Promise((done) => {
+    let child;
+    try {
+      child = spawn(cmd, args, { cwd, env: env ?? process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    } catch (error) {
+      done({ status: -1, error });
+      return;
+    }
+    child.on('error', (error) => done({ status: -1, error }));
+    child.stdin.on('error', () => {});
+    child.stdin.end(input);
+    for (const [name, stream] of [['out', child.stdout], ['err', child.stderr]]) {
+      const sink = lineSink((line) => onLine?.(line, name));
+      stream.setEncoding('utf8');
+      stream.on('data', (c) => sink.push(c));
+      stream.on('end', () => sink.end());
+    }
+    child.on('close', (code) => done({ status: code ?? -1 }));
+  });
+}
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** SIGTERM, then SIGKILL after two seconds; the event loop keeps running so a child of this process is reaped. */
+async function killPid(pid) {
+  for (const signal of ['SIGTERM', 'SIGKILL']) {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      return;
+    }
+    for (let i = 0; i < 40; i++) {
+      await pause(50);
+      if (!alive(pid)) return;
+    }
+  }
+}
+
+// ---------- vm lane: lume and ssh ----------
+
+const LUME_VERSION = '0.7.2';
+const MAX_SLOTS = 2;
+const lumeBin = () => which('lume') ?? join(homedir(), '.local', 'bin', 'lume');
+const sshBin = () => which('ssh') ?? '/usr/bin/ssh';
+const cloneName = (n) => `${CLONE_PREFIX}${n}`;
+
+function lume(args) {
+  const r = run(lumeBin(), args);
+  if (r.error || r.status !== 0) for (const line of (r.stderr ?? '').split(/\r?\n/)) if (line) complain(`lume: ${line}`);
+  return r;
+}
+
+/** The VMs `lume ls` lists, or null when it cannot be read. */
+function lumeList() {
+  const r = run(lumeBin(), ['ls', '--format', 'json']);
+  if (r.error || r.status !== 0) return null;
+  try {
+    const list = JSON.parse(r.stdout.slice(r.stdout.indexOf('[')));
+    return Array.isArray(list) ? list : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Stops and deletes one slot clone and checks that `lume ls` no longer lists it; an absent clone counts as deleted. */
+function destroyClone(clone) {
+  let list = lumeList();
+  if (list === null) return { ok: false, why: 'lume ls cannot be read' };
+  const vm = list.find((v) => v.name === clone);
+  if (!vm) return { ok: true, existed: false };
+  if (vm.status !== 'stopped') lume(['stop', clone]);
+  lume(['delete', clone, '--force']);
+  list = lumeList();
+  if (list === null || list.some((v) => v.name === clone)) return { ok: false, why: `${clone} is still listed after lume delete` };
+  return { ok: true, existed: true };
+}
+
+// ---------- vm lane: table lock, slots and leases (design D4) ----------
+
+const LEASE_STATES = ['starting', 'ready', 'closing'];
+const vmDir = () => join(qaDir(), 'vm');
+const tableLockDir = () => join(vmDir(), 'table.lock');
+const slotPath = (n) => join(vmDir(), `slot-${n}`);
+const leasePath = (n) => join(slotPath(n), 'lease.json');
+const busyDir = (n) => join(slotPath(n), 'busy');
+
+function pidFile(file) {
+  try {
+    const pid = Number(readFileSync(file, 'utf8').trim());
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Takes over a table lock whose holder is dead; a lock a live process meanwhile took is put back. */
+function takeOverLock(dir, holder) {
+  const stale = `${dir}.stale-${process.pid}`;
+  try {
+    renameSync(dir, stale);
+  } catch {
+    return;
+  }
+  const now = pidFile(join(stale, 'pid'));
+  if (now !== null && now !== holder && alive(now)) {
+    try {
+      renameSync(stale, dir);
+    } catch {}
+    return;
+  }
+  rmSync(stale, { recursive: true, force: true });
+  say(`lane: took over the table lock of ${holder === null ? 'a holder that never wrote its pid' : `dead pid ${holder}`}`);
+}
+
+/** The host-wide table lock: an atomic mkdir plus the holder's pid, like the flow lock. Returns its release. */
+function lockTable() {
+  ensureDir(vmDir());
+  const dir = tableLockDir();
+  const deadline = Date.now() + 60000;
+  for (;;) {
+    try {
+      mkdirSync(dir);
+      writeFileSync(join(dir, 'pid'), `${process.pid}\n`);
+      return () => {
+        if (pidFile(join(dir, 'pid')) === process.pid) rmSync(dir, { recursive: true, force: true });
+      };
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+    }
+    let holder = pidFile(join(dir, 'pid'));
+    // A starting holder creates the directory before it writes its pid.
+    for (let i = 0; i < 10 && holder === null && existsSync(dir); i++) {
+      sleepSync(100);
+      holder = pidFile(join(dir, 'pid'));
+    }
+    if (!existsSync(dir)) continue;
+    if (holder === null || !alive(holder)) {
+      takeOverLock(dir, holder);
+      continue;
+    }
+    if (Date.now() > deadline) throw new Error(`the table lock ${dir} stays held by pid ${holder}`);
+    sleepSync(10);
+  }
+}
+
+/** Runs `fn` under the table lock. Nothing slow runs inside: no build, clone, copy, stop or delete. */
+function withTable(fn) {
+  const release = lockTable();
+  try {
+    return fn();
+  } finally {
+    release();
+  }
+}
+
+function validLease(l) {
+  return (
+    isObject(l) &&
+    LEASE_STATES.includes(l.state) &&
+    typeof l.clone === 'string' &&
+    Array.isArray(l.targets) &&
+    l.targets.every((t) => typeof t === 'string') &&
+    Number.isFinite(l.lastUsed) &&
+    (l.worktree === null || typeof l.worktree === 'string') &&
+    (l.holder === null || Number.isInteger(l.holder)) &&
+    isObject(l.inputs) &&
+    (l.forward === null || (isObject(l.forward) && Number.isInteger(l.forward.pid) && Number.isInteger(l.forward.port)))
+  );
+}
+
+/** One slot: `{ free }` without its directory, `{ lease }` with a complete record, else `{ partial }` (missing or unreadable). */
+function readSlot(n) {
+  if (!existsSync(slotPath(n))) return { free: true };
+  try {
+    const lease = JSON.parse(readFileSync(leasePath(n), 'utf8'));
+    if (validLease(lease)) return { lease };
+  } catch {}
+  return { partial: true };
+}
+
+/** The record is written to a temporary file in the slot and renamed, so a reader never sees half of it. */
+function writeLease(n, lease) {
+  const tmp = join(slotPath(n), `lease.json.tmp-${process.pid}`);
+  writeFileSync(tmp, `${JSON.stringify(lease)}\n`, { mode: 0o600 });
+  renameSync(tmp, leasePath(n));
+}
+
+const newLease = (n, worktree, state, forward = null) => ({
+  worktree,
+  clone: cloneName(n),
+  slot: n,
+  state,
+  holder: process.pid,
+  targets: [],
+  inputs: {},
+  forward,
+  lastUsed: Date.now(),
+});
+
+const busyPids = (n) => {
+  try {
+    return readdirSync(busyDir(n)).map(Number).filter((p) => Number.isInteger(p) && p > 0);
+  } catch {
+    return [];
+  }
+};
+
+/** The live pids of the slot's routed commands; markers of dead pids are removed. Under the table lock only. */
+function liveBusy(n) {
+  const live = [];
+  for (const pid of busyPids(n)) {
+    if (alive(pid)) live.push(pid);
+    else rmSync(join(busyDir(n), String(pid)), { force: true });
+  }
+  return live;
+}
+
+const ago = (ms) => {
+  const min = Math.floor((Date.now() - ms) / 60000);
+  return min < 1 ? 'less than a minute ago' : `${min} min ago`;
+};
+
+const holderOf = (n, l) => `slot ${n}: ${l.worktree ?? 'no worktree'} (${l.state}${l.holder ? `, pid ${l.holder}` : ''}, last used ${ago(l.lastUsed)})`;
+
+/** Ends one slot's teardown: only the closer, with its clone gone from `lume ls`, removes the slot. */
+async function finishTeardown(n, { clone, forward }) {
+  if (forward) await killPid(forward.pid);
+  const r = destroyClone(clone);
+  if (!r.ok) {
+    say(`lane: slot-${n}: ${r.why}; the slot stays until ${clone} is gone`);
+    return false;
+  }
+  withTable(() => {
+    const s = readSlot(n);
+    if (s.lease?.state === 'closing' && s.lease.holder === process.pid) rmSync(slotPath(n), { recursive: true, force: true });
+  });
+  return true;
+}
+
+/**
+ * The sweep of vm up, vm down and vm status (D4). Decisions run under the table lock, the teardown outside it. A lease
+ * with a live holder, or ready with a live busy pid, is never touched. Returns whether every teardown finished.
+ */
+async function sweep() {
+  const torn = [];
+  withTable(() => {
+    const listed = lumeList();
+    if (listed === null) throw new Error('lume ls cannot be read');
+    const names = new Set(listed.map((v) => v.name));
+    for (let n = 1; n <= MAX_SLOTS; n++) {
+      const slot = readSlot(n);
+      if (slot.free) {
+        if (!names.has(cloneName(n))) continue;
+        mkdirSync(slotPath(n), { mode: 0o700 });
+        writeLease(n, { ...newLease(n, null, 'closing'), lastUsed: Date.now() });
+        torn.push({ n, clone: cloneName(n), forward: null, why: 'a clone no slot holds' });
+        continue;
+      }
+      if (slot.partial) {
+        writeLease(n, newLease(n, null, 'closing'));
+        torn.push({ n, clone: cloneName(n), forward: null, why: 'a partial slot' });
+        continue;
+      }
+      const l = slot.lease;
+      if (l.state === 'ready') {
+        if (liveBusy(n).length > 0) continue;
+        if (!names.has(l.clone)) {
+          if (l.forward) torn.push({ n, clone: null, forward: l.forward, why: `ready, but ${l.clone} is gone`, remove: true });
+          else torn.push({ n, clone: null, forward: null, why: `ready, but ${l.clone} is gone`, remove: true });
+          writeLease(n, { ...l, state: 'closing', holder: process.pid });
+        }
+        continue;
+      }
+      if (l.holder !== null && alive(l.holder)) continue;
+      const why = `${l.state} lease of dead pid ${l.holder ?? 'unknown'}`;
+      writeLease(n, { ...l, state: 'closing', holder: process.pid });
+      torn.push({ n, clone: l.clone, forward: l.forward, why });
+    }
+  });
+  let ok = true;
+  for (const item of torn) {
+    if (item.clone === null) {
+      if (item.forward) await killPid(item.forward.pid);
+      withTable(() => rmSync(slotPath(item.n), { recursive: true, force: true }));
+      say(`lane: sweep: freed slot-${item.n} (${item.why})`);
+      continue;
+    }
+    if (!(await finishTeardown(item.n, item))) {
+      ok = false;
+      continue;
+    }
+    say(`lane: sweep: deleted ${item.clone} (${item.why})`);
+    say(`lane: sweep: freed slot-${item.n}`);
+  }
+  return ok;
+}
+
+// ---------- vm lane: vm up, vm down, vm status ----------
+
+/** The lease of this worktree among the complete records, as `{ n, lease }`, else null. Under the table lock. */
+function ownLease(worktree) {
+  for (let n = 1; n <= MAX_SLOTS; n++) {
+    const slot = readSlot(n);
+    if (slot.lease?.worktree === worktree) return { n, lease: slot.lease };
+  }
+  return null;
+}
+
+/**
+ * Admission of vm up in one critical section (D4 table): the own lease is refreshed, else a free slot is taken, else the
+ * ready lease idle longest beyond the limit is marked closing for reclaim. Returns `{ refuse }` or the mode.
+ */
+function admitUp(worktree, lane) {
+  return withTable(() => {
+    const own = ownLease(worktree);
+    if (own) {
+      const { n, lease } = own;
+      if (lease.state === 'ready') {
+        const busy = liveBusy(n);
+        if (busy.length) return { refuse: `vm up: a routed command of this worktree's lease runs (pid ${busy.join(', ')}); wait for it to finish` };
+        writeLease(n, { ...lease, state: 'starting', holder: process.pid, targets: [], inputs: {}, lastUsed: Date.now() });
+        return { mode: 'refresh', n, forward: lease.forward };
+      }
+      if (lease.holder !== null && alive(lease.holder)) {
+        return { refuse: `vm up: this worktree's lease is ${lease.state} (pid ${lease.holder}); wait for it to finish` };
+      }
+      return { retry: true };
+    }
+    for (let n = 1; n <= lane.slots; n++) {
+      if (existsSync(slotPath(n))) continue;
+      const listed = lumeList();
+      if (listed === null) return { refuse: 'vm up: lume ls cannot be read' };
+      mkdirSync(slotPath(n), { mode: 0o700 });
+      if (listed.some((v) => v.name === cloneName(n))) {
+        writeLease(n, newLease(n, worktree, 'closing'));
+        return { mode: 'orphan', n };
+      }
+      writeLease(n, newLease(n, worktree, 'starting'));
+      return { mode: 'fresh', n };
+    }
+    let oldest = null;
+    const held = [];
+    for (let n = 1; n <= lane.slots; n++) {
+      const slot = readSlot(n);
+      if (!slot.lease) {
+        held.push(`slot ${n}: ${slot.partial ? 'partial' : 'free'}`);
+        continue;
+      }
+      const l = slot.lease;
+      held.push(holderOf(n, l));
+      const idle = Date.now() - l.lastUsed > lane.idleMinutes * 60000;
+      if (l.state === 'ready' && idle && liveBusy(n).length === 0 && (oldest === null || l.lastUsed < oldest.lease.lastUsed)) oldest = { n, lease: l };
+    }
+    if (!oldest) return { refuse: `vm up: no free slot; every slot is held or used within ${lane.idleMinutes} min:\n  ${held.join('\n  ')}` };
+    writeLease(oldest.n, { ...oldest.lease, state: 'closing', holder: process.pid });
+    return { mode: 'reclaim', n: oldest.n, old: oldest.lease };
+  });
+}
+
+/** vm up's failure transition (D4): a clone that exists keeps a ready lease with no staged target, else the slot goes. */
+function failStart(n, cloneExists) {
+  rmSync(join(slotPath(n), 'stage'), { recursive: true, force: true });
+  withTable(() => {
+    const slot = readSlot(n);
+    if (!slot.lease || slot.lease.state !== 'starting' || slot.lease.holder !== process.pid) return;
+    if (cloneExists) writeLease(n, { ...slot.lease, state: 'ready', holder: null, targets: [], inputs: {}, lastUsed: Date.now() });
+    else rmSync(slotPath(n), { recursive: true, force: true });
+  });
+}
+
+const sshBase = (lane, ip) => [
+  '-i', lane.sshKey,
+  '-o', 'BatchMode=yes',
+  '-o', 'StrictHostKeyChecking=no',
+  '-o', 'UserKnownHostsFile=/dev/null',
+  '-o', 'LogLevel=ERROR',
+  '-o', 'ConnectTimeout=10',
+  `${lane.user}@${ip}`,
+];
+
+/** The IP of a running clone from `lume ls`, or null. */
+function cloneIp(clone) {
+  const vm = lumeList()?.find((v) => v.name === clone);
+  return vm?.status === 'running' && vm.ipAddress ? vm.ipAddress : null;
+}
+
+/** Waits until the clone has an address and accepts an ssh connection; returns the address or null after `seconds`. */
+async function waitForSsh(lane, clone, seconds = 180) {
+  const end = Date.now() + seconds * 1000;
+  while (Date.now() < end) {
+    const ip = cloneIp(clone);
+    if (ip) {
+      const r = run(sshBin(), [...sshBase(lane, ip), 'true']);
+      if (r.status === 0) return ip;
+    }
+    await pause(1000);
+  }
+  return null;
+}
+
+/** Runs each target's build on the host without a shell; the output is kept in memory as redacted last lines only. */
+async function runBuilds(ctx, targets, port) {
+  const tail = [];
+  const keep = (line) => {
+    tail.push(redact(line, redactValues));
+    if (tail.length > 40) tail.shift();
+  };
+  for (const target of targets) {
+    const { build, artifact } = ctx.config.vm[target];
+    const argv = build.argv.map((a) => a.replaceAll('{port}', String(port)));
+    const r = await runStreaming(argv[0], argv.slice(1), { cwd: join(ctx.root, build.cwd), onLine: keep });
+    const failure = r.error ? `cannot start ${argv[0]}` : r.status !== 0 ? `${target} build exited ${r.status}` : !existsSync(join(ctx.root, artifact)) ? `${target} build left no ${artifact}` : null;
+    if (failure) return { failure, tail };
+  }
+  return { tail };
+}
+
+async function vmUp(ctx, args, lane) {
+  const targets = args.positional.slice(1);
+  const synopsis = 'vm up TARGET... [--port N]';
+  if (targets.length === 0 || targets.some((t) => !['ios', 'desktop'].includes(t)) || new Set(targets).size !== targets.length) return usage(synopsis);
+  for (const t of targets) {
+    if (!ctx.config.vm[t]) {
+      say(`vm up: ${ctx.path} has no vm.${t} section`);
+      return 2;
+    }
+  }
+  const flag = args.flags.port;
+  if (flag !== undefined && !ctx.config.backend) {
+    say(`vm up: --port needs a backend section in ${ctx.path}`);
     return 2;
   }
-  if (lane.absent) {
-    complain(`vm: the machine lane file ${lane.path} is missing; the lane is not set up on this machine`);
+  if (flag !== undefined && !(/^\d+$/.test(flag) && Number(flag) >= 1 && Number(flag) <= 65535)) return usage(synopsis);
+  loadRedaction(ctx);
+  const version = (run(lumeBin(), ['--version']).stdout ?? '').trim().split(/\s+/).at(-1);
+  if (version !== LUME_VERSION) {
+    say(`vm up: lume ${version || 'not found'}, this lane is pinned to lume ${LUME_VERSION}; install it from https://github.com/trycua/cua/releases (lume-v${LUME_VERSION})`);
+    return 2;
+  }
+  const port = ctx.config.backend ? backendPort(ctx, flag) : null;
+
+  let admission;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (!(await sweep())) return 2;
+    admission = admitUp(ctx.worktree, lane);
+    if (!admission.retry) break;
+  }
+  if (admission.refuse || admission.retry) {
+    say(admission.refuse ?? 'vm up: the worktree lease is in a state vm status could not resolve');
+    return 2;
+  }
+  const { n } = admission;
+  let cloneExists = admission.mode === 'refresh';
+  const clone = cloneName(n);
+  try {
+    if (admission.mode === 'orphan' || admission.mode === 'reclaim') {
+      const old = admission.old;
+      if (old?.forward) await killPid(old.forward.pid);
+      const r = destroyClone(admission.mode === 'reclaim' ? old.clone : clone);
+      if (!r.ok) {
+        say(`vm up: slot-${n}: ${r.why}`);
+        return 2;
+      }
+      withTable(() => writeLease(n, newLease(n, ctx.worktree, 'starting')));
+      if (admission.mode === 'reclaim') say(`lane: reclaimed slot ${n}: ${old.worktree} (idle since ${new Date(old.lastUsed).toISOString()}); deleted ${old.clone}`);
+      else say(`lane: deleted the orphan clone ${clone} before taking slot ${n}`);
+    }
+    const built = await runBuilds(ctx, targets, port);
+    if (built.failure) {
+      for (const line of built.tail) say(line);
+      say(`vm up: ${built.failure}`);
+      failStart(n, cloneExists);
+      return 2;
+    }
+    // Clone and start (staging of the copy follows in the next steps of D5).
+    const listed = lumeList();
+    const vm = listed?.find((v) => v.name === clone);
+    if (!vm) {
+      const r = lume(['clone', lane.image, clone]);
+      if (r.error || r.status !== 0) {
+        say(`vm up: lume clone ${lane.image} ${clone} failed`);
+        failStart(n, false);
+        return 2;
+      }
+    }
+    cloneExists = true;
+    if (vm?.status !== 'running') {
+      const r = lume(['run', '--detach', '--display', 'none', '--vnc', 'disabled', clone]);
+      if (r.error || r.status !== 0) {
+        say(`vm up: lume run ${clone} failed`);
+        failStart(n, true);
+        return 2;
+      }
+    }
+    const ip = await waitForSsh(lane, clone);
+    if (!ip) {
+      say(`vm up: ${clone} did not accept an ssh connection`);
+      failStart(n, true);
+      return 2;
+    }
+    say(`vm up: ${clone} is running at ${ip}; staging of ${targets.join(', ')} is not finished`);
+    failStart(n, true);
+    return 2;
+  } catch (e) {
+    failStart(n, cloneExists);
+    say(`vm up: ${e.message}`);
+    return 2;
+  }
+}
+
+async function vmDown(ctx) {
+  if (!(await sweep())) return 2;
+  const plan = withTable(() => {
+    const own = ownLease(ctx.worktree);
+    if (!own) return { none: true };
+    const { n, lease } = own;
+    if (lease.state === 'ready') {
+      const busy = liveBusy(n);
+      if (busy.length) return { refuse: `vm down: a routed command of this worktree's lease runs (pid ${busy.join(', ')}); wait for it to finish` };
+      writeLease(n, { ...lease, state: 'closing', holder: process.pid });
+      return { n, lease };
+    }
+    return { refuse: `vm down: this worktree's lease is ${lease.state} (pid ${lease.holder}); wait for it to finish` };
+  });
+  if (plan.none) {
+    say('vm down: this worktree holds no lease');
+    return 0;
+  }
+  if (plan.refuse) {
+    say(plan.refuse);
+    return 2;
+  }
+  if (!(await finishTeardown(plan.n, plan.lease))) return 2;
+  say(`vm down: deleted ${plan.lease.clone}, slot ${plan.n} is free`);
+  return 0;
+}
+
+async function vmStatus(lane) {
+  const ok = await sweep();
+  const lines = withTable(() => {
+    const out = [];
+    for (let n = 1; n <= lane.slots; n++) {
+      const slot = readSlot(n);
+      if (slot.free) out.push(`slot ${n}: free`);
+      else if (slot.partial) out.push(`slot ${n}: partial`);
+      else {
+        const l = slot.lease;
+        const busy = busyPids(n).filter(alive);
+        out.push(
+          `slot ${n}: ${l.state} worktree=${l.worktree ?? 'none'} clone=${l.clone} targets=${l.targets.join(',') || 'none'} forward=${l.forward ? l.forward.pid : 'none'} holder=${l.holder ?? 'none'} busy=${busy.join(',') || 'none'} last used ${ago(l.lastUsed)}`,
+        );
+      }
+    }
+    return out;
+  });
+  for (const line of lines) say(line);
+  return ok ? 0 : 2;
+}
+
+async function cmdVm(ctx, args) {
+  const [verb] = args.positional;
+  if (verb === 'pack') return 2;
+  if (!['up', 'down', 'status'].includes(verb)) return usage('vm up TARGET... [--port N] | vm down | vm status');
+  const loaded = loadLane();
+  if (loaded.error) {
+    complain(loaded.error);
+    return 2;
+  }
+  if (loaded.absent) {
+    complain(`vm: the machine lane file ${loaded.path} is missing; the lane is not set up on this machine`);
     return 2;
   }
   if (!ctx.config.vm) {
     complain(`vm: ${ctx.path} has no vm section`);
     return 2;
   }
-  return 2;
+  if (verb !== 'status' && !ctx.worktree) {
+    say(`vm ${verb}: ${process.cwd()} is not in a git worktree`);
+    return 2;
+  }
+  try {
+    if (verb === 'up') return await vmUp(ctx, args, loaded.lane);
+    if (verb === 'down') return await vmDown(ctx);
+    return await vmStatus(loaded.lane);
+  } catch (e) {
+    complain(`vm ${verb}: ${e.message}`);
+    return 2;
+  }
+}
+
+// ---------- vm lane: routed commands ----------
+
+/** The target a routed command needs staged: desktop commands and `preflight|flow ios|desktop` name it. */
+const routeTarget = (command, args) => (command === 'desktop' ? 'desktop' : args.positional[0]);
+
+/**
+ * Admission of a routed command in one critical section (D2, D4): the lease of this worktree is complete, ready and has
+ * staged the target, and `busy/PID` is registered. A lease that is missing, partial or unreadable counts as not ready.
+ */
+function admitRouted(worktree, target) {
+  return withTable(() => {
+    const own = ownLease(worktree);
+    if (!own) return { refuse: 'this worktree holds no ready lease' };
+    const { n, lease } = own;
+    if (lease.state !== 'ready') return { refuse: `this worktree's lease is ${lease.state}` };
+    if (!lease.targets.includes(target)) return { refuse: `this worktree's lease did not stage ${target}` };
+    mkdirSync(busyDir(n), { recursive: true });
+    writeFileSync(join(busyDir(n), String(process.pid)), '');
+    writeLease(n, { ...lease, lastUsed: Date.now() });
+    return { n, lease };
+  });
+}
+
+/** Removes this process's busy marker and sets `lastUsed`, under the table lock. */
+function releaseBusy(n) {
+  withTable(() => {
+    rmSync(join(busyDir(n), String(process.pid)), { force: true });
+    const slot = readSlot(n);
+    if (slot.lease) writeLease(n, { ...slot.lease, lastUsed: Date.now() });
+  });
+}
+
+async function cmdRouted(ctx, args, command, lane) {
+  const target = routeTarget(command, args);
+  const admitted = admitRouted(ctx.worktree, target);
+  const restart = `run ${INVOKE} vm up ${target}`;
+  if (admitted.refuse) {
+    say(`lane: ${admitted.refuse}; ${restart}`);
+    return 2;
+  }
+  const { n, lease } = admitted;
+  try {
+    const ip = cloneIp(lease.clone);
+    if (!ip) {
+      say(`lane: ${lease.clone} is not running; ${restart}`);
+      return 2;
+    }
+    if (lease.forward && !alive(lease.forward.pid)) {
+      say(`lane: the port forward of ${lease.clone} is not running; ${restart}`);
+      return 2;
+    }
+    const remote = `cd "$HOME"/work/${shq(ctx.config.name)} && node "$HOME"/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs ${process.argv.slice(2).join(' ')}`;
+    const child = spawn(sshBin(), [...sshBase(lane, ip), remote], { stdio: 'inherit' });
+    return await new Promise((done) => {
+      child.on('error', () => done(2));
+      child.on('close', (code) => done(code === 255 || code === null ? 2 : code));
+    });
+  } finally {
+    releaseBusy(n);
+  }
 }
 
 // ---------- CLI ----------
@@ -1464,6 +2104,7 @@ async function main() {
       complain(lane.error);
       return 2;
     }
+    if (!lane.absent) return cmdRouted(ctx, args, command, lane.lane);
   }
   return COMMANDS[command](ctx, args);
 }
