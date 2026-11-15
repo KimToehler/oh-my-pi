@@ -37,7 +37,7 @@ export async function resolveResumeLocation(
 			? { kind: "open", cwd: recorded }
 			: { kind: "refuse", recordedCwd: recorded, missing: false };
 	}
-	if (await SessionManager.isFromRemovedWorktree(session, requestCwd, sessionDir)) {
+	if (await SessionManager.isStrandedIn(session, requestCwd, sessionDir)) {
 		return { kind: "relocate", from: session.cwd, to: requestCwd };
 	}
 	return { kind: "refuse", recordedCwd: recorded, missing: await directoryIsMissing(recorded) };
