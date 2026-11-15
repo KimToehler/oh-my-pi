@@ -105,6 +105,11 @@ quiet_setup_assistant() { # the post-update screens would otherwise cover the co
   echo "setup assistant: post-update screens off for build $build"
 }
 
+spotlight_off() { # indexing every clone's fresh worktree copy keeps a new clone's load far above its CPU count
+  sudo_ mdutil -a -i off >/dev/null
+  echo "spotlight: indexing off"
+}
+
 sshd_key_only() {
   local f=/etc/ssh/sshd_config.d/100-app-qa-lane.conf
   [ -s "$HOME/.ssh/authorized_keys" ] || fail "no authorized key for $(id -un): install the lane key before provisioning"
@@ -124,5 +129,6 @@ install_spectre
 install_maestro
 write_shell_env
 quiet_setup_assistant
+spotlight_off
 sshd_key_only
 echo "provision-guest: ok; next: grant-screen-capture.sh with SIP off (vm-image.md)"

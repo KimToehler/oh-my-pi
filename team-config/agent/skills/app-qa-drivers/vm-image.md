@@ -29,7 +29,7 @@ Use one VM name for the build, `app-qa-build`, and the golden name `app-qa-golde
    scp -i KEY -r ~/.omp/agent/skills/app-qa-drivers/scripts/vm lume@ADDRESS:/tmp/app-qa-vm
    ssh -i KEY lume@ADDRESS 'GUEST_SUDO_PASSWORD=... bash /tmp/app-qa-vm/provision-guest.sh'
    ```
-   It installs Spectre 0.9.0 (sha256 checked), Maestro 2.12.1, JDK 21 and Node, gives the lane user passwordless sudo (the driver's guest scripts use `sudo launchctl asuser`), turns off Setup Assistant's post-update screens, and checks that sshd accepts keys only. It touches no repository.
+   It installs Spectre 0.9.0 (sha256 checked), Maestro 2.12.1, JDK 21 and Node, gives the lane user passwordless sudo (the driver's guest scripts use `sudo launchctl asuser`), turns off Setup Assistant's post-update screens and Spotlight indexing, and checks that sshd accepts keys only. It touches no repository.
 5. **Stream Xcode in with `tar` over SSH**, never through the shared folder (virtiofs breaks Xcode's framework symlinks; a `ditto` from it fails):
    ```
    tar -C /Applications -cf - Xcode.app | ssh -i KEY lume@ADDRESS 'sudo tar -C /Applications -xpf -'
@@ -88,6 +88,7 @@ The step is manual because it depends on Recovery's screen geometry.
 7. **The Compose distributable's runtime lacks `java.instrument`**, so Spectre's agent cannot load (`Module java.instrument not found`). The driver starts the app's jars on the guest's JDK 21 with the launcher's options from `Contents/app/*.cfg`, which is why `provision-guest.sh` installs a full JDK 21 where `/usr/libexec/java_home -v 21` finds it.
 8. **`lume sip off` fails** on a Recovery whose language is not English (see the SIP step). Its credential preflight also needs SSH password login, which step 4 turns off.
 9. **Screen Recording rows.** Without both rows, `preflight desktop` in the guest prints `screen capture: denied`.
+10. **A fresh clone's boot load.** Right after a clone boots, the simulator runtime's first-boot daemons and Spotlight keep the guest's load far above its 8 vCPUs for minutes (76 measured), and a sign-in flow then times out on the SSO page. `provision-guest.sh` turns Spotlight indexing off, and the target start waits for the load to fall below the CPU count (`settle:` line of `vm up`).
 
 ## Updating the image
 

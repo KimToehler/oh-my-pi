@@ -182,14 +182,13 @@ function reapRoots() {
 afterEach(reapRoots);
 after(() => {
   // Assert before reaping: reaping first made the assertion unable to fail. Only the per-test reaper above keeps this empty.
+  // The server closes before the assertion: a hook that throws skips the later ones, and an open server hangs the run.
   const left = processesIn(roots);
   reapRoots();
-  assert.deepEqual(left, [], 'processes of the tests are still alive after teardown');
-});
-after(() => {
   server.closeAllConnections?.();
   server.close();
   for (const r of roots) rmSync(r, { recursive: true, force: true });
+  assert.deepEqual(left, [], 'processes of the tests are still alive after teardown');
 });
 
 // ---------- fakes ----------
@@ -402,6 +401,15 @@ out('+-o Root  <class IORegistryEntry, id 0x100000100, retain 31>\\n    {\\n    
   ps: `
 log({ tool: 'ps', argv });
 out(st.ps.join('\\n'));
+`,
+  // `sysctl -n hw.ncpu vm.loadavg`: st.ncpu (default 8) and the next of st.loads (default 1), the last one repeating.
+  sysctl: `
+log({ tool: 'sysctl', argv });
+const loads = st.loads ?? [1];
+const load = loads.length > 1 ? loads.shift() : loads[0];
+st.loads = loads;
+save();
+out((st.ncpu ?? 8) + '\\n{ ' + load.toFixed(2) + ' 1.00 1.00 }');
 `,
 };
 
@@ -705,12 +713,13 @@ function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = []
     FAKE_FIXTURES: FIXTURES,
     FAKE_JAVA_HOME: L.guest.jdk,
     QA_TARGET_WARM_MS: '0',
+    QA_TARGET_SETTLE_POLL_MS: '0',
   };
   const fakeFile = (name, file, dir) => {
     writeFileSync(join(dir, name), `#!${NODE}\n${readFileSync(join(FAKE_DIR, file), 'utf8')}`);
     chmodSync(join(dir, name), 0o755);
   };
-  for (const f of ['spectre', 'lsof', 'maestro', 'xcrun', 'ioreg', 'ps']) L.fake(f, L.guest.bin);
+  for (const f of ['spectre', 'lsof', 'maestro', 'xcrun', 'ioreg', 'ps', 'sysctl']) L.fake(f, L.guest.bin);
   for (const [n, f] of [['nc', 'nc.cjs'], ['sudo', 'sudo.cjs'], ['launchctl', 'launchctl.cjs'], ['java_home', 'java_home.cjs'], ['plutil', 'plutil.cjs']]) fakeFile(n, f, L.guest.bin);
   fakeFile('java', 'java.cjs', join(L.guest.jdk, 'bin'));
   symlinkSync(GIT, join(L.guest.bin, 'git'));
@@ -1366,9 +1375,15 @@ test('lease: orphan - with the orphan\'s delete held a second sweep leaves it al
   L.hold('delete');
   const first = startQa(L, ['vm', 'status']);
   await waitFor(L.held('delete'));
-  const second = await runQa(L, ['vm', 'status']);
+  // A second sweep that deletes too waits on the held delete; release it so the test fails on the count instead of hanging.
+  const run2 = startQa(L, ['vm', 'status']);
+  let settled = false;
+  run2.done.then(() => (settled = true));
+  await waitUntil(() => settled || L.lumeCalls('delete').length > 1, 120000);
+  if (!settled) L.release('delete');
+  assert.equal(L.lumeCalls('delete').length, 1, 'the second sweep deleted the orphan the first sweep holds');
+  const second = await run2.done;
   assert.equal(second.status, 0, outputOf(second));
-  assert.equal(L.lumeCalls('delete').length, 1);
   assert.deepEqual(L.slots(), ['slot-2']);
   L.setControl({ hold: true });
   const a = startQa(L, ['vm', 'up', 'ios']);
@@ -2346,6 +2361,32 @@ test('target: ios - a failing launch exits 2 naming the launch and stages no tar
   assert.equal(r.status, 2, outputOf(r));
   assert.match(outputOf(r), /launch/);
   assert.deepEqual(L.lease(1).targets, []);
+});
+
+test('target: settle - the WebKit warm and the desktop start wait until the guest load falls below its CPU count', async () => {
+  const L = laneLayout();
+  L.gset({ ncpu: 8, loads: [76.4, 12, 7.5] });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  const seq = L.gcalls().map((c) => (c.tool === 'xcrun' ? c.argv[1] : c.tool)).filter((t) => ['sysctl', 'install', 'openurl'].includes(t));
+  assert.deepEqual(seq, ['install', 'sysctl', 'sysctl', 'sysctl', 'openurl']);
+  assert.match(outputOf(r), /settle: load 7\.50 below 8 CPUs/);
+  L.gset({ loads: [9, 3] });
+  const d = await L.up(['desktop']);
+  assert.equal(d.status, 0, outputOf(d));
+  await waitUntil(() => L.gcalls('java').length === 1);
+  const after = L.gcalls().map((c) => c.tool).filter((t) => t === 'sysctl' || t === 'java');
+  assert.deepEqual(after.slice(-3), ['sysctl', 'sysctl', 'java']);
+});
+
+test('target: settle - a guest that never settles starts the target after the cap and says so', async () => {
+  const L = laneLayout();
+  L.setSsh({ env: { ...L.guestEnv, QA_TARGET_SETTLE_MS: '0' } });
+  L.gset({ ncpu: 8, loads: [40] });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(outputOf(r), /settle: load 40\.00 still at or above 8 CPUs .*starting anyway/);
+  assert.equal(L.gcalls('xcrun').at(-1).argv[1], 'launch');
 });
 
 test('target: desktop - two vm up runs leave one app process and the first is killed', async () => {

@@ -4,10 +4,16 @@
 //   node start-target.mjs ios --artifact REL --device-type TYPE [--port N]
 //   node start-target.mjs desktop --artifact REL
 // ios: deletes the lane's earlier simulator, creates one of TYPE on the guest's iOS runtime, boots it, installs the
-// artifact and, with a backend and --port, opens its health URL once to warm WebKit and terminates Safari, then launches the
-// app (`simctl launch --terminate-running-process`, bundle id from the artifact's Info.plist).
-// desktop: kills the recorded app pid, reads the distributable's launcher cfg and starts it on JDK 21 in the console
-// session. The pid is recorded under ~/.app-qa-lane/ (outside the TMPDIR state a refresh resets).
+// artifact, waits for the guest to settle, and, with a backend and --port, opens its health URL once to warm WebKit and
+// terminates Safari, then launches the app (`simctl launch --terminate-running-process`, bundle id from the artifact's
+// Info.plist).
+// desktop: kills the recorded app pid, reads the distributable's launcher cfg, waits for the guest to settle and starts
+// the app on JDK 21 in the console session. The pid is recorded under ~/.app-qa-lane/ (outside the TMPDIR state a
+// refresh resets).
+// Settling: a fresh clone's boot work (simulator first-boot daemons, Spotlight) keeps the guest's load far above its CPU
+// count for minutes, and a sign-in started then times out on the SSO page. The start waits until the one-minute load
+// average (`sysctl -n hw.ncpu vm.loadavg`) is below the CPU count, polling every QA_TARGET_SETTLE_POLL_MS (default 5000)
+// for at most QA_TARGET_SETTLE_MS (default 600000), and prints one `settle:` line either way.
 // QA_TARGET_WARM_MS (default 8000) is how long Safari keeps the health page open before it is terminated.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -82,6 +88,28 @@ function which(cmd) {
 
 const simctl = (...args) => spawnSync('xcrun', ['simctl', ...args], { encoding: 'utf8' });
 
+/** The guest's CPU count and one-minute load average, from `sysctl -n hw.ncpu vm.loadavg` (`8` and `{ 6.52 24.70 16.79 }`). */
+function guestLoad() {
+  const r = spawnSync(which('sysctl') ?? '/usr/sbin/sysctl', ['-n', 'hw.ncpu', 'vm.loadavg'], { encoding: 'utf8' });
+  const m = /^\s*(\d+)\s*\n\s*\{\s*([\d.]+)/.exec(r.stdout ?? '');
+  if (r.status !== 0 || !m) fail('cannot read the guest load (sysctl -n hw.ncpu vm.loadavg)');
+  return { cpus: Number(m[1]), load: Number(m[2]) };
+}
+
+/** Waits until the one-minute load average is below the CPU count or the cap has passed; prints one `settle:` line. */
+async function settle() {
+  const cap = Number(process.env.QA_TARGET_SETTLE_MS ?? 600000);
+  const poll = Number(process.env.QA_TARGET_SETTLE_POLL_MS ?? 5000);
+  const start = Date.now();
+  for (;;) {
+    const { cpus, load } = guestLoad();
+    const s = Math.round((Date.now() - start) / 1000);
+    if (load < cpus) return void process.stdout.write(`settle: load ${load.toFixed(2)} below ${cpus} CPUs after ${s} s\n`);
+    if (Date.now() - start >= cap) return void process.stdout.write(`settle: load ${load.toFixed(2)} still at or above ${cpus} CPUs after ${s} s; starting anyway\n`);
+    await pause(poll);
+  }
+}
+
 function startIos(flags) {
   const list = simctl('list', 'devices', '--json');
   if (list.status !== 0) fail('xcrun simctl list devices failed');
@@ -135,12 +163,14 @@ async function startDesktop(flags, config) {
   }
   const javaHome = spawnSync(which('java_home') ?? '/usr/libexec/java_home', ['-v', '21'], { encoding: 'utf8' }).stdout.trim();
   if (!javaHome) fail('no JDK 21 in the guest');
+  await settle();
   const credentials = config.credentials ? resolve(config.credentials.file) : '';
   const props = Object.entries(config.vm.desktop.systemProperties ?? {}).map(([k, v]) => `-D${k}=${v.replaceAll('{credentials}', credentials)}`);
   const user = userInfo().username;
   const pidFile = join(recordDir(), 'desktop.pid');
   rmSync(pidFile, { force: true });
-  // `sh -c` records its own pid, then becomes the JVM: the recorded pid is the app, owned by the console user.
+  // `sh -c` records its own pid, then becomes the JVM: the recorded pid is the app, owned by the console user. The two
+  // `sudo` processes stay as its parents and carry the main class in their argv; the JVM is the one `java` process.
   const launch = ['sh', '-c', 'echo $$ > "$0" && exec "$@"', pidFile, join(javaHome, 'bin', 'java'), '-Djava.awt.headless=false', ...cfg.javaOptions, ...props, '-cp', cfg.classpath.join(delimiter), cfg.mainClass];
   const child = spawn('sudo', ['launchctl', 'asuser', String(process.getuid()), 'sudo', '-u', user, ...launch], { cwd: process.cwd(), detached: true, stdio: 'ignore' });
   child.unref();
@@ -164,6 +194,7 @@ async function main(argv) {
   if (target === 'ios') {
     if (!flags['device-type']) fail('ios needs --device-type');
     const udid = startIos(flags);
+    await settle();
     if (config.backend && flags.port) await warmWebKit(udid, config.backend.healthUrl.replaceAll('{port}', flags.port));
     launchApp(udid, flags.artifact);
     process.stdout.write(`ios: ${udid}\n`);
