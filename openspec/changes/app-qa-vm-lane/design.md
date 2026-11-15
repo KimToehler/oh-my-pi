@@ -167,17 +167,18 @@ A failure in steps 4 to 8 applies the failure transition too, so the lease never
 - **ios:**
   1. Delete the lane's earlier simulator, then create one of `ios.deviceType` on the guest's only iOS runtime and boot it. Recreating it on every `vm up` resets the sign-in state; a signed-in app or a live provider session would make the sign-in subflow fail (`SKILL.md:113`).
   2. Install the artifact.
-  3. With a backend, open its health URL once to warm WebKit, then terminate Safari.
+  3. Wait for the guest to settle (below). Then, with a backend, open its health URL once to warm WebKit and terminate Safari.
   4. Launch the app with `xcrun simctl launch --terminate-running-process UDID BUNDLE_ID`, the bundle id read from the artifact's `Info.plist` (`plutil -extract CFBundleIdentifier raw -o -`); a failing launch fails the start. Without a backend, the launch follows the install. A flow then starts on the app's own first screen, not on SpringBoard.
 
   Routed flow runs get `MAESTRO_DRIVER_STARTUP_TIMEOUT=180000`.
 - **desktop:**
   1. Kill the recorded app pid.
   2. Read the distributable's `Contents/app/*.cfg` (format and reader in "Build vs. adopt: launcher cfg reader") for `app.classpath`, `app.mainclass` and `java-options`. The host runs the same reader on the snapshot before step 5 and refuses a cfg without a main class.
-  3. Run the app on the guest's JDK 21 (`/usr/libexec/java_home -v 21`) with `-Djava.awt.headless=false` and the configured `systemProperties`, replacing `{credentials}` with the guest credentials path.
+  3. Wait for the guest to settle (below). Run the app on the guest's JDK 21 (`/usr/libexec/java_home -v 21`) with `-Djava.awt.headless=false` and the configured `systemProperties`, replacing `{credentials}` with the guest credentials path.
   4. Start it with `sudo launchctl asuser UID sudo -u USER` in the console session, with the guest copy as working directory.
 
   The guest user has passwordless sudo from provisioning, so no password reaches the driver.
+- **Settling:** a fresh clone's first minutes run the simulator runtime's first-boot daemons and Spotlight over the copied worktree; F1 measured a guest load of 76 on 8 vCPUs, and 7 of 8 sign-in flows started then timed out on the SSO page, while the same flow passed in 62.6 s once the load had fallen. So before the WebKit warm (ios) and before the app start (desktop) the script waits until the one-minute load average (`sysctl -n hw.ncpu vm.loadavg`) is below the CPU count, polling every 5 s for at most 10 minutes, and prints one `settle:` line with the load and the wait either way; after the cap it starts anyway, so a busy guest costs time, not the run. The golden image also turns Spotlight indexing off (D9, `vm-image.md` step 4), which removes most of that load.
 
 The script is tested in the suite with its existing fake `xcrun` and a fake `launchctl` and `java`.
 
@@ -274,7 +275,7 @@ That branch changes `SKILL.md` and MODIFIES the routing requirement of `app-qa-d
 - [A build tool that reports up to date on changed inputs would stage an old artifact] → the build tool owns freshness, as it does for every host QA run today. No second freshness check exists.
 - [A slot is held while the build runs, so a long build keeps a third worktree out] → the lease must exist before the build so a refresh can withdraw the old targets and two starts in one worktree cannot overwrite each other's artifact; the third worktree is refused with the holder named, not queued.
 - [A configured build argv runs on the host] → it comes from the tracked repository configuration, like the build commands the repository skill already tells the agent to run. It runs without a shell, and its output is redacted before any line is printed.
-- [`vm up` takes the build time plus 2 to 3 minutes (clone 5 s, boot about 40 s, copy, simulator boot, WebKit warm-up)] → a rerun on a live lease skips clone and boot, and incremental builds are short.
+- [`vm up` takes the build time plus 2 to 3 minutes (clone 5 s, boot about 40 s, copy, simulator boot, settling, WebKit warm-up)] → a rerun on a live lease skips clone and boot, and incremental builds are short.
 - [A host reboot empties `${TMPDIR}` slots while lume keeps the clones] → the next sweep finds the `app-qa-slot-N` clones without a slot and deletes them.
 - [A host that sleeps pauses the guest] → the skill names `power.sleepPrevention` `idle` or higher as a prerequisite.
 - [lume behaviour changes between releases] → pinned version, checked by `vm up`.

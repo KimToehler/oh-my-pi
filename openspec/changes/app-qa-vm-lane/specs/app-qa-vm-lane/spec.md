@@ -155,6 +155,10 @@ Each `vm up` SHALL reconcile its lease to one state: a stopped clone started aga
 - **WHEN** a worktree's lease is taken down and another worktree's `vm up` takes the same slot
 - **THEN** the new clone comes from the golden image and holds none of the earlier worktree's files, driver state or simulator
 
+#### Scenario: Fresh clone under load
+- **WHEN** `vm up ios` or `vm up desktop` reaches the target start while the guest's one-minute load average is at or above its CPU count
+- **THEN** the WebKit warm and the app start wait until the load falls below the CPU count, for at most 10 minutes, and `vm up` prints one `settle:` line with the load and the wait; starting a target before that, or failing `vm up` for the load alone, MUST fail this requirement
+
 #### Scenario: Second vm up
 - **WHEN** `vm up ios desktop` runs twice in one lease and a routed iOS sign-in flow follows
 - **THEN** the guest has one booted simulator and one desktop JVM, one port forward runs on the host, and the sign-in flow passes
