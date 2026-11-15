@@ -1,5 +1,6 @@
 // Fake guest driver for qa.test.mjs, installed as the guest's scripts/qa.mjs. It logs its call and acts as the guest's
-// ~/fake-driver.json says: lines (out or err, with $OUT, $TMP and $CWD tokens), files to write, a kept flow root,
+// ~/fake-driver.json says: lines (out or err, with $OUT, $TMP and $CWD tokens; $TMP is where the real driver puts a flow
+// root: QA_FLOW_ROOT_DIR, else TMPDIR), files to write, a kept flow root,
 // a pause until a file exists, a started marker and the exit code. `vm ...` goes to the real driver (qa-real.mjs).
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -15,7 +16,7 @@ if (argv[0] === 'vm') {
 const cfgPath = join(process.env.HOME, 'fake-driver.json');
 const cfg = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf8')) : {};
 const outIndex = argv.indexOf('--out');
-const tokens = { $OUT: outIndex >= 0 ? argv[outIndex + 1] : '', $TMP: process.env.TMPDIR, $CWD: process.cwd(), $HOME: process.env.HOME };
+const tokens = { $OUT: outIndex >= 0 ? argv[outIndex + 1] : '', $TMP: process.env.QA_FLOW_ROOT_DIR || process.env.TMPDIR, $CWD: process.cwd(), $HOME: process.env.HOME };
 const sub = (s) => Object.entries(tokens).reduce((t, [k, v]) => t.split(k).join(v), s);
 appendFileSync(
   process.env.FAKE_CALLS,

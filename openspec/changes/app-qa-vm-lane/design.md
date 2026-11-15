@@ -63,7 +63,7 @@ The path is fixed under `HOME`. The suite already runs the driver with a private
 It is user-owned: `scripts/install-team-config.ts` removes only files it installed (ownership manifest, `install-team-config.ts:521-592`), so a deploy never deletes it.
 
 ### D4. Slots, leases and the table lock
-- **Table lock:** `${TMPDIR}/app-qa/vm/table.lock`, an atomic `mkdir` plus `pid` in the pattern of `acquireLock`/`describeLock` (`qa.mjs:898-932`). Every read and every change of a lease record or busy marker happens under it, and each state change is one critical section. It is never held across a build, clone, boot, copy, stop or delete. A stale table lock (dead pid) is taken over; its holder died, so a slot directory it left without a complete `lease.json` is a partial slot.
+- **Table lock:** `${TMPDIR}/app-qa/vm/table.lock`, a directory holding exactly one entry, its holder's token `PID-NONCE`. A holder prepares the directory with its token beside it and renames it into place, which succeeds only while no lock is held, so a lock never exists without its holder. Every read and every change of a lease record or busy marker happens under it, and each state change is one critical section. It is never held across a build, clone, boot, copy, stop or delete. A lock whose holder is dead, or that holds anything but one token, is taken over by deleting exactly the entries read and then the directory only while it is empty; a release deletes its own token the same way. A contender acting on an outdated read therefore finds nothing to delete and never touches a successor's lock. A dead holder's slot directory left without a complete `lease.json` is a partial slot.
 - **Slot directories:** `${TMPDIR}/app-qa/vm/slot-N` for N up to `slots`. The clone of slot N is named exactly `app-qa-slot-N`; the lane never deletes, stops or runs a VM of any other name, and never the configured image.
 - **Lease record:** `lease.json`, written to a temporary file in the slot and renamed, in the critical section that creates the slot. It holds:
   - the worktree's real path and the clone name
@@ -97,7 +97,7 @@ It is user-owned: `scripts/install-team-config.ts` removes only files it install
 | guest copy `~/work/NAME`, its credentials file included | created | deleted and copied again | deleted with the clone |
 | guest driver directory | copied | copied again | deleted with the clone |
 | guest driver state `${TMPDIR}/app-qa/` (desktop session records `qa.mjs:646`, flow lock `qa.mjs:647`) | absent (fresh clone) | deleted before the targets start, so a desktop command needs a new `desktop attach` | deleted with the clone |
-| lease-private guest output folders and flow `TMPDIR` | absent | deleted | deleted with the clone |
+| lease-private guest output folders and flow roots | absent | deleted | deleted with the clone |
 | iOS simulator | created | deleted and created again (D6) | deleted with the clone |
 | desktop app process | started | killed and started again (D6) | ends with the clone |
 | port forward process | started | killed and started again | killed |
@@ -192,7 +192,7 @@ Translation table, closed:
 | `--config`, `--credentials` | refused with exit 2 naming `--host` |
 | `--out` (desktop capture, flow) | host refusals first (existing flow `--out`, existing capture files); the guest writes to a lease-private folder; files return to the given host path |
 | flow without `--out` | lease-private guest folder, returned to a new host `mkdtemp` folder, as the host driver's own default `app-qa-out-` folder (`qa.mjs:1209`) |
-| kept flow root | guest flow runs get a lease-private `TMPDIR`; a kept root returns to a new 0700 host `mkdtemp` |
+| kept flow root | guest flow runs create their root in the lease-private run folder (`QA_FLOW_ROOT_DIR`), while the guest's `TMPDIR`, and so its one flow lock per clone, stays unchanged; a kept root returns to a new 0700 host `mkdtemp` |
 | every other argument | byte-identical |
 
 - **Quoting:** each remote argv element is POSIX single-quoted. The fake `ssh` runs the joined command through `sh -c`, as sshd does, so the tests exercise the quoting.
@@ -262,10 +262,10 @@ That branch changes `SKILL.md` and MODIFIES the routing requirement of `app-qa-d
 - Decision: build a reader; gap: no repository code reads the format, the platform offers no reader, and the one maintained library cannot be loaded by the deployed driver. The reader handles exactly those keys in those two sections with `$APPDIR` expansion; other sections and keys are ignored, a missing main class is refused, and repeated `app.classpath` and `java-options` lines keep their order. It lives in `scripts/vm/start-target.mjs` and is exported for the host check.
 
 ### Build vs. adopt: host-wide slot table lock
-- Repository: `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs:898-932` (`acquireLock` and `describeLock`: atomic `mkdir` plus pid, with a starting holder's pid awaited).
+- Repository: `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs:898-932` (`acquireLock` and `describeLock`: atomic `mkdir` plus pid, with a starting holder's pid awaited; a stale lock is refused, never taken over).
 - Platform: not searched, covered above.
 - Candidates: not searched, covered above.
-- Decision: adopt the existing `mkdir` lock pattern for the table lock; the slot directories and lease states built on it are project-specific glue.
+- Decision: adapt the existing directory lock for the table lock. The table lock must take over a dead holder's lock, which the flow lock never does, so its directory is created with its holder's token already inside and a takeover deletes only the token it read (D4). The slot directories and lease states built on it are project-specific glue.
 
 ## Risks / Trade-offs
 

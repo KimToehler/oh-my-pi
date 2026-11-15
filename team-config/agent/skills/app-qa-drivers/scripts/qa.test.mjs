@@ -586,6 +586,7 @@ const FAKE_DIR = join(FIXTURES, 'fakes');
 const FAKE_BUILD = join(FIXTURES, 'fake-build.mjs');
 const PRELOAD_SLOT = join(HERE, 'qa-test-preload-slotblock.mjs');
 const PRELOAD_WRITES = join(HERE, 'qa-test-preload-writes.mjs');
+const PRELOAD_LOCKPAUSE = join(HERE, 'qa-test-preload-lockpause.mjs');
 const layouts = [];
 const procs = [];
 
@@ -980,9 +981,11 @@ function assertOwnClonesOnly(L) {
   }
 }
 const lockOf = (L) => join(L.vmDir, 'table.lock');
-const plantLock = (L, pid) => {
+/** A table lock held by `pid` (its token `PID-NONCE`), or with `entries` (name -> content) of no holder token. */
+const plantLock = (L, pid, entries = {}) => {
   mkdirSync(lockOf(L), { recursive: true });
-  if (pid !== null) writeFileSync(join(lockOf(L), 'pid'), `${pid}\n`);
+  if (pid !== null) writeFileSync(join(lockOf(L), `${pid}-0`), '');
+  for (const [name, content] of Object.entries(entries)) writeFileSync(join(lockOf(L), name), content);
 };
 
 test('lease: lumels - a log line before the JSON of lume ls leaves vm status, a second vm up and a routed command working', async () => {
@@ -1110,12 +1113,52 @@ test('lease: stale-lock - a table lock left by a dead pid is taken over by the n
   assert.doesNotMatch(again.stdout, /took over/);
 });
 
-test('lease: stale-lock - a table lock whose holder never wrote its pid is taken over too', async () => {
+test('lease: stale-lock - an empty table lock and one of an earlier layout without a token do not block the next vm status', async () => {
+  for (const entries of [{}, { pid: `${await deadPid()}\n` }]) {
+    const L = laneLayout();
+    plantLock(L, null, entries);
+    const r = await runQa(L, ['vm', 'status']);
+    assert.equal(r.status, 0, outputOf(r));
+    assert.equal(existsSync(lockOf(L)), false, JSON.stringify(entries));
+  }
+});
+
+test('lease: takeover - a contender that read a dead holder before a successor took the lock never moves or deletes the successor\'s lock', async () => {
   const L = laneLayout();
-  plantLock(L, null);
-  const r = await runQa(L, ['vm', 'status']);
-  assert.equal(r.status, 0, outputOf(r));
-  assert.match(r.stdout, /took over/);
+  const pause = join(L.root, 'pause');
+  mkdirSync(pause);
+  L.hold('ls');
+  // D takes the lock and dies inside it (its sweep holds in lume ls).
+  const d = startQa(L, ['vm', 'status']);
+  await waitFor(L.held('ls'));
+  assert.ok(existsSync(lockOf(L)), 'D holds the table lock while lume ls holds');
+  for (const pid of [d.child.pid, Number(readFileSync(L.held('ls'), 'utf8'))]) process.kill(pid, 'SIGKILL');
+  await d.done;
+  rmSync(L.held('ls'));
+  // B reads D's dead lock and stops before its first rename or removal of it.
+  const b = startQa(L, ['vm', 'status'], {
+    env: { QA_TEST_PAUSE_LOCK: lockOf(L), QA_TEST_PAUSE_DIR: pause },
+    argv0: (script, args) => [NODE, ['--import', PRELOAD_LOCKPAUSE, script, ...args]],
+  });
+  let a;
+  try {
+    await waitFor(join(pause, 'before'));
+    // A takes the lock over and holds it inside its sweep.
+    a = startQa(L, ['vm', 'status']);
+    await waitFor(L.held('ls'));
+    const held = () => (existsSync(lockOf(L)) ? readdirSync(lockOf(L)).sort() : null);
+    const successor = held();
+    assert.ok(successor?.length, 'A holds the table lock');
+    writeFileSync(join(pause, 'go'), '');
+    await waitFor(join(pause, 'after'));
+    assert.deepEqual(held(), successor, 'B moved or deleted the lock A holds');
+  } finally {
+    for (const f of ['go', 'go2']) writeFileSync(join(pause, f), '');
+    L.release('ls');
+  }
+  const [ra, rb] = await Promise.all([a.done, b.done]);
+  assert.equal(ra.status, 0, outputOf(ra));
+  assert.equal(rb.status, 0, outputOf(rb));
   assert.equal(existsSync(lockOf(L)), false);
 });
 
@@ -2307,6 +2350,23 @@ test('route: root - a failing flow\'s kept root returns to a new 0700 host folde
   assert.equal(readFileSync(join(root, 'console.log'), 'utf8'), 'log\n');
   assert.ok(!outputOf(r).includes('app-qa-flow-zzz'));
   assert.ok(r.lines.some((l) => /^lane: .*app-qa-slot-1.*vm up ios/.test(l)));
+});
+
+test('route: flowlock - two routed flows started together in one lease take the guest\'s one flow lock: one Maestro run, the other exits 2 naming the holder', async () => {
+  const L = laneLayout();
+  L.stage({ fakeDriver: false });
+  mkdirSync(L.guestDriver, { recursive: true });
+  copyFileSync(QA_SOURCE, join(L.guestDriver, 'qa.mjs'));
+  cpSync(join(dirname(QA_SOURCE), 'vm'), join(L.guestDriver, 'vm'), { recursive: true });
+  L.gset({ iosDevices: DEFAULT_STATE.iosDevices, maestro: { ...DEFAULT_STATE.maestro, sleepMs: 1500 } });
+  for (const base of [L.repo, L.guestCopy]) {
+    mkdirSync(join(base, 'flows'), { recursive: true });
+    writeFileSync(join(base, 'flows', 'x.yaml'), 'appId: org.example.app\n---\n- assertVisible:\n    id: home\n');
+  }
+  const results = await Promise.all([0, 1].map(() => runQa(L, ['flow', 'ios', 'flows/x.yaml'])));
+  assert.deepEqual(results.map((r) => r.status).sort(), [0, 2], results.map(outputOf).join('\n----\n'));
+  assert.match(outputOf(results.find((r) => r.status === 2)), /another flow run holds the lock/);
+  assert.equal(L.gcalls('maestro').filter((c) => c.argv?.[0] === 'test').length, 1);
 });
 
 // ---------- target: guest-side target start (task 3.2) ----------

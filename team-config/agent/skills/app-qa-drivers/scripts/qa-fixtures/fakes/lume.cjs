@@ -3,7 +3,7 @@
 // state.lsLogLine: `ls` prints a timestamped INFO line before the JSON.
 // state.lsStoppedNoIp: `ls` reports every clone stopped without an address, with the log line (lume's 2 s lsof probe timing out).
 // state.deleteFails: `delete` exits 1 and keeps the clone.
-// state.hold.{stop,delete,clone,run,lsAfterDelete}: the call writes FAKE_HOLD_DIR/<name>.held and waits for <name>.release.
+// state.hold.{stop,delete,clone,run,ls,lsAfterDelete}: the call writes FAKE_HOLD_DIR/<name>.held and waits for <name>.release.
 const fs = require('fs');
 const path = require('path');
 const argv = process.argv.slice(2);
@@ -50,6 +50,7 @@ if (argv[0] === '--version') {
   out(load().version ?? '0.7.2');
 } else if (cmd === 'ls') {
   log({});
+  hold('ls');
   const st = load();
   if (st.hold?.lsAfterDelete && st.afterDelete) {
     mutate((s) => {

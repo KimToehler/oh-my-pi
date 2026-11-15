@@ -21,7 +21,7 @@
 // environment, and every line this script prints passes one redaction of the configured accounts' values and tokens.
 // Redaction, scan and sweep match a password anywhere and a username only as a whole word, never inside a longer word.
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   appendFileSync,
   chmodSync,
@@ -38,6 +38,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  rmdirSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -1329,7 +1330,9 @@ async function cmdFlow(ctx, args) {
         return 2;
       }
     } else out = mkdtempSync(join(tmpdir(), 'app-qa-out-'));
-    root = mkdtempSync(join(tmpdir(), 'app-qa-flow-'));
+    // A routed flow names its lease-private run folder here (QA_FLOW_ROOT_DIR), so a kept root returns with the run;
+    // TMPDIR, and so the host-wide flow lock, stays the machine's own.
+    root = mkdtempSync(join(process.env.QA_FLOW_ROOT_DIR || tmpdir(), 'app-qa-flow-'));
     chmodSync(root, 0o700);
     say(`device: ${device.id}`);
     say(`root: ${root}`);
@@ -1517,62 +1520,95 @@ const slotPath = (n) => join(vmDir(), `slot-${n}`);
 const leasePath = (n) => join(slotPath(n), 'lease.json');
 const busyDir = (n) => join(slotPath(n), 'busy');
 
-function pidFile(file) {
+const LOCK_TOKEN = /^(\d+)-[0-9a-f]+$/;
+const GONE = new Set(['ENOENT', 'ENOTEMPTY', 'EEXIST']);
+
+/**
+ * The table lock as read: `{ names, pid }`, its entries and the holder's pid when its one entry is a token `PID-NONCE`
+ * (else null); null when there is no lock.
+ */
+function readTableLock(dir) {
+  let names;
   try {
-    const pid = Number(readFileSync(file, 'utf8').trim());
-    return Number.isInteger(pid) && pid > 0 ? pid : null;
-  } catch {
-    return null;
+    names = readdirSync(dir);
+  } catch (e) {
+    if (e.code === 'ENOENT') return null;
+    throw e;
+  }
+  const m = names.length === 1 ? LOCK_TOKEN.exec(names[0]) : null;
+  return { names, pid: m ? Number(m[1]) : null };
+}
+
+/** Removes the lock directory only while it is empty; a lock a contender meanwhile renamed into place stays. */
+function removeEmptyLock(dir) {
+  try {
+    rmdirSync(dir);
+  } catch (e) {
+    if (!GONE.has(e.code)) throw e;
   }
 }
 
-/** Takes over a table lock whose holder is dead; a lock a live process meanwhile took is put back. */
-function takeOverLock(dir, holder) {
-  const stale = `${dir}.stale-${process.pid}`;
-  try {
-    renameSync(dir, stale);
-  } catch {
-    return;
-  }
-  const now = pidFile(join(stale, 'pid'));
-  if (now !== null && now !== holder && alive(now)) {
+/**
+ * Takes over a lock whose holder is dead, or that holds anything but one token: deletes exactly the entries read, then
+ * the directory only while empty. A live successor's lock holds another token, so a contender acting on an outdated read
+ * deletes nothing of it.
+ */
+function takeOverLock(dir, { names, pid }) {
+  let took = false;
+  for (const name of names) {
     try {
-      renameSync(stale, dir);
-    } catch {}
-    return;
+      rmSync(join(dir, name), { recursive: true });
+      took = true;
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
   }
-  rmSync(stale, { recursive: true, force: true });
-  say(`lane: took over the table lock of ${holder === null ? 'a holder that never wrote its pid' : `dead pid ${holder}`}`);
+  removeEmptyLock(dir);
+  if (took) say(`lane: took over the table lock of ${pid === null ? 'a holder without a token' : `dead pid ${pid}`}`);
 }
 
-/** The host-wide table lock: an atomic mkdir plus the holder's pid, like the flow lock. Returns its release. */
+/**
+ * The host-wide table lock (design D4): a directory prepared with this holder's token beside the lock and renamed into
+ * place, which succeeds only while no lock is held (absent or empty), so a lock never exists without its holder.
+ * Returns its release.
+ */
 function lockTable() {
   ensureDir(vmDir());
   const dir = tableLockDir();
+  const token = `${process.pid}-${randomBytes(6).toString('hex')}`;
+  const prepared = `${dir}.new-${process.pid}`;
+  rmSync(prepared, { recursive: true, force: true });
+  mkdirSync(prepared, { mode: 0o700 });
+  writeFileSync(join(prepared, token), '');
   const deadline = Date.now() + 60000;
-  for (;;) {
-    try {
-      mkdirSync(dir);
-      writeFileSync(join(dir, 'pid'), `${process.pid}\n`);
-      return () => {
-        if (pidFile(join(dir, 'pid')) === process.pid) rmSync(dir, { recursive: true, force: true });
-      };
-    } catch (e) {
-      if (e.code !== 'EEXIST') throw e;
+  try {
+    for (;;) {
+      try {
+        renameSync(prepared, dir);
+        return () => {
+          try {
+            unlinkSync(join(dir, token));
+          } catch (e) {
+            if (e.code === 'ENOENT') return;
+            throw e;
+          }
+          removeEmptyLock(dir);
+        };
+      } catch (e) {
+        if (!['ENOTEMPTY', 'EEXIST', 'ENOTDIR'].includes(e.code)) throw e;
+      }
+      const held = readTableLock(dir);
+      if (held === null || held.names.length === 0) continue;
+      if (held.pid === null || !alive(held.pid)) {
+        takeOverLock(dir, held);
+        continue;
+      }
+      if (Date.now() > deadline) throw new Error(`the table lock ${dir} stays held by pid ${held.pid}`);
+      sleepSync(10);
     }
-    let holder = pidFile(join(dir, 'pid'));
-    // A starting holder creates the directory before it writes its pid.
-    for (let i = 0; i < 10 && holder === null && existsSync(dir); i++) {
-      sleepSync(100);
-      holder = pidFile(join(dir, 'pid'));
-    }
-    if (!existsSync(dir)) continue;
-    if (holder === null || !alive(holder)) {
-      takeOverLock(dir, holder);
-      continue;
-    }
-    if (Date.now() > deadline) throw new Error(`the table lock ${dir} stays held by pid ${holder}`);
-    sleepSync(10);
+  } catch (e) {
+    rmSync(prepared, { recursive: true, force: true });
+    throw e;
   }
 }
 
@@ -2355,7 +2391,7 @@ function translateRouted(ctx, args, command) {
 function remoteScript(ctx, lease, command, tokens) {
   const rel = relative(ctx.worktree, process.cwd());
   const cwd = [guestCopy(ctx), ...(rel && !rel.startsWith('..') ? rel.split('/').map(shq) : [])].join('/');
-  const env = command === 'flow' ? 'TMPDIR="$R"/tmp MAESTRO_DRIVER_STARTUP_TIMEOUT=180000 ' : '';
+  const env = command === 'flow' ? 'QA_FLOW_ROOT_DIR="$R"/tmp MAESTRO_DRIVER_STARTUP_TIMEOUT=180000 ' : '';
   const args = tokens.map((t) => t.raw ?? shq(t.lit)).join(' ');
   return [
     `printf '%s\\n' ${shq(ENV_MARK)} "$HOME" "\${TMPDIR:-/tmp}"`,
