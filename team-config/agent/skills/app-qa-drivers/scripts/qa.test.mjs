@@ -25,7 +25,7 @@ import {
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
-import { after, test } from 'node:test';
+import { after, afterEach, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -155,6 +155,36 @@ await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
 const PORT = server.address().port;
 
 const roots = [];
+
+/** Pids of live processes whose command line names one of the test roots (the fakes run from `ROOT/bin`, `ROOT/guest/bin`). */
+function processesIn(rootList) {
+  if (!rootList.length) return [];
+  const r = spawnSync('ps', ['-Ao', 'pid=,args='], { encoding: 'utf8' });
+  const prefixes = rootList.flatMap((d) => [d, `/private${d}`]);
+  const found = [];
+  for (const line of r.stdout.split('\n')) {
+    const m = /^\s*(\d+)\s+(.*)$/.exec(line);
+    if (m && Number(m[1]) !== process.pid && prefixes.some((p) => m[2].includes(p))) found.push(Number(m[1]));
+  }
+  return found;
+}
+
+/** Kills what the tests' fakes left running: the detached port forwards, fake JVMs and lume runs outlive the test that started them. */
+function reapRoots() {
+  for (const pid of processesIn(roots)) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {}
+  }
+}
+
+// Every test is over before the next starts; a leftover process of an earlier test would only slow the later ones down.
+afterEach(reapRoots);
+after(() => {
+  reapRoots();
+  const left = processesIn(roots);
+  assert.deepEqual(left, [], 'processes of the tests are still alive after teardown');
+});
 after(() => {
   server.closeAllConnections?.();
   server.close();
