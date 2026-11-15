@@ -88,7 +88,7 @@ Leases, reclaim and staging:
 Targets and output:
 
 - `target-desktop`: `vm up desktop`, then routed attach, wait `sign-in`, tap, wait `home` and capture: one JVM, `PASS` each, the capture in the host folder.
-- `target-rerun`: `vm up ios desktop` twice, then a routed iOS sign-in flow: guest `xcrun simctl list devices booted` shows one device, guest `ps -axo comm=,args= | awk '$1 ~ /\/java$/ && /eu\.onara\.app\.MainKt/'` shows one line (the JVM; the two `sudo` parents of design D6 carry the main class in their argv too), the host shows one `ssh -R` process for the lease, and the flow passes.
+- `target-rerun`: `vm up ios desktop` twice, then a routed iOS sign-in flow: guest `xcrun simctl list devices booted` shows one device, guest `ps -axo pid=,args= | awk '$2 ~ /\/bin\/java$/ && $NF == "eu.onara.app.MainKt" {print $1}'` prints one pid, the pid `vm up` printed for `desktop` (the two `sudo` parents of design D6 carry the main class in their argv too, and `ps` cuts `comm` to 16 characters when `args` follows, so only the argv is matched), the host shows one `ssh -R` process for the lease, and the flow passes.
 - `target-nc`: *test* for a cfg without a main class; the app killed in the guest, then a routed attach: exit 2, plus the line naming `vm up desktop`.
 - `out-capture`: covered by `target-desktop`'s capture: host paths printed, files present.
 - `out-noout`: a routed sign-in flow with a named screenshot and no `--out`: the screenshot is in the printed new host folder, and no guest path is printed.
