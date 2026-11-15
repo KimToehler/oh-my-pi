@@ -1,5 +1,6 @@
 // Fake lume 0.7.2 for qa.test.mjs: a clone list in the state file FAKE_LUME_STATE, every call logged to FAKE_CALLS.
 // state.guestWipe: directories emptied when a clone is deleted (the clone's disk).
+// state.lsQueue: see the ls branch.
 // state.deleteFails: `delete` exits 1 and keeps the clone.
 // state.hold.{stop,delete,clone,run,lsAfterDelete}: the call writes FAKE_HOLD_DIR/<name>.held and waits for <name>.release.
 const fs = require('fs');
@@ -55,7 +56,16 @@ if (argv[0] === '--version') {
     });
     hold('lsAfterDelete');
   }
-  out(JSON.stringify(load().vms.map((v) => ({ name: v.name, status: v.status, ipAddress: v.ipAddress, os: 'macOS' })), null, 2));
+  // state.lsQueue: one entry per ls call, consumed in order: 'garbage' (unparseable) or 'noip' (every ipAddress null).
+  let next = null;
+  mutate((s) => {
+    next = s.lsQueue?.shift() ?? null;
+  });
+  if (next === 'garbage') {
+    out('lume: transient failure, not json');
+    process.exit(0);
+  }
+  out(JSON.stringify(load().vms.map((v) => ({ name: v.name, status: v.status, ipAddress: next === 'noip' ? null : v.ipAddress, os: 'macOS' })), null, 2));
 } else if (cmd === 'clone') {
   log({});
   hold('clone', argv[2]);

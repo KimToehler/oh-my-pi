@@ -2443,6 +2443,24 @@ async function returnFiles(ctx, lane, ip, n, info, { kind, out }) {
   }
 }
 
+/**
+ * The clone's state after a routed run: lost only when `lume ls` reads successfully and the clone is absent or not
+ * running. An unparseable read or a running clone without an address is retried (3 reads, 1 s apart); a clone that never
+ * reads as anything else keeps the address it had before the run.
+ */
+async function cloneAfterRun(clone, preIp) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const list = lumeList();
+    if (list !== null) {
+      const vm = list.find((v) => v.name === clone);
+      if (!vm || vm.status !== 'running') return { lost: true, ip: null };
+      if (vm.ipAddress) return { lost: false, ip: vm.ipAddress };
+    }
+    if (attempt < 2) await pause(1000);
+  }
+  return { lost: false, ip: preIp };
+}
+
 async function cmdRouted(ctx, args, command, lane) {
   const target = routeTarget(command, args);
   const restart = `run ${INVOKE} vm up ${target}`;
@@ -2482,9 +2500,10 @@ async function cmdRouted(ctx, args, command, lane) {
     const guestTmp = result.head[2].replace(/\/+$/, '');
     const runDir = `${guestTmp}/${LEASE_DIR}/run-${process.pid}`;
     // Dependency checks after the run (D7): the clone, the connection and the forward.
-    const ipAfter = cloneIp(lease.clone);
+    const after = await cloneAfterRun(lease.clone, ip);
+    const ipAfter = after.ip;
     let lost = null;
-    if (!ipAfter) lost = 'clone';
+    if (after.lost) lost = 'clone';
     else if (result.status === 255) lost = 'connection';
     else if (lease.forward) {
       if (!alive(lease.forward.pid)) lost = 'forward';
