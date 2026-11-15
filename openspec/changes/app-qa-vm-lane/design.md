@@ -212,6 +212,7 @@ Translation table, closed:
 
 ### D8. Schema `app-qa/2`
 `app-qa/1` plus `vm`: `{ ios?: { artifact, build }, desktop?: { artifact, build, systemProperties? } }`.
+- Rollout order: a repository commits a `vm` section only after this driver is deployed for everyone who runs QA in that repository. A driver that knows only `app-qa/1` stops every QA command there with exit 2 ("schema app-qa/2 is not one of ... redeploy team config"), lane file or not. Machines without a lane file keep running on the host unchanged, and Android always runs on the host.
 - At least one target is required.
 - `artifact` is repository-relative (`relPath`).
 - `build` is `{ argv: [non-empty strings], cwd: relPath }`. `{port}` may appear in an argv element only when the configuration has a `backend` section; otherwise it is refused as a value without a port.

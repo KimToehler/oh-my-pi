@@ -20,7 +20,7 @@ Use one VM name for the build, `app-qa-build`, and the golden name `app-qa-golde
    ```
    lume create app-qa-build --ipsw latest --unattended tahoe --cpu 8 --memory 16 --disk-size 160
    ```
-   These are the sizes of the feasibility test. The guest gets the same Node major version as the host driver's tests.
+   Sizes the lane was tested with; smaller memory is untested. The guest gets the same Node major version as the host driver's tests.
    The preset makes user `lume` with autologin and no sleep, and sets the login password to the preset's. Autologin needs that password, so keep it. SSH password login is turned off in step 4, and the VM is reachable from this Mac only (NAT, 192.168.64.x).
 2. **Boot it headless**: `lume run app-qa-build --detach --display none --vnc disabled`. Read its address with `lume get app-qa-build --format json` (`ipAddress`).
 3. **Install the lane key.** Use the password login once: `ssh-copy-id -i KEY.pub lume@ADDRESS`. Then check `ssh -i KEY -o IdentitiesOnly=yes lume@ADDRESS true`.
@@ -58,13 +58,13 @@ Use one VM name for the build, `app-qa-build`, and the golden name `app-qa-golde
 
 ## The manual SIP step
 
-Screen Recording for SSH sessions needs a TCC row that only exists with SIP off. `lume sip off` (0.7.2) fails: Recovery's language screen comes up German and stays German (setting `nvram prev-lang:kbd=en-US:0` in the guest first does not change that), and its English text search then misses the `csrutil` prompt. Do it over VNC instead, once per image:
+Screen Recording for SSH sessions needs a TCC row that only exists with SIP off. `lume sip off` (0.7.2) fails when Recovery's language screen comes up in a language other than English (it can follow the host's locale; setting `nvram prev-lang:kbd=en-US:0` in the guest does not change it), because its English text search then misses the `csrutil` prompt. Do it over VNC instead, once per image:
 
 1. `lume stop app-qa-build`, then `lume run app-qa-build --recovery-mode true --display none --vnc-port 5939 --vnc-password PASSWORD` with a throwaway password. VNC listens on all interfaces when enabled, so connect to `localhost` only and keep the window short.
 2. In a VNC client (for example `vncdo`) press Options (right, right, Enter). On the language screen click **English**, then continue. Recovery's language must be English.
 3. Menu Utilities, Terminal. Run `csrutil disable`, answer `y`, and give the admin user's password when asked. Check `csrutil status` prints `disabled`.
-4. Shut Recovery down from its Terminal with `shutdown -h now` and wait until `lume ls` shows the VM stopped. Never end Recovery with `lume stop`: in this build that dropped the change, and the next normal boot still printed `enabled`.
-5. Boot normally once with VNC on (`--vnc-port 5939 --vnc-password PASSWORD`) and look at the console. A first try that lost the change showed a boot-time password prompt for the disk and then Setup Assistant's MiniBuddy; enter the preset password there, and click MiniBuddy through (sign in later, no analytics, no FileVault, updates download only) rather than killing it (step 10). Every later boot passes `--vnc disabled`.
+4. Shut Recovery down from its Terminal with `shutdown -h now` and wait until `lume ls` shows the VM stopped. Never end Recovery with `lume stop`: with lume 0.7.2 that can drop the change; the next normal boot then still prints `enabled`.
+5. Boot normally once with VNC on (`--vnc-port 5939 --vnc-password PASSWORD`) and look at the console. If the change was lost, the boot shows a boot-time password prompt for the disk and then Setup Assistant's MiniBuddy; enter the preset password there, and click MiniBuddy through (sign in later, no analytics, no FileVault, updates download only) rather than killing it (step 10). Every later boot passes `--vnc disabled`.
 
 The step is manual because it depends on Recovery's screen geometry.
 
@@ -82,11 +82,11 @@ The step is manual because it depends on Recovery's screen geometry.
 1. **Shared folder.** virtiofs breaks Xcode's framework symlinks. Stream with `tar` over SSH (step 5), and treat `--shared-dir` as unused.
 2. **Gatekeeper after the Xcode copy.** `xcodebuild` hangs in `_dyld_start` until one reboot (step 7).
 3. **GUI processes need the console session.** A JVM or `open` started straight from SSH has no WindowServer (`java.awt.HeadlessException`, launchd error 125). The driver's guest start script uses `sudo launchctl asuser UID sudo -u USER`, which is why the lane user has passwordless sudo.
-4. **Setup Assistant's MiniBuddy window** stays open after a boot unless the settings of `provision-guest.sh` are in place. Killing it logs the session out (step 10). In this build it still appeared once, after the reboot that followed a lost SIP change (`MiniBuddyLaunchReason = 13`); clicking it through over VNC ended it for good.
+4. **Setup Assistant's MiniBuddy window** stays open after a boot unless the settings of `provision-guest.sh` are in place. Killing it logs the session out (step 10). It can still appear after a reboot that follows a lost SIP change (`MiniBuddyLaunchReason = 13`); clicking it through over VNC ends it for good.
 5. **Clean simulator for sign-in.** A signed-in app skips the sign-in entry, and the browser's live identity-provider session skips the form, so the sign-in subflow fails (the intended safe failure). `vm up` therefore creates a fresh simulator every time. The first web view after a boot needs about 40 s, longer than the subflow waits, so `vm up` opens the health URL once to warm WebKit.
 6. **Maestro's iOS driver startup.** One run failed with `Unknown application display identifier dev.mobile.maestro-driver-iosUITests.xctrunner`; a retry with `MAESTRO_DRIVER_STARTUP_TIMEOUT=180000` passed. Routed flow runs set it.
 7. **The Compose distributable's runtime lacks `java.instrument`**, so Spectre's agent cannot load (`Module java.instrument not found`). The driver starts the app's jars on the guest's JDK 21 with the launcher's options from `Contents/app/*.cfg`, which is why `provision-guest.sh` installs a full JDK 21 where `/usr/libexec/java_home -v 21` finds it.
-8. **`lume sip off` fails** on a Recovery that comes up German (see the SIP step). Its credential preflight also needs SSH password login, which step 4 turns off.
+8. **`lume sip off` fails** on a Recovery whose language is not English (see the SIP step). Its credential preflight also needs SSH password login, which step 4 turns off.
 9. **Screen Recording rows.** Without both rows, `preflight desktop` in the guest prints `screen capture: denied`.
 
 ## Updating the image

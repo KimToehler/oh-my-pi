@@ -65,6 +65,8 @@ Flow runs of every repository share the host's simulator and emulator, so they t
 
 On a machine with a lane file (`~/.omp/agent/app-qa-vm.json`), in a repository whose `.omp/app-qa.json` has a `vm` section, `preflight`, `desktop` and `flow` for `ios` and `desktop` run inside a leased macOS VM of the current worktree, not on the host. The VM has its own unlocked console session, so QA works while the host screen is locked, and two worktrees do not share one simulator. Without the lane file or the `vm` section nothing changes: the commands above run on the host.
 
+**Rollout order.** A repository commits a `vm` section (schema `app-qa/2`) only after this driver is deployed for everyone who runs QA in that repository: a driver that knows only `app-qa/1` stops every QA command there with exit 2 ("schema app-qa/2 is not one of ... redeploy team config"), lane file or not. A machine without a lane file (any OS) keeps running on the host unchanged, and Android always runs on the host.
+
 ```
 node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up TARGET... [--port N]
 node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm down
