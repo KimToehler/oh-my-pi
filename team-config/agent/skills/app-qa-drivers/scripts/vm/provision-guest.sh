@@ -78,7 +78,7 @@ install_spectre() {
 
 install_maestro() {
   rm -rf "$HOME/.maestro"
-  curl -fsSL https://get.maestro.mobile.dev | MAESTRO_VERSION="$MAESTRO_VERSION" JAVA_HOME="$(/usr/libexec/java_home -v 21)" bash >/dev/null
+  curl -fsSL https://get.maestro.mobile.dev | MAESTRO_VERSION="$MAESTRO_VERSION" JAVA_HOME="$(/usr/libexec/java_home -v 21)" bash >/dev/null 2>&1
   [ -x "$HOME/.maestro/bin/maestro" ] || fail "maestro not installed"
   echo "maestro: $MAESTRO_VERSION"
 }
@@ -110,10 +110,10 @@ sshd_key_only() {
   [ -s "$HOME/.ssh/authorized_keys" ] || fail "no authorized key for $(id -un): install the lane key before provisioning"
   printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\n' | sudo_ tee "$f" >/dev/null
   local out
-  out=$(sudo_ sshd -T)
-  grep -qx 'passwordauthentication no' <<<"$out" || fail "sshd still accepts passwords"
-  grep -qx 'kbdinteractiveauthentication no' <<<"$out" || fail "sshd still accepts keyboard-interactive logins"
-  grep -qx 'pubkeyauthentication yes' <<<"$out" || fail "sshd does not accept keys"
+  out=$(sudo_ /usr/sbin/sshd -T) # macOS prints the keywords capitalised
+  grep -qix 'passwordauthentication no' <<<"$out" || fail "sshd still accepts passwords"
+  grep -qix 'kbdinteractiveauthentication no' <<<"$out" || fail "sshd still accepts keyboard-interactive logins"
+  grep -qix 'pubkeyauthentication yes' <<<"$out" || fail "sshd does not accept keys"
   echo "sshd: key login only"
 }
 
