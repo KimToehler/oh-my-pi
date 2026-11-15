@@ -339,6 +339,11 @@ if (sub === 'create') {
   st.sims = [...sims, { udid, name: argv[2], deviceType: argv[3], runtime: argv[4], state: 'Shutdown', installed: [] }];
   save(); out(udid); process.exit(0);
 }
+if (sub === 'launch') {
+  const udid = argv[2] === '--terminate-running-process' ? argv[3] : argv[2];
+  if (st.launchFails || !simOf(udid) || simOf(udid).state !== 'Booted') { process.stderr.write('launch failed\\n'); process.exit(1); }
+  process.exit(0);
+}
 if (['boot', 'delete', 'install', 'openurl', 'terminate'].includes(sub)) {
   const d = simOf(argv[2]);
   if (!d) { process.stderr.write('Invalid device: ' + argv[2] + '\\n'); process.exit(164); }
@@ -577,7 +582,7 @@ java-options=-Xmx512m
 java-options=-Dapp.dir=$APPDIR
 `;
 const BUILD_ARTIFACTS = {
-  ios: { path: 'build/App.app', files: { 'Info.plist': 'ios app v1 port={port}\n', 'bin/app': 'binary-v1' } },
+  ios: { path: 'build/App.app', files: { 'Info.plist': 'ios app v1 port={port}\nbundle=eu.onara.app.test\n', 'bin/app': 'binary-v1' } },
   desktop: { path: 'build/Onara.app', files: { 'Contents/app/Onara.cfg': LAUNCHER_CFG, 'Contents/app/onara.jar': 'jar-v1' } },
 };
 
@@ -675,7 +680,7 @@ function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = []
     chmodSync(join(dir, name), 0o755);
   };
   for (const f of ['spectre', 'lsof', 'maestro', 'xcrun', 'ioreg', 'ps']) L.fake(f, L.guest.bin);
-  for (const [n, f] of [['nc', 'nc.cjs'], ['sudo', 'sudo.cjs'], ['launchctl', 'launchctl.cjs'], ['java_home', 'java_home.cjs']]) fakeFile(n, f, L.guest.bin);
+  for (const [n, f] of [['nc', 'nc.cjs'], ['sudo', 'sudo.cjs'], ['launchctl', 'launchctl.cjs'], ['java_home', 'java_home.cjs'], ['plutil', 'plutil.cjs']]) fakeFile(n, f, L.guest.bin);
   fakeFile('java', 'java.cjs', join(L.guest.jdk, 'bin'));
   symlinkSync(GIT, join(L.guest.bin, 'git'));
   symlinkSync(NODE, join(L.guest.bin, 'node'));
@@ -1559,7 +1564,7 @@ test('stage: ignored - the artifact in a git-ignored build folder reaches the gu
   assert.equal(r.status, 0, outputOf(r));
   const files = guestFiles(L);
   assert.ok(files.includes('build/App.app/Info.plist'));
-  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\n`);
+  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\nbundle=eu.onara.app.test\n`);
   for (const ignored of ['build/cache.bin', 'node_modules/x/index.js', '.gradle/state']) assert.equal(files.includes(ignored), false, ignored);
 });
 
@@ -1570,12 +1575,12 @@ test('stage: snapshot - an artifact rewritten after the snapshot leaves the gues
   const up = startQa(L, ['vm', 'up', 'ios']);
   await waitFor(L.held('run'));
   await waitUntil(() => readFileSync(join(L.repo, 'build/App.app/Info.plist'), 'utf8').startsWith('MUTATED'));
-  assert.deepEqual(readFileSync(join(L.slotDir(1), 'stage', 'ios', 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\n`);
+  assert.deepEqual(readFileSync(join(L.slotDir(1), 'stage', 'ios', 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\nbundle=eu.onara.app.test\n`);
   L.setLume({ hold: {} });
   L.release('run');
   const r = await up.done;
   assert.equal(r.status, 0, outputOf(r));
-  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\n`);
+  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\nbundle=eu.onara.app.test\n`);
   assert.equal(statSync(join(L.slotDir(1))).mode & 0o700, 0o700);
 });
 
@@ -1595,7 +1600,7 @@ test('stage: refresh - a rerun after a file change builds again and holds the ne
   assert.equal((await L.up(['ios'])).status, 0);
   const slot = L.lease(1);
   writeFileSync(join(L.repo, 'src/Main.kt'), 'v2 changed\n');
-  L.setControl({ artifacts: { ...BUILD_ARTIFACTS, ios: { ...BUILD_ARTIFACTS.ios, files: { 'Info.plist': 'ios app v2\n' } } } });
+  L.setControl({ artifacts: { ...BUILD_ARTIFACTS, ios: { ...BUILD_ARTIFACTS.ios, files: { 'Info.plist': 'ios app v2\nbundle=eu.onara.app.v2\n' } } } });
   const r = await L.up(['ios']);
   assert.equal(r.status, 0, outputOf(r));
   assert.equal(L.builds().length, 2);
@@ -1604,7 +1609,7 @@ test('stage: refresh - a rerun after a file change builds again and holds the ne
   assert.equal(L.lease(1).clone, slot.clone);
   assert.equal(L.lease(1).state, 'ready');
   assert.equal(readFileSync(join(L.guestCopy, 'src/Main.kt'), 'utf8'), 'v2 changed\n');
-  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), 'ios app v2\n');
+  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), 'ios app v2\nbundle=eu.onara.app.v2\n');
 });
 
 test('stage: nobackend - a backend-free desktop configuration stages with no ssh -R call, and --port is refused', async () => {
@@ -2240,6 +2245,34 @@ test('target: ios - two vm up runs leave one simulator, created fresh the second
   assert.equal(open.length, 2);
   assert.match(open[0].argv[3], new RegExp(`^http://127\\.0\\.0\\.1:${PORT}/`));
   assert.ok(L.gcalls('xcrun').some((c) => c.argv[1] === 'terminate' && c.argv[3] === 'com.apple.mobilesafari'));
+});
+
+test('target: ios - the app is launched last with the artifact\'s bundle id, after the WebKit warm, and without a backend right after the install', async () => {
+  const L = laneLayout();
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  const calls = L.gcalls('xcrun').map((c) => c.argv.slice(1));
+  const verbs = calls.map((c) => c[0]);
+  const sim = L.gstate().sims[0].udid;
+  assert.deepEqual(calls.at(-1), ['launch', '--terminate-running-process', sim, 'eu.onara.app.test']);
+  assert.ok(verbs.lastIndexOf('terminate') < verbs.lastIndexOf('launch'));
+  const plutil = L.gcalls('plutil');
+  assert.equal(plutil.length, 1);
+  assert.ok(plutil[0].argv.at(-1).endsWith('build/App.app/Info.plist'), plutil[0].argv.join(' '));
+  const bare = laneLayout({ backend: false });
+  assert.equal((await bare.up(['ios'])).status, 0);
+  const seq = bare.gcalls('xcrun').map((c) => c.argv[1]);
+  assert.equal(seq.includes('openurl'), false);
+  assert.deepEqual(seq.slice(-2), ['install', 'launch']);
+});
+
+test('target: ios - a failing launch exits 2 naming the launch and stages no target', async () => {
+  const L = laneLayout();
+  L.gset({ launchFails: true });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /launch/);
+  assert.deepEqual(L.lease(1).targets, []);
 });
 
 test('target: desktop - two vm up runs leave one app process and the first is killed', async () => {

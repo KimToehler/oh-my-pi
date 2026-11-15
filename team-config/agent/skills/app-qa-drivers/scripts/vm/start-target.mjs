@@ -4,7 +4,8 @@
 //   node start-target.mjs ios --artifact REL --device-type TYPE [--port N]
 //   node start-target.mjs desktop --artifact REL
 // ios: deletes the lane's earlier simulator, creates one of TYPE on the guest's iOS runtime, boots it, installs the
-// artifact and, with a backend and --port, opens its health URL once to warm WebKit and terminates Safari.
+// artifact and, with a backend and --port, opens its health URL once to warm WebKit and terminates Safari, then launches the
+// app (`simctl launch --terminate-running-process`, bundle id from the artifact's Info.plist).
 // desktop: kills the recorded app pid, reads the distributable's launcher cfg and starts it on JDK 21 in the console
 // session. The pid is recorded under ~/.app-qa-lane/ (outside the TMPDIR state a refresh resets).
 // QA_TARGET_WARM_MS (default 8000) is how long Safari keeps the health page open before it is terminated.
@@ -100,6 +101,16 @@ function startIos(flags) {
   return udid;
 }
 
+/** Launches the installed app, terminating a running instance; the bundle id is read from the artifact's Info.plist. */
+function launchApp(udid, artifact) {
+  const plist = join(resolve(artifact), 'Info.plist');
+  const id = spawnSync('plutil', ['-extract', 'CFBundleIdentifier', 'raw', '-o', '-', plist], { encoding: 'utf8' });
+  const bundle = id.stdout.trim();
+  if (id.status !== 0 || !bundle) fail(`cannot read CFBundleIdentifier from ${plist}`);
+  const r = simctl('launch', '--terminate-running-process', udid, bundle);
+  if (r.status !== 0) fail(`xcrun simctl launch ${bundle} failed: ${r.stderr.trim()}`);
+}
+
 async function warmWebKit(udid, url) {
   simctl('openurl', udid, url);
   await pause(Number(process.env.QA_TARGET_WARM_MS ?? 8000));
@@ -154,6 +165,7 @@ async function main(argv) {
     if (!flags['device-type']) fail('ios needs --device-type');
     const udid = startIos(flags);
     if (config.backend && flags.port) await warmWebKit(udid, config.backend.healthUrl.replaceAll('{port}', flags.port));
+    launchApp(udid, flags.artifact);
     process.stdout.write(`ios: ${udid}\n`);
   } else {
     process.stdout.write(`desktop: pid ${await startDesktop(flags, config)}\n`);

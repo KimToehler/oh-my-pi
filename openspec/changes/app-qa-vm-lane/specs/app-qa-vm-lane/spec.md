@@ -145,7 +145,7 @@ The artifact `vm up` copies SHALL be the bytes it checked, including git-ignored
 - **THEN** staging bytes other than the checked ones, the credential printed or found in any file outside the clone and the credentials file, or `vm up` failing for want of a backend port, MUST fail this requirement
 
 ### Requirement: Every vm up leaves each staged target in one known state
-Each `vm up` SHALL reconcile its lease to one state: a stopped clone started again, one port forward (an earlier one stopped first), for `ios` one freshly created and booted simulator with the app installed and its web view warmed (sign-in state reset), for `desktop` one app process started in the guest's logged-in console session on a JDK that allows Spectre's agent, with the configured system properties and the guest copy as working directory.
+Each `vm up` SHALL reconcile its lease to one state: a stopped clone started again, one port forward (an earlier one stopped first), for `ios` one freshly created and booted simulator with the app installed, its web view warmed and the app launched (sign-in state reset), for `desktop` one app process started in the guest's logged-in console session on a JDK that allows Spectre's agent, with the configured system properties and the guest copy as working directory.
 
 #### Scenario: Desktop sign-in in the guest
 - **WHEN** `vm up desktop` has run and the routed desktop attach, wait and tap commands of a sign-in run
