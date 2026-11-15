@@ -1,0 +1,52 @@
+# Fresh omp session (`omp -p --mode json`), task: "Sign account 1 into the app on the iOS simulator and show me the screen."
+# Kept: tool-call arguments, the output of driver (`qa.mjs`) calls, the final report. Other tool output omitted.
+
+CALL read {"path": "skill://app-qa-drivers", "i": "Reading app QA drivers skill"}
+RESULT (omitted)
+CALL read {"path": ".omp/app-qa.json", "i": "Reading app QA configuration"}
+RESULT (omitted)
+CALL glob {"path": ".agents/skills/*/SKILL.md;.omp/skills/*/SKILL.md", "i": "Locating repository QA skill"}
+RESULT (omitted)
+CALL bash {"command": "ls -d .agents/skills .omp/skills .claude/skills app_kmp/.agents/skills 2>&1; ls .agents .omp 2>&1 | grep -v -i evidence", "i": "Locating repository skill directories"}
+RESULT (omitted)
+CALL grep {"pattern": "app-qa-drivers|qa\\.mjs", "path": ".omo/rules;app_kmp;scripts;docs/design-system;.omp/plans;!**/evidence/**;!**/*-evidence/**;!**/build/**", "i": "Finding repository QA skill references"}
+RESULT (omitted)
+CALL read {"path": "docs/agent-skills/kmp-qa/SKILL.md", "i": "Reading repository KMP QA skill"}
+CALL read {"path": "app_kmp/maestro/signin-ios.yaml", "i": "Reading iOS sign-in subflow"}
+RESULT (omitted)
+RESULT (omitted)
+CALL bash {"command": "test -f ~/.omp/agent/app-qa-vm.json && echo \"lane file: present\" || echo \"lane file: absent\"; omp config get power.sleepPrevention 2>&1 | tail -1", "i": "Checking VM lane availability"}
+RESULT (omitted)
+CALL bash {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -20; echo \"exit=${PIPESTATUS[0]}\"", "i": "Starting iOS target in VM lane", "timeout": 1800}
+DRIVER OUTPUT
+vm up: no free slot; every slot is held or used within 30 min:
+  slot 1: /Users/[redacted]/git/onara/.worktrees/app-qa-vm-f1 (ready, last used 1 min ago)
+  slot 2: /Users/[redacted]/git/onara/.worktrees/app-qa-vm-f1b (ready, last used 1 min ago)
+exit=2
+
+
+Wall time: 2.53 seconds
+CALL bash {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm down 2>&1 | tail -5; echo \"exit=${PIPESTATUS[0]}\"", "i": "Releasing VM lane lease"}
+DRIVER OUTPUT
+vm down: this worktree holds no lease
+exit=0
+
+
+Wall time: 1.82 seconds
+
+MODELS ['onara/cc/claude-opus-5-5']
+
+FINAL REPORT
+I didn't sign account 1 in, so I have no screen to show you. The QA VM lane refused to start a simulator because both of its slots are taken.
+
+`qa.mjs vm up ios` exited 2 with "no free slot; every slot is held or used within 30 min". Both holders are other worktrees:
+- **Slot 1:** `.worktrees/app-qa-vm-f1`, ready, last used 1 min ago.
+- **Slot 2:** `.worktrees/app-qa-vm-f1b`, ready, last used 1 min ago.
+
+This worktree uses the lane because the lane file exists and `.omp/app-qa.json` has a `vm` section. When the lane refuses, the QA procedure is to report the slot holders and stop, so I didn't fall back to the host simulator. `vm down` confirmed this worktree holds no lease, so nothing was left running.
+
+To go ahead, choose one:
+1. **Wait for a slot:** a slot frees up when those two worktrees run `vm down`, or after a lease sits idle past the lane's limit. Then I'll run `vm up ios` and the sign-in flow.
+2. **Use the host simulator:** say so and I'll add `--host` to the commands. That runs the sign-in flow for account 1 on the host's own iOS simulator, which other repositories also share, and needs the backend running locally.
+
+Either way, the sign-in goes through the shared driver's flow command with `--account 1`. I'll add a small wrapper flow that takes the screenshot only after `home` shows, then check the file for credentials before showing it to you.
