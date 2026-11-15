@@ -39,7 +39,7 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const SCHEMA = 'app-qa/1';
+export const SCHEMAS = ['app-qa/1', 'app-qa/2'];
 export const SPECTRE_VERSION = '0.9.0';
 export const SPECTRE_SHA256 = '7bee663dbf4e7b8b089bd989cf93c327a2dbc4afa894c997f4407e18ad73371b';
 export const MAESTRO_VERSION = '2.12.1';
@@ -141,7 +141,7 @@ const named = (check) => (v, p, e) => {
   }
 };
 
-const CONFIG_SHAPE = section({
+const CONFIG_FIELDS = {
   schema: [true, () => {}],
   name: [true, matching(/^[a-z0-9-]+$/, 'lowercase letters, digits and hyphens')],
   desktop: [false, section({ mainClass: [true, nonEmpty], launchHint: [true, nonEmpty] })],
@@ -165,17 +165,48 @@ const CONFIG_SHAPE = section({
   expect: [false, section({ default: [true, nonEmpty], tags: [true, named(nonEmpty)] })],
   android: [false, section({ sdkProperties: [true, relPath] })],
   scan: [false, section({ sentinels: [true, stringList] })],
-});
+};
 
-/** The causes that make `config` not a valid app-qa/1 configuration; empty when it is valid. */
+/** A map of non-empty names to non-empty strings (the desktop app's system properties). */
+const stringMap = (v, p, e) => {
+  if (!isObject(v)) {
+    e.push(`${p}: expected an object`);
+    return;
+  }
+  for (const [key, value] of Object.entries(v)) {
+    if (key === '') e.push(`${p}: expected non-empty names`);
+    nonEmpty(value, sub(p, key), e);
+  }
+};
+
+/** One VM target: the artifact to stage and the build that makes it (design D8). */
+const vmTarget = (extra = {}) =>
+  section({
+    artifact: [true, relPath],
+    build: [true, section({ argv: [true, stringList], cwd: [true, relPath] })],
+    ...extra,
+  });
+
+/** The `vm` section of app-qa/2: at least one of ios and desktop. */
+const vmShape = (v, p, e) => {
+  section({ ios: [false, vmTarget()], desktop: [false, vmTarget({ systemProperties: [false, stringMap] })] })(v, p, e);
+  if (isObject(v) && !Object.hasOwn(v, 'ios') && !Object.hasOwn(v, 'desktop')) e.push(`${p}: expected at least one of ios, desktop`);
+};
+
+const CONFIG_SHAPES = {
+  'app-qa/1': section(CONFIG_FIELDS),
+  'app-qa/2': section({ ...CONFIG_FIELDS, vm: [false, vmShape] }),
+};
+
+/** The causes that make `config` not a valid app-qa/1 or app-qa/2 configuration; empty when it is valid. */
 export function configErrors(config) {
   if (!isObject(config)) return ['the configuration: expected an object'];
-  if (config.schema !== SCHEMA) {
+  if (!SCHEMAS.includes(config.schema)) {
     const id = typeof config.schema === 'string' ? config.schema : JSON.stringify(config.schema ?? null);
-    return [`schema ${id} is not ${SCHEMA}, the schema this driver supports; redeploy team config (scripts/deploy-local.sh) to get a driver for it`];
+    return [`schema ${id} is not one of ${SCHEMAS.join(', ')}, the schemas this driver supports; redeploy team config (scripts/deploy-local.sh) to get a driver for it`];
   }
   const errors = [];
-  CONFIG_SHAPE(config, '', errors);
+  CONFIG_SHAPES[config.schema](config, '', errors);
   if (errors.length) return errors;
   const { credentials, expect } = config;
   if (credentials && !Object.hasOwn(credentials.accounts, credentials.defaultAccount)) {
@@ -183,6 +214,11 @@ export function configErrors(config) {
   }
   if (expect && !Object.hasOwn(expect.tags, expect.default)) {
     errors.push(`expect.default: ${JSON.stringify(expect.default)} is not in expect.tags`);
+  }
+  for (const [target, { build }] of Object.entries(config.vm ?? {})) {
+    build.argv.forEach((arg, i) => {
+      if (arg.includes('{port}') && !config.backend) errors.push(`vm.${target}.build.argv.${i}: {port} needs a backend section`);
+    });
   }
   return errors;
 }
@@ -214,6 +250,73 @@ function loadConfig(flags) {
   if (errors.length) return { error: errors.map((cause) => `config: ${path}: ${cause}`).join('\n') };
   const real = realpathSync(path);
   return { path, real, config, worktree, root: worktree ?? dirname(dirname(real)) };
+}
+
+// ---------- the machine lane file ----------
+
+export const LANE_SCHEMA = 'app-qa-vm/1';
+/** The lane's clones are named `app-qa-slot-N`; no other VM is ever stopped, run or deleted. */
+const CLONE_PREFIX = 'app-qa-slot-';
+const laneFilePath = () => join(homedir(), '.omp', 'agent', 'app-qa-vm.json');
+
+const LANE_SHAPE = section({
+  schema: [true, () => {}],
+  image: [
+    true,
+    (v, p, e) => {
+      nonEmpty(v, p, e);
+      if (typeof v === 'string' && v.startsWith(CLONE_PREFIX)) e.push(`${p}: ${JSON.stringify(v)} lies in ${CLONE_PREFIX}, the namespace of the lane's clones`);
+    },
+  ],
+  user: [true, nonEmpty],
+  sshKey: [
+    true,
+    (v, p, e) => {
+      if (typeof v !== 'string' || !isAbsolute(v)) e.push(`${p}: expected an absolute path`);
+    },
+  ],
+  slots: [
+    true,
+    (v, p, e) => {
+      if (v !== 1 && v !== 2) e.push(`${p}: expected 1 or 2`);
+    },
+  ],
+  idleMinutes: [
+    true,
+    (v, p, e) => {
+      if (!Number.isInteger(v) || v <= 0) e.push(`${p}: expected a positive integer`);
+    },
+  ],
+  ios: [true, section({ deviceType: [true, nonEmpty] })],
+});
+
+/**
+ * The machine lane file: `{ absent, path }` without the file, `{ error }` naming the file and the cause when it cannot
+ * be used, else `{ path, lane }`. The path is fixed under HOME; no environment variable overrides it.
+ */
+function loadLane() {
+  const path = laneFilePath();
+  let text;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') return { absent: true, path };
+    return { error: `lane: ${path}: unreadable (${e.code ?? 'error'})` };
+  }
+  let lane;
+  try {
+    lane = JSON.parse(text);
+  } catch {
+    return { error: `lane: ${path}: not valid JSON` };
+  }
+  const errors = [];
+  if (!isObject(lane)) errors.push('the lane file: expected an object');
+  else if (lane.schema !== LANE_SCHEMA) {
+    const id = typeof lane.schema === 'string' ? lane.schema : JSON.stringify(lane.schema ?? null);
+    errors.push(`schema ${id} is not ${LANE_SCHEMA}, the schema this driver supports`);
+  } else LANE_SHAPE(lane, '', errors);
+  if (errors.length) return { error: errors.map((cause) => `lane: ${path}: ${cause}`).join('\n') };
+  return { path, lane };
 }
 
 // ---------- credentials and redaction ----------
@@ -1284,10 +1387,45 @@ function existsOrLink(path) {
   }
 }
 
+// ---------- vm lane ----------
+
+/**
+ * Whether the command is one the lane serves: preflight, desktop and flow for ios and desktop, in a repository whose
+ * configuration has a `vm` section and without `--host`. Android and scan always run on the host.
+ */
+function laneRoutes(command, args, ctx) {
+  if (!ctx.config.vm || args.flags.host) return false;
+  const [first] = args.positional;
+  if (command === 'desktop') return true;
+  if (command === 'preflight') return first === 'ios' || first === 'desktop';
+  return command === 'flow' && first === 'ios';
+}
+
+function cmdVm(ctx, args) {
+  const [verb, ...targets] = args.positional;
+  if (verb === 'pack') return 2;
+  if (!['up', 'down', 'status'].includes(verb)) return usage('vm up TARGET... [--port N] | vm down | vm status');
+  const lane = loadLane();
+  if (lane.error) {
+    complain(lane.error);
+    return 2;
+  }
+  if (lane.absent) {
+    complain(`vm: the machine lane file ${lane.path} is missing; the lane is not set up on this machine`);
+    return 2;
+  }
+  if (!ctx.config.vm) {
+    complain(`vm: ${ctx.path} has no vm section`);
+    return 2;
+  }
+  return 2;
+}
+
 // ---------- CLI ----------
 
 const VALUE_FLAGS = new Set(['port', 'device', 'timeout', 'equals', 'out', 'account', 'expect', 'credentials', 'config', 'pid']);
-const COMMANDS = { preflight: cmdPreflight, desktop: cmdDesktop, flow: cmdFlow, scan: cmdScan };
+const SWITCH_FLAGS = new Set(['host']);
+const COMMANDS = { preflight: cmdPreflight, desktop: cmdDesktop, flow: cmdFlow, scan: cmdScan, vm: cmdVm };
 
 export function parseArgs(argv) {
   const positional = [];
@@ -1296,8 +1434,9 @@ export function parseArgs(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const name = a.slice(2);
-      if (!VALUE_FLAGS.has(name) || i + 1 >= argv.length) return null;
-      flags[name] = argv[++i];
+      if (SWITCH_FLAGS.has(name)) flags[name] = true;
+      else if (!VALUE_FLAGS.has(name) || i + 1 >= argv.length) return null;
+      else flags[name] = argv[++i];
     } else positional.push(a);
   }
   return { positional, flags };
@@ -1318,6 +1457,13 @@ async function main() {
   if (ctx.error) {
     complain(ctx.error);
     return 2;
+  }
+  if (laneRoutes(command, args, ctx)) {
+    const lane = loadLane();
+    if (lane.error) {
+      complain(lane.error);
+      return 2;
+    }
   }
   return COMMANDS[command](ctx, args);
 }

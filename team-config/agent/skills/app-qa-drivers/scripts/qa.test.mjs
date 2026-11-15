@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import {
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -323,8 +324,35 @@ const pw = env.MAESTRO_DEV_PW ?? '';
 `,
   xcrun: `
 log({ tool: 'xcrun', argv });
-const devices = st.iosDevices.map((d) => ({ udid: d.udid, name: d.name, state: 'Booted', isAvailable: true }));
-out(JSON.stringify({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-26-4': devices } }));
+// The lane's simulators (create, boot, install, openurl, terminate, delete) live in st.sims; st.iosDevices stay the
+// booted devices of every other test.
+const RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-4';
+const sims = st.sims ?? [];
+const [, sub, verb] = argv;
+const simOf = (udid) => sims.find((d) => d.udid === udid);
+if (sub === 'list' && verb === 'runtimes') {
+  out(JSON.stringify({ runtimes: st.runtimes ?? [{ identifier: RUNTIME, name: 'iOS 26.4', platform: 'iOS', isAvailable: true }] }));
+  process.exit(0);
+}
+if (sub === 'create') {
+  const udid = 'LANE-SIM-' + (st.simSeq = (st.simSeq ?? 0) + 1);
+  st.sims = [...sims, { udid, name: argv[2], deviceType: argv[3], runtime: argv[4], state: 'Shutdown', installed: [] }];
+  save(); out(udid); process.exit(0);
+}
+if (['boot', 'delete', 'install', 'openurl', 'terminate'].includes(sub)) {
+  const d = simOf(argv[2]);
+  if (!d) { process.stderr.write('Invalid device: ' + argv[2] + '\\n'); process.exit(164); }
+  if (sub === 'boot') d.state = 'Booted';
+  if (sub === 'install') {
+    if (d.state !== 'Booted' || !fs.existsSync(argv[3])) process.exit(1);
+    d.installed.push(argv[3]);
+  }
+  if (sub === 'delete') st.sims = sims.filter((x) => x !== d);
+  save(); process.exit(0);
+}
+const booted = st.iosDevices.map((d) => ({ udid: d.udid, name: d.name, state: 'Booted', isAvailable: true }));
+const own = sims.filter((d) => !argv.includes('booted') || d.state === 'Booted').map((d) => ({ udid: d.udid, name: d.name, state: d.state, isAvailable: true }));
+out(JSON.stringify({ devices: { [RUNTIME]: [...booted, ...own] } }));
 `,
   adb: `
 log({ tool: 'adb', argv });
@@ -395,19 +423,25 @@ function makeRepo(repo, fixture, config = CONFIGS[fixture]) {
   return realpathSync(repo);
 }
 
-function layout({ fixture = 'onara', config, fakes = ['spectre', 'lsof', 'maestro', 'xcrun', 'adb', 'ioreg', 'ps'], state = {} } = {}) {
+function layout({ fixture = 'onara', config: configOrMake, fakes = ['spectre', 'lsof', 'maestro', 'xcrun', 'adb', 'ioreg', 'ps'], state = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'qa-test-'));
   roots.push(root);
+  // A function builds the configuration once the layout's real root is known (vm builds name files below it).
+  const config = typeof configOrMake === 'function' ? configOrMake(realpathSync(root)) : configOrMake;
   const repo = makeRepo(join(root, 'repo'), fixture, config);
-  const driverDir = join(root, 'driver');
-  mkdirSync(driverDir);
+  // The deployed layout: <skill>/scripts/qa.mjs with the guest scripts in <skill>/scripts/vm/.
+  const skillDir = join(root, 'driver');
+  const driverDir = join(skillDir, 'scripts');
+  mkdirSync(driverDir, { recursive: true });
   copyFileSync(QA_SOURCE, join(driverDir, 'qa.mjs'));
+  if (existsSync(join(HERE, 'vm'))) cpSync(join(HERE, 'vm'), join(driverDir, 'vm'), { recursive: true });
   const L = {
     root: realpathSync(root),
     repo,
     fixture,
     config: config ?? CONFIGS[fixture],
     qa: join(driverDir, 'qa.mjs'),
+    skillDir,
     bin: join(root, 'bin'),
     tmp: join(root, 'tmp'),
     home: join(root, 'home'),
@@ -493,6 +527,201 @@ const lockPath = (L) => join(qaDir(L), 'flow.lock');
 const sessionPath = (L, worktree) =>
   join(qaDir(L), 'sessions', `${createHash('sha256').update(worktree).digest('hex').slice(0, 16)}.json`);
 
+// ---------- vm lane harness (openspec change app-qa-vm-lane) ----------
+// A lane layout adds to a layout: the fake lume (a clone list in a state file) and ssh (runs the joined remote command
+// through `sh -c` in a local guest directory) on the host PATH, real tar and cp, a guest directory with its own fake
+// tools, driver state and call log, a lane file under the private HOME, and a fake build tool the vm section names.
+
+const FAKE_DIR = join(FIXTURES, 'fakes');
+const FAKE_BUILD = join(FIXTURES, 'fake-build.mjs');
+const PRELOAD_SLOT = join(HERE, 'qa-test-preload-slotblock.mjs');
+const PRELOAD_WRITES = join(HERE, 'qa-test-preload-writes.mjs');
+const layouts = [];
+const procs = [];
+
+after(() => {
+  for (const L of layouts) {
+    let calls = [];
+    try {
+      calls = [...L.calls('ssh'), ...L.gcalls('java')];
+    } catch {}
+    for (const c of calls) {
+      if (c.forward || c.tool === 'java') {
+        try {
+          process.kill(c.pid, 'SIGKILL');
+        } catch {}
+      }
+    }
+  }
+  for (const pid of procs) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {}
+  }
+});
+
+const LAUNCHER_CFG = `[Application]
+app.classpath=$APPDIR/onara.jar
+app.classpath=$APPDIR/lib/compose.jar
+app.mainclass=eu.onara.app.MainKt
+
+[JavaOptions]
+java-options=-Dfirst=1
+java-options=-Xmx512m
+java-options=-Dapp.dir=$APPDIR
+`;
+const BUILD_ARTIFACTS = {
+  ios: { path: 'build/App.app', files: { 'Info.plist': 'ios app v1 port={port}\n', 'bin/app': 'binary-v1' } },
+  desktop: { path: 'build/Onara.app', files: { 'Contents/app/Onara.cfg': LAUNCHER_CFG, 'Contents/app/onara.jar': 'jar-v1' } },
+};
+
+const isAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM';
+  }
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const readJson = (f) => JSON.parse(readFileSync(f, 'utf8'));
+const patchJson = (f, patch) => writeFileSync(f, JSON.stringify({ ...readJson(f), ...patch }));
+
+/** A host process the test controls (a fake forward); killed after the suite. */
+function background() {
+  const child = spawn(NODE, ['-e', 'setInterval(() => {}, 1 << 30)'], { detached: true, stdio: 'ignore' });
+  child.unref();
+  procs.push(child.pid);
+  return child.pid;
+}
+
+const LANE_DEFAULTS = { schema: 'app-qa-vm/1', image: 'app-qa-golden', user: 'lume', slots: 2, idleMinutes: 30, ios: { deviceType: 'iPhone 17 Pro' } };
+
+function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = [] } = {}) {
+  const make = (root) => {
+    const control = join(root, 'build-control.json');
+    const port = backend ? ['{port}'] : [];
+    const base = backend ? CONFIGS.onara : (({ backend: _b, ...rest }) => rest)(CONFIGS.onara);
+    return v2(base, {
+      ios: { artifact: 'build/App.app', build: { argv: [NODE, FAKE_BUILD, control, 'ios', ...port], cwd: '.' } },
+      desktop: {
+        artifact: 'build/Onara.app',
+        build: { argv: [NODE, FAKE_BUILD, control, 'desktop', ...port], cwd: 'app' },
+        systemProperties: { 'onara.devCredentialsFile': '{credentials}' },
+      },
+    });
+  };
+  const L = layout({ config: make });
+  layouts.push(L);
+  writeFileSync(join(L.repo, '.gitignore'), '.worktrees/\nbuild/\n.dev-credentials.env\n');
+  git(L.repo, 'add', '.gitignore');
+  git(L.repo, 'commit', '-qm', 'ignore build output');
+  // host
+  L.control = join(L.root, 'build-control.json');
+  writeFileSync(L.control, JSON.stringify({ print: {}, artifacts: BUILD_ARTIFACTS }));
+  L.setControl = (patch) => patchJson(L.control, patch);
+  L.builds = () => (existsSync(`${L.control}.runs`) ? readFileSync(`${L.control}.runs`, 'utf8').split('\n').filter(Boolean).map(JSON.parse) : []);
+  L.holds = join(L.root, 'holds');
+  mkdirSync(L.holds);
+  L.lumeFile = join(L.root, 'lume-state.json');
+  writeFileSync(L.lumeFile, JSON.stringify({ version: '0.7.2', vms: [{ name: 'app-qa-golden', status: 'stopped', ipAddress: null }], hold: {} }));
+  L.lume = () => readJson(L.lumeFile);
+  L.setLume = (patch) => patchJson(L.lumeFile, patch);
+  L.clones = () => L.lume().vms.map((v) => v.name).filter((n) => n.startsWith('app-qa-slot-'));
+  L.addVm = (name, status = 'running') => {
+    const s = L.lume();
+    s.vms.push({ name, status, ipAddress: status === 'running' ? `192.168.64.${20 + s.vms.length}` : null });
+    writeFileSync(L.lumeFile, JSON.stringify(s));
+  };
+  L.setVmStatus = (name, status) => {
+    const s = L.lume();
+    const vm = s.vms.find((v) => v.name === name);
+    vm.status = status;
+    vm.ipAddress = status === 'running' ? '192.168.64.30' : null;
+    writeFileSync(L.lumeFile, JSON.stringify(s));
+  };
+  L.hold = (name, target = true) => patchJson(L.lumeFile, { hold: { ...L.lume().hold, [name]: target } });
+  L.held = (name) => join(L.holds, `${name}.held`);
+  L.release = (name) => writeFileSync(join(L.holds, `${name}.release`), '');
+  // guest
+  const g = join(L.root, 'guest');
+  L.guest = { dir: g, home: join(g, 'home'), tmp: join(g, 'tmp'), bin: join(g, 'bin'), jdk: join(g, 'jdk21'), stateFile: join(g, 'state.json'), callFile: join(g, 'calls.jsonl') };
+  for (const d of [L.guest.home, L.guest.tmp, L.guest.bin, join(L.guest.jdk, 'bin')]) mkdirSync(d, { recursive: true });
+  L.guestCopy = join(L.guest.home, 'work', 'onara');
+  L.guestDriver = join(L.guest.home, '.omp', 'agent', 'skills', 'app-qa-drivers', 'scripts');
+  writeFileSync(L.guest.stateFile, JSON.stringify({ ...structuredClone(DEFAULT_STATE), jvms: [], iosDevices: [] }));
+  writeFileSync(L.guest.callFile, '');
+  L.gstate = () => readJson(L.guest.stateFile);
+  L.gset = (patch) => patchJson(L.guest.stateFile, patch);
+  L.gcalls = (tool) => (existsSync(L.guest.callFile) ? readFileSync(L.guest.callFile, 'utf8').split('\n').filter(Boolean).map(JSON.parse) : []).filter((c) => !tool || c.tool === tool);
+  L.guestEnv = {
+    PATH: `${L.guest.bin}:/usr/bin:/bin`,
+    HOME: L.guest.home,
+    TMPDIR: L.guest.tmp,
+    FAKE_STATE: L.guest.stateFile,
+    FAKE_CALLS: L.guest.callFile,
+    FAKE_FIXTURES: FIXTURES,
+    FAKE_JAVA_HOME: L.guest.jdk,
+  };
+  const fakeFile = (name, file, dir) => {
+    writeFileSync(join(dir, name), `#!${NODE}\n${readFileSync(join(FAKE_DIR, file), 'utf8')}`);
+    chmodSync(join(dir, name), 0o755);
+  };
+  for (const f of ['spectre', 'lsof', 'maestro', 'xcrun', 'ioreg', 'ps']) L.fake(f, L.guest.bin);
+  for (const [n, f] of [['nc', 'nc.cjs'], ['sudo', 'sudo.cjs'], ['launchctl', 'launchctl.cjs'], ['java_home', 'java_home.cjs']]) fakeFile(n, f, L.guest.bin);
+  fakeFile('java', 'java.cjs', join(L.guest.jdk, 'bin'));
+  symlinkSync(GIT, join(L.guest.bin, 'git'));
+  symlinkSync(NODE, join(L.guest.bin, 'node'));
+  L.sshFile = join(L.root, 'ssh-state.json');
+  writeFileSync(L.sshFile, JSON.stringify({ guestDir: L.guest.home, env: L.guestEnv }));
+  L.setSsh = (patch) => patchJson(L.sshFile, patch);
+  fakeFile('lume', 'lume.cjs', L.bin);
+  fakeFile('ssh', 'ssh.cjs', L.bin);
+  for (const [n, p] of [['tar', '/usr/bin/tar'], ['cp', '/bin/cp']]) symlinkSync(p, join(L.bin, n));
+  Object.assign(L.env, { FAKE_LUME_STATE: L.lumeFile, FAKE_SSH_STATE: L.sshFile, FAKE_HOLD_DIR: L.holds });
+  // lane file
+  L.laneFile = join(L.home, '.omp', 'agent', 'app-qa-vm.json');
+  L.sshKey = join(L.root, 'id_test');
+  writeFileSync(L.sshKey, 'test key\n');
+  L.writeLane = (patch = {}, raw) => {
+    mkdirSync(dirname(L.laneFile), { recursive: true });
+    writeFileSync(L.laneFile, raw ?? JSON.stringify({ ...LANE_DEFAULTS, sshKey: L.sshKey, ...lane, ...patch }, null, 2));
+  };
+  if (!noLane) L.writeLane();
+  // leases
+  L.vmDir = join(L.tmp, 'app-qa', 'vm');
+  L.slotDir = (n) => join(L.vmDir, `slot-${n}`);
+  L.lease = (n) => readJson(join(L.slotDir(n), 'lease.json'));
+  L.slots = () => (existsSync(L.vmDir) ? readdirSync(L.vmDir).filter((e) => /^slot-\d+$/.test(e)).sort() : []);
+  L.writeLease = (n, lease) => {
+    mkdirSync(L.slotDir(n), { recursive: true });
+    writeFileSync(join(L.slotDir(n), 'lease.json'), JSON.stringify(lease));
+  };
+  L.lumeCalls = (verb) => L.calls('lume').filter((c) => !verb || c.argv[0] === verb);
+  L.up = (args, opts) => runQa(L, ['vm', 'up', ...args], opts);
+  /** A ready lease of `worktree` staged for `targets`, its clone running, a live fake forward, the guest driver faked. */
+  L.stage = ({ n = 1, worktree = L.repo, targets = ['ios'], state = 'ready', holder = null, forward = true, lastUsed = Date.now(), port = PORT, fakeDriver = true } = {}) => {
+    const clone = `app-qa-slot-${n}`;
+    if (!L.lume().vms.some((v) => v.name === clone)) L.addVm(clone);
+    const fwd = forward ? { pid: background(), port } : null;
+    const lease = { worktree, clone, slot: n, state, holder, targets, inputs: Object.fromEntries(targets.map((t) => [t, { port, argv: [] }])), forward: fwd, lastUsed };
+    L.writeLease(n, lease);
+    mkdirSync(L.guestCopy, { recursive: true });
+    if (fakeDriver) L.fakeGuestDriver();
+    return lease;
+  };
+  L.fakeGuestDriver = (cfg) => {
+    mkdirSync(L.guestDriver, { recursive: true });
+    copyFileSync(QA_SOURCE, join(L.guestDriver, 'qa-real.mjs'));
+    copyFileSync(join(FAKE_DIR, 'guest-driver.mjs'), join(L.guestDriver, 'qa.mjs'));
+    if (cfg) L.driverCfg(cfg);
+  };
+  L.driverCfg = (cfg) => writeFileSync(join(L.guest.home, 'fake-driver.json'), JSON.stringify(cfg));
+  return L;
+}
+
+const writeLaneFile = (L, patch, raw) => L.writeLane(patch, raw);
+
 // ---------- config ----------
 
 test('config: preflight in a subdirectory of a linked worktree uses that worktree configuration', async () => {
@@ -525,16 +754,145 @@ test('config: --config names the file in force, also outside a git checkout', as
 });
 
 test('config: a newer schema id names the file, both ids and the redeploy', async () => {
-  const L = layout({ config: { ...CONFIGS.minimal, schema: 'app-qa/2' }, fixture: 'minimal' });
+  const L = layout({ config: { ...CONFIGS.minimal, schema: 'app-qa/3' }, fixture: 'minimal' });
   const r = await runQa(L, ['preflight', 'desktop']);
   assert.equal(r.status, 2);
   assert.deepEqual(r.lines, []);
   const file = join(L.repo, '.omp', 'app-qa.json');
   assert.ok(r.stderr.includes(file), r.stderr);
-  assert.match(r.stderr, /app-qa\/2/);
+  assert.match(r.stderr, /app-qa\/3/);
   assert.match(r.stderr, /app-qa\/1/);
+  assert.match(r.stderr, /app-qa\/2/);
   assert.match(r.stderr, /redeploy team config/);
   assert.equal(L.calls().length, 0);
+});
+
+/** `vm` sections of the app-qa/2 schema (design D8): artifacts and builds per target. */
+const VM_SECTION = {
+  ios: { artifact: 'build/App.app', build: { argv: ['./gradlew', 'iosApp', '-Pport={port}'], cwd: '.' } },
+  desktop: {
+    artifact: 'build/Onara.app',
+    build: { argv: ['./gradlew', 'createDistributable'], cwd: 'app' },
+    systemProperties: { 'onara.devCredentialsFile': '{credentials}' },
+  },
+};
+const v2 = (config, vm) => ({ ...config, schema: 'app-qa/2', vm });
+
+/** Invalid `vm` sections (and their placement), each with the cause the refusal must name. */
+const BROKEN_VM = [
+  ['vm under app-qa/1', () => ({ ...CONFIGS.onara, vm: VM_SECTION }), /vm: unknown key/],
+  ['an empty vm section', () => v2(CONFIGS.onara, {}), /vm: expected at least one of ios, desktop/],
+  ['an unknown vm target', () => v2(CONFIGS.onara, { ...VM_SECTION, android: VM_SECTION.ios }), /vm\.android: unknown key/],
+  ['an absolute artifact path', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, artifact: '/tmp/App.app' } }), /vm\.ios\.artifact: .*relative/],
+  ['a .. in the artifact path', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, artifact: '../App.app' } }), /vm\.ios\.artifact: .*\.\./],
+  ['a build without argv', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, build: { cwd: '.' } } }), /vm\.ios\.build\.argv: missing/],
+  ['an empty argv element', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, build: { argv: ['make', ''], cwd: '.' } } }), /vm\.ios\.build\.argv: expected a list of non-empty strings/],
+  ['an absolute build cwd', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, build: { argv: ['make'], cwd: '/tmp' } } }), /vm\.ios\.build\.cwd: .*relative/],
+  ['an empty system property value', () => v2(CONFIGS.onara, { desktop: { ...VM_SECTION.desktop, systemProperties: { a: '' } } }), /vm\.desktop\.systemProperties\.a: expected a non-empty string/],
+  ['systemProperties on ios', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, systemProperties: { a: 'b' } } }), /vm\.ios\.systemProperties: unknown key/],
+  ['{port} without a backend section', () => {
+    const { backend, ...noBackend } = CONFIGS.onara;
+    return v2(noBackend, { ios: VM_SECTION.ios });
+  }, /vm\.ios\.build\.argv\.2: \{port\} needs a backend section/],
+];
+
+test('config: app-qa/2 refuses an invalid vm section with exit 2 naming the file and the cause', async () => {
+  const L = layout();
+  const file = join(L.repo, '.omp', 'app-qa.json');
+  for (const [label, make, cause] of BROKEN_VM) {
+    writeConfig(L.repo, make());
+    const r = await runQa(L, ['preflight', 'desktop']);
+    assert.equal(r.status, 2, label);
+    assert.deepEqual(r.lines, [], label);
+    assert.ok(r.stderr.includes(file), `${label}: ${r.stderr}`);
+    assert.match(r.stderr, cause, label);
+  }
+  assert.equal(L.calls().length, 0);
+});
+
+test('config: a valid app-qa/2 configuration is accepted with and without a backend', async () => {
+  const withBackend = layout({ config: v2(CONFIGS.onara, VM_SECTION) });
+  const a = await runQa(withBackend, ['preflight', 'desktop']);
+  assert.equal(a.status, 0, a.stdout + a.stderr);
+  assert.equal(a.lines.length, 4);
+  const { backend, ...noBackend } = CONFIGS.onara;
+  const noPort = { ios: { ...VM_SECTION.ios, build: { argv: ['./gradlew', 'iosApp'], cwd: '.' } }, desktop: VM_SECTION.desktop };
+  const without = layout({ config: v2(noBackend, noPort) });
+  const b = await runQa(without, ['preflight', 'desktop']);
+  assert.equal(b.status, 0, b.stdout + b.stderr);
+  assert.equal(b.lines.length, 3);
+});
+
+// ---------- lane: the machine lane file and the lane's activation ----------
+
+test('lane: with no lane file preflight runs on the host and vm up exits 2 naming the file', async () => {
+  const L = laneLayout({ noLane: true });
+  const host = await runQa(L, ['preflight', 'desktop']);
+  assert.equal(host.status, 0, host.stdout + host.stderr);
+  assert.equal(host.lines.length, 4);
+  const up = await L.up(['ios']);
+  assert.equal(up.status, 2);
+  assert.ok(up.stderr.includes(L.laneFile), up.stderr);
+  assert.match(up.stderr, /missing/);
+  assert.equal(L.calls('lume').length + L.calls('ssh').length, 0);
+  assert.equal(L.builds().length, 0);
+});
+
+test('lane: without a vm section every command runs on the host', async () => {
+  const L = laneLayout();
+  writeConfig(L.repo, CONFIGS.onara);
+  const r = await runQa(L, ['preflight', 'desktop']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(r.lines.length, 4);
+  assert.equal(L.calls('lume').length + L.calls('ssh').length, 0);
+  const up = await L.up(['ios']);
+  assert.equal(up.status, 2);
+  assert.match(up.stderr, /vm: .*no vm section|no vm section/);
+});
+
+/** Invalid lane files, each with the cause its refusal must name. */
+const BROKEN_LANES = [
+  ['a misspelled key', (L) => ({ ...LANE_DEFAULTS, sshkey: L.sshKey }), /sshkey: unknown key/],
+  ['a missing image', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, image: undefined }), /image: missing/],
+  ['slots 3', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, slots: 3 }), /slots: expected 1 or 2/],
+  ['another schema id', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, schema: 'app-qa-vm/2' }), /schema "?app-qa-vm\/2"?.*app-qa-vm\/1/],
+  ['an image named like a slot clone', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, image: 'app-qa-slot-golden' }), /image: .*app-qa-slot-/],
+  ['a relative ssh key', () => ({ ...LANE_DEFAULTS, sshKey: 'id_test' }), /sshKey: expected an absolute path/],
+  ['idleMinutes 0', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, idleMinutes: 0 }), /idleMinutes: expected a positive integer/],
+  ['a missing ios section', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, ios: undefined }), /ios: missing/],
+  ['an empty device type', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, ios: { deviceType: '' } }), /ios\.deviceType: expected a non-empty string/],
+];
+
+test('lane: an invalid lane file exits 2 naming the file and the cause before any host check or lume call', async () => {
+  const L = laneLayout();
+  const invalid = [...BROKEN_LANES.map(([label, make, cause]) => [label, JSON.stringify(make(L)), cause]), ['not JSON', '{ "schema": ', /not valid JSON/]];
+  const evidence = join(L.root, 'evidence');
+  mkdirSync(evidence);
+  for (const [label, text, cause] of invalid) {
+    writeFileSync(L.laneFile, text);
+    for (const args of [['preflight', 'desktop'], ['preflight', 'ios'], ['desktop', 'attach'], ['flow', 'ios', flowFile(L)], ['vm', 'status'], ['vm', 'up', 'ios'], ['vm', 'down']]) {
+      const r = await runQa(L, args);
+      assert.equal(r.status, 2, `${label}: ${args.join(' ')}`);
+      assert.deepEqual(r.lines, [], label);
+      assert.ok(r.stderr.includes(L.laneFile), `${label}: ${r.stderr}`);
+      assert.match(r.stderr, cause, label);
+    }
+    // Android and scan never use the lane, and --host runs the host command as before.
+    assert.equal((await runQa(L, ['scan', evidence])).status, 0, label);
+    const host = await runQa(L, ['preflight', 'desktop', '--host']);
+    assert.equal(host.status, 0, `${label}: ${host.stdout}${host.stderr}`);
+  }
+  assert.equal(L.calls('lume').length + L.calls('ssh').length, 0);
+  assert.equal(L.calls('maestro').length + L.calls('xcrun').length, 0);
+});
+
+test('lane: the lane file path is fixed under HOME and the file may not be an environment override', async () => {
+  const L = laneLayout({ noLane: true });
+  const elsewhere = join(L.root, 'elsewhere.json');
+  writeFileSync(elsewhere, JSON.stringify({ ...LANE_DEFAULTS, sshKey: L.sshKey }));
+  const r = await L.up(['ios'], { env: { APP_QA_VM_FILE: elsewhere, APP_QA_VM: elsewhere } });
+  assert.equal(r.status, 2);
+  assert.ok(r.stderr.includes(L.laneFile), r.stderr);
 });
 
 /** Malformed configurations, each with the cause its refusal must name. */
