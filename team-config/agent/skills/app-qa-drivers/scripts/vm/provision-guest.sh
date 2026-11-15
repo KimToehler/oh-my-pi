@@ -9,7 +9,7 @@ SPECTRE_VERSION=0.9.0
 SPECTRE_SHA256=7bee663dbf4e7b8b089bd989cf93c327a2dbc4afa894c997f4407e18ad73371b
 SPECTRE_URL="https://github.com/rock3r/spectre/releases/download/v${SPECTRE_VERSION}/spectre-macosArm64.zip"
 MAESTRO_VERSION=2.12.1
-NODE_VERSION=22.12.0
+NODE_VERSION=26.13.0
 NODE_BASE="https://nodejs.org/dist/v${NODE_VERSION}"
 NODE_DIST="node-v${NODE_VERSION}-darwin-arm64"
 JDK_ASSETS_URL='https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=aarch64&image_type=jdk&os=mac&vendor=eclipse'

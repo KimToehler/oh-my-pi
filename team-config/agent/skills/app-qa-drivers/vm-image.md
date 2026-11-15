@@ -18,9 +18,9 @@ Use one VM name for the build, `app-qa-build`, and the golden name `app-qa-golde
 
 1. **Create the VM**, unattended:
    ```
-   lume create app-qa-build --ipsw latest --unattended tahoe
+   lume create app-qa-build --ipsw latest --unattended tahoe --cpu 8 --memory 16 --disk-size 160
    ```
-   The feasibility test used 8 CPU, 16 GB RAM and a 160 GB disk; set them with the resource flags `lume create --help` lists.
+   These are the sizes of the feasibility test. The guest gets the same Node major version as the host driver's tests.
    The preset makes user `lume` with autologin and no sleep, and sets the login password to the preset's. Autologin needs that password, so keep it. SSH password login is turned off in step 4, and the VM is reachable from this Mac only (NAT, 192.168.64.x).
 2. **Boot it headless**: `lume run app-qa-build --detach --display none --vnc disabled`. Read its address with `lume get app-qa-build --format json` (`ipAddress`).
 3. **Install the lane key.** Use the password login once: `ssh-copy-id -i KEY.pub lume@ADDRESS`. Then check `ssh -i KEY -o IdentitiesOnly=yes lume@ADDRESS true`.
