@@ -1,0 +1,7 @@
+# F1 attempt 9, unlocked part: void
+
+- The locked-screen rows of attempt 9 ran from about 10:30 to 10:47 on 2026-11-13 against the skill and rule deployed from `686e62c612` (the ignore-off and `computer` triggers they record exist only in that version).
+- At 16:38 the deployed `~/.omp/agent/skills/app-qa-drivers/SKILL.md` and `~/.omp/agent/rules/ui-automation-credentials.md` were replaced by `main`'s versions (a redeploy of `main` after its merges `bda1834623` and `d52b28c990`; `main`'s rule has five conditions and no `computer` condition).
+- The unlocked-screen rows started at 17:48 and ran against `main`'s files. `omp ttsr list` in the scratch worktrees showed the five-condition rule, and `omp ttsr test --tool eval 'const ws = await computer.windows();'` triggered no rule. The QA lane stopped the run after `ce-typing`, `ce-nc` (both), `rt-missing`, `rt-folder` and `rt-clean`; none of their captures is kept as evidence of this change, since they exercised `main`'s guidance, not this change's.
+- The QA lane removed the two files those sessions wrote into the planted folders (`qa-existing/folder-clean/main-window.png`, `qa-existing/folder-token/weaver-main-window.png`), leaving the plants as planted.
+- `main` was merged into the branch (`220924a05c`, no file in common) so a deploy of the branch keeps `main`'s newer team configuration, and every row runs again on the merged head as attempt 10, with the deployed skill and rule compared to the head before, between and after the two batches.

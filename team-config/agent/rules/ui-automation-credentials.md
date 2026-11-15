@@ -1,11 +1,13 @@
 ---
-description: "Before driving a browser, simulator, emulator or desktop app that signs in with a real account: no tree, snapshot, find or textbox read while a login or password-manager surface shows, scripted sign-in, Maestro on pipes with redacted output, evidence you did not write only scanned, never read or listed, stop and scrub on any leak"
+description: "Before driving a browser, simulator, emulator or desktop app that signs in with a real account, also through omp's `computer` prelude: no tree, snapshot, find or textbox read while a login or password-manager surface shows, scripted sign-in, Maestro on pipes with redacted output, evidence you did not write only scanned, never read or listed, stop and scrub on any leak"
 condition:
   - '(?i)\bmaestro\b'
   - '(?i)\buiautomator\b|\badb\b[^\n]*\b(input|screencap)\b|\bsimctl\b[^\n]*\bio\b'
   - '\bbrowser\.open\b|browser_(snapshot|find|type|fill)|inspect_screen|mobile_(list|tap|type)'
   - '(?i)\bspectre\b|\bosascript\b|System Events|\bscreencapture\b'
   - '(?i)\bapp-qa-drivers\b'
+  - '\bcomputer\.[A-Za-z]'
+  - '(?i)skill://[\w.-]*-qa(?![\w-])|[\w.-]*-qa/SKILL\.md|\bapp-qa\.json\b'
 scope: ["tool"]
 interruptMode: always
 ---
@@ -14,11 +16,14 @@ interruptMode: always
 
 Applies whenever an agent drives a browser, simulator, emulator or desktop app that signs in with a real account. A credential that reaches a tool result is in the transcript and cannot be scrubbed.
 
+This paragraph applies during app QA, or in a repository with `.omp/app-qa.json`. Outside a task that is app QA, first find out whether `.omp/app-qa.json` exists, in a tool call of its own that reads nothing else and is sent alone, and read no skill until it has returned; when the file is missing, this paragraph does not apply: make the interrupted call again unchanged and read no QA skill. When this rule interrupted a call that read a skill or `.omp/app-qa.json`, make that read again first. No search, `mkdir`, listing or read of a folder the task names, or `computer` call runs before the team skill `app-qa-drivers` and, in a repository with `.omp/app-qa.json`, its QA skill have been read.
+
 ## Login surfaces
 
 - While a login, identity-provider or password-manager surface is visible, take no accessibility snapshot or UI-hierarchy dump, run no text or regex find, and call no tool that renders textbox values: Playwright MCP `browser_snapshot`/`browser_find`, `uiautomator dump`, `maestro hierarchy`, mobile-mcp `inspect_screen` or their equivalents. Browsers prefill saved passwords as textbox values, and password-manager dialogs (also a "save/update password?" dialog that appears after sign-in) render the saved password as node text.
 - Sign in with one scripted step that reads the values inside the code or the driver's environment, never echoes them, and returns only where it landed (URL, or the tag of the screen it expects). Submit the form natively (Enter in the focused password field, the form's submit) rather than by coordinate tap: a tap an on-screen keyboard swallows is what leads agents to inspect the page. Inspect the screen again only after it has left the login surface and no password dialog shows.
 - When a hierarchy is unavoidable elsewhere, match only an allowlist of expected literals and delete the dump on device and host in the same call that reads it.
+- The equivalents in the first bullet include omp's `computer` prelude: its `screenshot`, `zoom`, `ax`, `observe`, `find`, `elementAt`, `focusedElement`, `value` and typing calls are forbidden while a login, identity-provider, password-manager or save-password surface is visible. In a repository with `.omp/app-qa.json`, and for any call made to check, test or keep evidence of an app, a `computer` call follows the team skill `app-qa-drivers`, read before the call and read again when this rule interrupted that read: its computer-use exception holds only for apps whose `.omp/app-qa.json` exists and has no credentials section, and only for one target window resolved by app, never a display, the desktop or another app's window. Without `.omp/app-qa.json` make no `computer` call to check, test or keep evidence of an app, and report the missing configuration.
 
 ## Maestro (verified on cli-2.12.1 with synthetic values)
 

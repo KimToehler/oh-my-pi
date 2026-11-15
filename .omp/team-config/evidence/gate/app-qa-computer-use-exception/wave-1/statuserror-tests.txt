@@ -1,0 +1,7 @@
+$ bun test packages/coding-agent/test/core/js-tool-bridge.test.ts packages/coding-agent/test/tools/computer.test.ts (head d9aaf34850, 2026-11-14T21:32:48Z)
+bun test v1.4.4 (5d9cc0f4f)
+[pi-natives] ~/git/oh-my-pi/packages/natives/native/pi_natives.darwin-arm64.node is @oh-my-pi/pi-natives@18.18.2, but this checkout is @18.19.0. Symbols this checkout expects may be missing and shared ones may behave differently; run `bun run build:native` before trusting results from this tree.
+ 201 pass
+ 0 fail
+ 1246 expect() calls
+Ran 201 tests across 2 files. [13.33s]

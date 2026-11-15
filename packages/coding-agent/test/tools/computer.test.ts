@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { inspect } from "node:util";
 import { createContext, runInContext } from "node:vm";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { callSessionTool } from "@oh-my-pi/pi-coding-agent/eval/js/tool-bridge";
 import type { EvalPreludeDefinition } from "@oh-my-pi/pi-coding-agent/eval/preludes";
 import { disposeAllKernelSessions, executePython } from "@oh-my-pi/pi-coding-agent/eval/py/executor";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
@@ -1458,6 +1459,28 @@ describe("computer prelude", () => {
 		expect(prelude.enabled?.()).toBe(true);
 		cfgComputerEnabled.override(session.settings, false);
 		expect(prelude.enabled?.()).toBe(false);
+	});
+
+	it("records no window title in the prelude status of a window miss the cell catches", async () => {
+		let definitions: readonly EvalPreludeDefinition[] = [];
+		const session: ToolSession = { ...toolSession(), getEvalPreludes: () => definitions };
+		const prelude = workerPrelude(session, new FakeNativeSession());
+		definitions = [prelude];
+		const statuses: Array<Record<string, unknown>> = [];
+		try {
+			// The cell receives the full listing to recover from; the status event reaches the session file.
+			await expect(
+				callSessionTool(
+					"__prelude__",
+					{ name: "computer", parameters: { action: "call", chain: [{ method: "window", args: ["4803"] }] } },
+					{ session, emitStatus: event => statuses.push(event) },
+				),
+			).rejects.toThrow(windowFixture.title);
+			expect(statuses.filter(event => "error" in event)).toEqual([{ op: "computer", error: "failed" }]);
+			expect(JSON.stringify(statuses)).not.toContain(windowFixture.title);
+		} finally {
+			await prelude.invoke({ action: "close" }, { session, toolCallId: "close" });
+		}
 	});
 });
 
