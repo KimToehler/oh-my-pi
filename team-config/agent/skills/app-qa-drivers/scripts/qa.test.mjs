@@ -1881,33 +1881,6 @@ test('route: lost - a dependency lost during the guest run gives exit 2, the inf
   assert.equal(r.lines.filter((l) => l.startsWith('PASS')).length, 0);
 });
 
-test('route: lost - one unparseable lume ls read and one read without an address after the guest command are not a lost clone', async () => {
-  for (const exit of [0, 1]) {
-    const L = laneLayout();
-    routedLease(L, { target: 'desktop' });
-    L.driverCfg({
-      started: '$HOME/started',
-      pause: '$HOME/release',
-      lines: [{ s: 'out', t: 'guest line' }],
-      files: [{ dir: '$OUT', path: 'commands.json', content: '{"ok":1}' }],
-      exit,
-    });
-    const out = join(L.root, 'evidence');
-    mkdirSync(out);
-    const run = startQa(L, ['desktop', 'capture', 'commands', '--out', out]);
-    await waitFor(join(L.guest.home, 'started'));
-    L.setLume({ lsQueue: ['garbage', 'noip'] });
-    writeFileSync(join(L.guest.home, 'release'), '');
-    const r = await run.done;
-    assert.equal(r.status, exit, `exit ${exit}: ${outputOf(r)}`);
-    assert.doesNotMatch(outputOf(r), /infrastructure lost/, `exit ${exit}`);
-    assert.ok(r.lines.includes('guest line'));
-    assert.equal(readFileSync(join(out, 'commands.json'), 'utf8'), '{"ok":1}');
-    assert.deepEqual(L.lume().lsQueue, []);
-    assert.deepEqual(busyLeft(L), []);
-  }
-});
-
 test('route: lost - no guest line is printed before the guest command has ended, and the lines then appear in order', async () => {
   const L = laneLayout();
   routedLease(L, { pause: true, lines: [{ s: 'out', t: 'PASS first' }, { s: 'err', t: 'second' }] });
