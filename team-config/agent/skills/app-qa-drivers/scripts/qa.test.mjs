@@ -1658,6 +1658,56 @@ test('stage: vnc - lume run starts the clone with --vnc disabled and --display n
   assert.equal(run[0].argv.at(-1), 'app-qa-slot-1');
 });
 
+// ---------- stage: forward and clone reconcile (task 3.3) ----------
+
+test('stage: forward - after two vm up runs exactly one forward process is alive, forwarding the backend port into the guest', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  const first = L.lease(1).forward;
+  assert.ok(first && isAlive(first.pid));
+  assert.equal(first.port, PORT);
+  assert.equal((await L.up(['ios'])).status, 0);
+  const forwards = L.calls('ssh').filter((c) => c.forward);
+  assert.equal(forwards.length, 2);
+  await waitUntil(() => !isAlive(first.pid));
+  assert.equal(forwards.filter((c) => isAlive(c.pid)).length, 1);
+  assert.equal(L.lease(1).forward.pid, forwards[1].pid);
+  const argv = forwards[1].argv;
+  assert.equal(argv[argv.indexOf('-R') + 1], `${PORT}:127.0.0.1:${PORT}`);
+  assert.ok(argv.join(' ').includes('ExitOnForwardFailure=yes'));
+  assert.ok(L.gcalls('nc').some((c) => c.argv.join(' ') === `-z 127.0.0.1 ${PORT}`));
+  for (const pid of forwards.map((c) => c.pid)) if (isAlive(pid)) process.kill(pid, 'SIGKILL');
+});
+
+test('stage: stopped - a stopped clone is run again by vm up, which stages and leaves the lease ready', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  L.setVmStatus('app-qa-slot-1', 'stopped');
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lumeCalls('run').length, 2);
+  assert.equal(L.lumeCalls('clone').length, 1);
+  assert.equal(L.lease(1).state, 'ready');
+  assert.deepEqual(L.lease(1).targets, ['ios']);
+});
+
+test('stage: unestablished - a forward process alive with no listener behind it exits 2 naming the forward, stages no target and leaves routed commands refused', async () => {
+  const L = laneLayout();
+  L.gset({ ncFails: true });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /forward/);
+  assert.equal(L.lease(1).state, 'ready');
+  assert.deepEqual(L.lease(1).targets, []);
+  const fwd = L.calls('ssh').filter((c) => c.forward);
+  assert.equal(fwd.length, 1);
+  await waitUntil(() => !isAlive(fwd[0].pid));
+  assert.equal(L.gcalls('xcrun').filter((c) => c.argv[1] === 'create').length, 0, 'no target started');
+  const routed = await runQa(L, ['preflight', 'ios']);
+  assert.equal(routed.status, 2, outputOf(routed));
+  assert.match(outputOf(routed), /vm up ios/);
+});
+
 // ---------- target: guest-side target start (task 3.2) ----------
 
 test('target: ios - two vm up runs leave one simulator, created fresh the second time, with the app installed and WebKit warmed', async () => {

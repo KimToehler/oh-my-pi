@@ -1951,6 +1951,31 @@ async function copyToGuest(ctx, lane, ip, n, targets) {
   return null;
 }
 
+/**
+ * Starts the reverse forward of the backend port into the guest (design D5 step 7) and records it in the lease. It counts
+ * as established only when the guest accepts a connection on 127.0.0.1:PORT within 10 s. Returns an error line or null.
+ */
+async function startForward(lane, ip, n, port, old) {
+  if (old) await killPid(old.pid);
+  const child = spawn(sshBin(), ['-N', '-R', `${port}:127.0.0.1:${port}`, '-o', 'ExitOnForwardFailure=yes', ...sshBase(lane, ip)], { detached: true, stdio: 'ignore' });
+  child.unref();
+  const record = (forward) =>
+    withTable(() => {
+      const slot = readSlot(n);
+      if (slot.lease?.state === 'starting' && slot.lease.holder === process.pid) writeLease(n, { ...slot.lease, forward });
+    });
+  record({ pid: child.pid, port });
+  const end = Date.now() + 10000;
+  while (Date.now() < end) {
+    if (!alive(child.pid)) break;
+    if (run(sshBin(), [...sshBase(lane, ip), `nc -z 127.0.0.1 ${port}`]).status === 0) return null;
+    await pause(500);
+  }
+  await killPid(child.pid);
+  record(null);
+  return `the port forward of ${port} is not established: the guest accepts no connection on 127.0.0.1:${port}`;
+}
+
 /** Runs the guest-side start of one target (design D6); returns an error line or null. */
 async function startGuestTarget(ctx, lane, ip, target, port) {
   const { artifact } = ctx.config.vm[target];
@@ -2056,6 +2081,14 @@ async function vmUp(ctx, args, lane) {
       return 2;
     }
     rmSync(join(slotPath(n), 'stage'), { recursive: true, force: true });
+    if (port !== null) {
+      const forwardError = await startForward(lane, ip, n, port, admission.forward);
+      if (forwardError) {
+        say(`vm up: ${forwardError}`);
+        failStart(n, true);
+        return 2;
+      }
+    }
     for (const target of targets) {
       const started = await startGuestTarget(ctx, lane, ip, target, port);
       if (started) {
