@@ -60,15 +60,11 @@ A routed command SHALL run the guest driver in the guest copy's directory matchi
 - **THEN** the text being split or evaluated by a guest shell, the guest driver running for the outside flow or the foreign credentials, a routed preflight checking any port but the forwarded one, or an exit 0 MUST fail this requirement
 
 ### Requirement: Leases take one of a fixed number of host-wide slots, one lease per worktree
-`vm up` SHALL take one host-wide slot atomically, at most the lane file's slot count and never more than two, and record its owner process and state (starting, ready, closing) when it takes it. Lease lookup, slot taking, reclaim, sweep and teardown SHALL be serialised host-wide, so a worktree holds at most one lease. With every slot held, busy or used within the idle limit, `vm up` SHALL exit 2 naming each holder's worktree and last use. `vm up` SHALL reach a running clone over SSH even while `lume ls` reports it stopped without an address, taking the address from the DHCP lease of the clone's MAC address. The guest commands of routed flows SHALL run one at a time host-wide across all leases: a routed flow started while another runs SHALL print one line naming the holder's pid and wait for it, and a killed holder SHALL NOT block the next flow.
+`vm up` SHALL take one host-wide slot atomically, at most the lane file's slot count and never more than two, and record its owner process and state (starting, ready, closing) when it takes it. Lease lookup, slot taking, reclaim, sweep and teardown SHALL be serialised host-wide, so a worktree holds at most one lease. With every slot held, busy or used within the idle limit, `vm up` SHALL exit 2 naming each holder's worktree and last use. `vm up` SHALL reach a running clone over SSH even while `lume ls` reports it stopped without an address, taking the address from the DHCP lease of the clone's MAC address.
 
 #### Scenario: Two worktrees in parallel
-- **WHEN** two worktrees each run `vm up ios` at the same time with two slots configured, then each starts a routed flow at the same moment
-- **THEN** each gets its own slot and VM, neither start deletes the other's clone, a flow never touches the other's simulator, and the second flow prints the wait line naming the first and starts its guest command only after the first one's has ended
-
-#### Scenario: Flow turn of a killed flow
-- **WHEN** the host driver of a routed flow is killed with SIGKILL while its guest command runs, and another lease then starts a routed flow
-- **THEN** that flow takes over the turn and runs; waiting for the dead holder, or a removal by hand being needed, MUST fail this requirement
+- **WHEN** two worktrees each run `vm up ios` at the same time with two slots configured
+- **THEN** each gets its own slot and VM, neither start deletes the other's clone, and a flow run in one does not wait for or touch the other's simulator
 
 #### Scenario: Simultaneous starts for the last slot
 - **WHEN** two worktrees run `vm up` at the same moment and one slot is free
