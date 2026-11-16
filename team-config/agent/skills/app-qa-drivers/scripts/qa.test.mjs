@@ -591,6 +591,7 @@ const PRELOAD_SLOT = join(HERE, 'qa-test-preload-slotblock.mjs');
 const PRELOAD_WRITES = join(HERE, 'qa-test-preload-writes.mjs');
 const PRELOAD_LOCKPAUSE = join(HERE, 'qa-test-preload-lockpause.mjs');
 const PRELOAD_DHCP = join(HERE, 'qa-test-preload-dhcp.mjs');
+const PRELOAD_ORPHAN = join(HERE, 'qa-test-preload-orphanblock.mjs');
 const layouts = [];
 const procs = [];
 
@@ -1929,26 +1930,39 @@ function routedLease(L, { target = 'ios', lines = [{ s: 'out', t: 'PASS guest ch
 const hostTools = (L) => L.calls('xcrun').length + L.calls('spectre').length + L.calls('maestro').length;
 const busyLeft = (L) => (existsSync(join(L.slotDir(1), 'busy')) ? readdirSync(join(L.slotDir(1), 'busy')) : []);
 
-test('lease: orphaned-run - vm up after a routed command whose host driver was killed mid-run deletes and recreates the clone instead of resetting it in place', async () => {
-  const L = laneLayout();
-  routedLease(L, { pause: true });
-  const run = startQa(L, ['preflight', 'ios']);
-  await waitFor(join(L.guest.home, 'started'));
-  run.child.kill('SIGKILL');
-  await run.done;
-  writeFileSync(join(L.guest.home, 'release'), '');
-  const before = L.calls('lume').length;
-  const up = await L.up(['ios']);
-  assert.equal(up.status, 0, outputOf(up));
-  assert.match(outputOf(up), new RegExp(`pid ${run.child.pid}\\b.*deleted app-qa-slot-1 to recreate it`));
-  const verbs = L.calls('lume').slice(before).map((c) => c.argv.join(' '));
-  const deleted = verbs.findIndex((v) => v.startsWith('delete ') && v.split(' ').includes('app-qa-slot-1'));
-  assert.ok(deleted >= 0, verbs.join('\n'));
-  assert.ok(verbs.slice(deleted).some((v) => v.startsWith('clone ') && v.split(' ').includes('app-qa-slot-1')), verbs.join('\n'));
-  assert.equal(L.lease(1).state, 'ready');
-  assert.equal(L.lease(1).orphaned, undefined);
-  assert.deepEqual(busyLeft(L), []);
-});
+for (const sweep of ['none', 'a vm status killed while recording the orphan']) {
+  test(`lease: orphaned-run - vm up after a routed command whose host driver was killed mid-run deletes and recreates the clone instead of resetting it in place (earlier sweep: ${sweep})`, async () => {
+    const L = laneLayout();
+    routedLease(L, { pause: true });
+    const run = startQa(L, ['preflight', 'ios']);
+    await waitFor(join(L.guest.home, 'started'));
+    run.child.kill('SIGKILL');
+    await run.done;
+    writeFileSync(join(L.guest.home, 'release'), '');
+    if (sweep !== 'none') {
+      const marker = join(L.root, 'orphan-blocked');
+      const status = startQa(L, ['vm', 'status'], {
+        env: { QA_TEST_BLOCK_MARKER: marker, QA_TEST_BLOCK_RELEASE: join(L.root, 'never') },
+        argv0: (script, args) => [NODE, ['--import', PRELOAD_ORPHAN, script, ...args]],
+      });
+      await waitFor(marker);
+      status.child.kill('SIGKILL');
+      await status.done;
+      assert.deepEqual(busyLeft(L), [String(run.child.pid)], 'the dead marker outlives a sweeper killed before the orphan is recorded');
+    }
+    const before = L.calls('lume').length;
+    const up = await L.up(['ios']);
+    assert.equal(up.status, 0, outputOf(up));
+    assert.match(outputOf(up), new RegExp(`pid ${run.child.pid}\\b.*deleted app-qa-slot-1 to recreate it`));
+    const verbs = L.calls('lume').slice(before).map((c) => c.argv.join(' '));
+    const deleted = verbs.findIndex((v) => v.startsWith('delete ') && v.split(' ').includes('app-qa-slot-1'));
+    assert.ok(deleted >= 0, verbs.join('\n'));
+    assert.ok(verbs.slice(deleted).some((v) => v.startsWith('clone ') && v.split(' ').includes('app-qa-slot-1')), verbs.join('\n'));
+    assert.equal(L.lease(1).state, 'ready');
+    assert.equal(L.lease(1).orphaned, undefined);
+    assert.deepEqual(busyLeft(L), []);
+  });
+}
 
 test('route: lane - a routed preflight runs the guest driver, names the lane and the clone first, and leaves the host tools and flow lock untouched', async () => {
   const L = laneLayout();

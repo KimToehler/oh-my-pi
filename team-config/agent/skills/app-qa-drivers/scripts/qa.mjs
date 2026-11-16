@@ -1697,20 +1697,17 @@ const busyPids = (n) => {
  * The live pids of the slot's routed commands; markers of dead pids are removed. A dead marker means the routed command's
  * host process ended without its `finally` (SIGKILL, or SIGTERM, which the routed path does not handle) while its ssh child
  * and guest command may still run, so its `ready` lease is marked `orphaned` with the pid and is never refreshed in place
- * (design D4). Under the table lock only.
+ * (design D4). The mark is written before the markers are removed, so a sweeper killed in between leaves a marker the next
+ * sweep finds again. Under the table lock only.
  */
 function liveBusy(n) {
   const live = [];
   const dead = [];
-  for (const pid of busyPids(n)) {
-    if (alive(pid)) live.push(pid);
-    else {
-      rmSync(join(busyDir(n), String(pid)), { force: true });
-      dead.push(pid);
-    }
-  }
-  const lease = dead.length ? readSlot(n).lease : null;
-  if (lease?.state === 'ready') writeLease(n, { ...lease, orphaned: [...(lease.orphaned ?? []), ...dead] });
+  for (const pid of busyPids(n)) (alive(pid) ? live : dead).push(pid);
+  if (!dead.length) return live;
+  const lease = readSlot(n).lease;
+  if (lease?.state === 'ready') writeLease(n, { ...lease, orphaned: [...new Set([...(lease.orphaned ?? []), ...dead])] });
+  for (const pid of dead) rmSync(join(busyDir(n), String(pid)), { force: true });
   return live;
 }
 
