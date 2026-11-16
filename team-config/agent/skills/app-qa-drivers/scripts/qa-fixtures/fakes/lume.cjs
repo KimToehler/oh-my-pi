@@ -3,6 +3,8 @@
 // state.lsLogLine: `ls` prints a timestamped INFO line before the JSON.
 // state.lsStoppedNoIp: `ls` reports every clone stopped without an address, with the log line (lume's 2 s lsof probe timing out).
 // state.deleteFails: `delete` exits 1 and keeps the clone.
+// state.runPs: `run` adds its own process line to the `ps` list of FAKE_STATE, as a detached `lume run` process would.
+// Every clone gets a MAC address (lume's form, leading zeros kept), reported by `ls` with every status.
 // state.hold.{stop,delete,clone,run,ls,lsAfterDelete}: the call writes FAKE_HOLD_DIR/<name>.held and waits for <name>.release.
 const fs = require('fs');
 const path = require('path');
@@ -60,13 +62,14 @@ if (argv[0] === '--version') {
   }
   // state.lsLogLine: lume 0.7.2 writes a timestamped log line to stdout before the JSON on some reads (exit 0, stderr empty).
   if (st.lsLogLine || st.lsStoppedNoIp) out('[2026-11-15T11:35:40Z] INFO: Could not verify VNC-disabled session marker; preserving it name=app-qa-slot-1');
-  out(JSON.stringify(load().vms.map((v) => ({ name: v.name, status: st.lsStoppedNoIp ? 'stopped' : v.status, ipAddress: st.lsStoppedNoIp ? null : v.ipAddress, os: 'macOS' })), null, 2));
+  out(JSON.stringify(load().vms.map((v) => ({ name: v.name, status: st.lsStoppedNoIp ? 'stopped' : v.status, ipAddress: st.lsStoppedNoIp ? null : v.ipAddress, macAddress: v.macAddress ?? null, os: 'macOS' })), null, 2));
 } else if (cmd === 'clone') {
   log({});
   hold('clone', argv[2]);
   const failed = mutate((st) => {
     if (!st.vms.some((v) => v.name === argv[1]) || st.vms.some((v) => v.name === argv[2])) return true;
-    st.vms.push({ name: argv[2], status: 'stopped', ipAddress: null });
+    st.clones = (st.clones ?? 0) + 1;
+    st.vms.push({ name: argv[2], status: 'stopped', ipAddress: null, macAddress: `0e:00:00:00:00:${String(st.clones).padStart(2, '0')}` });
     return false;
   });
   if (failed) process.exit(1);
@@ -81,6 +84,11 @@ if (argv[0] === '--version') {
     return false;
   });
   if (failed) process.exit(1);
+  if (load().runPs) {
+    const host = JSON.parse(fs.readFileSync(process.env.FAKE_STATE, 'utf8'));
+    host.ps = [...(host.ps ?? []), `${process.pid} /usr/local/bin/lume run --detach --display none --vnc disabled ${name}`];
+    fs.writeFileSync(process.env.FAKE_STATE, JSON.stringify(host));
+  }
 } else if (cmd === 'stop') {
   log({});
   hold('stop', name);

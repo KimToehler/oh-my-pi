@@ -590,6 +590,7 @@ const FAKE_BUILD = join(FIXTURES, 'fake-build.mjs');
 const PRELOAD_SLOT = join(HERE, 'qa-test-preload-slotblock.mjs');
 const PRELOAD_WRITES = join(HERE, 'qa-test-preload-writes.mjs');
 const PRELOAD_LOCKPAUSE = join(HERE, 'qa-test-preload-lockpause.mjs');
+const PRELOAD_DHCP = join(HERE, 'qa-test-preload-dhcp.mjs');
 const layouts = [];
 const procs = [];
 
@@ -1031,6 +1032,20 @@ test('lease: lsof-probe - lume ls reporting a running clone stopped keeps it rea
   const dead = await runQa(L, ['preflight', 'ios']);
   assert.equal(dead.status, 2);
   assert.match(outputOf(dead), /app-qa-slot-1 is not running/);
+});
+
+test('lease: dhcp - a fresh clone lume ls reports stopped without an address from its first boot is reached at the address of its DHCP lease', async () => {
+  const L = laneLayout();
+  L.setLume({ lsStoppedNoIp: true, runPs: true });
+  L.set({ ps: [] });
+  // bootpd's form: octets without leading zeros; another MAC's lease comes first. The first clone's MAC is 0e:00:00:00:00:01.
+  const leases = join(L.root, 'dhcpd_leases');
+  const entry = (ip, mac) => `{\n\tname=AppleViMachine1\n\tip_address=${ip}\n\thw_address=1,${mac}\n\tidentifier=1,${mac}\n\tlease=0x6939a1b2\n}\n`;
+  writeFileSync(leases, entry('192.168.64.40', 'e:0:0:0:0:9') + entry('192.168.64.41', 'e:0:0:0:0:1'));
+  const r = await L.up(['ios'], { env: { QA_TEST_DHCP_LEASES: leases }, argv0: (script, args) => [NODE, ['--import', PRELOAD_DHCP, script, ...args]] });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lease(1).ip, '192.168.64.41');
+  assert.equal(L.calls('lume').filter((c) => c.argv[0] === 'run').length, 1);
 });
 
 test('lease: parallel - two worktrees started together get their own slot and neither clone is deleted', async () => {
@@ -1913,6 +1928,27 @@ function routedLease(L, { target = 'ios', lines = [{ s: 'out', t: 'PASS guest ch
 }
 const hostTools = (L) => L.calls('xcrun').length + L.calls('spectre').length + L.calls('maestro').length;
 const busyLeft = (L) => (existsSync(join(L.slotDir(1), 'busy')) ? readdirSync(join(L.slotDir(1), 'busy')) : []);
+
+test('lease: orphaned-run - vm up after a routed command whose host driver was killed mid-run deletes and recreates the clone instead of resetting it in place', async () => {
+  const L = laneLayout();
+  routedLease(L, { pause: true });
+  const run = startQa(L, ['preflight', 'ios']);
+  await waitFor(join(L.guest.home, 'started'));
+  run.child.kill('SIGKILL');
+  await run.done;
+  writeFileSync(join(L.guest.home, 'release'), '');
+  const before = L.calls('lume').length;
+  const up = await L.up(['ios']);
+  assert.equal(up.status, 0, outputOf(up));
+  assert.match(outputOf(up), new RegExp(`pid ${run.child.pid}\\b.*deleted app-qa-slot-1 to recreate it`));
+  const verbs = L.calls('lume').slice(before).map((c) => c.argv.join(' '));
+  const deleted = verbs.findIndex((v) => v.startsWith('delete ') && v.split(' ').includes('app-qa-slot-1'));
+  assert.ok(deleted >= 0, verbs.join('\n'));
+  assert.ok(verbs.slice(deleted).some((v) => v.startsWith('clone ') && v.split(' ').includes('app-qa-slot-1')), verbs.join('\n'));
+  assert.equal(L.lease(1).state, 'ready');
+  assert.equal(L.lease(1).orphaned, undefined);
+  assert.deepEqual(busyLeft(L), []);
+});
 
 test('route: lane - a routed preflight runs the guest driver, names the lane and the clone first, and leaves the host tools and flow lock untouched', async () => {
   const L = laneLayout();

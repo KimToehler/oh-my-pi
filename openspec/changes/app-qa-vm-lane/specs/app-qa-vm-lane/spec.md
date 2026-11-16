@@ -60,7 +60,7 @@ A routed command SHALL run the guest driver in the guest copy's directory matchi
 - **THEN** the text being split or evaluated by a guest shell, the guest driver running for the outside flow or the foreign credentials, a routed preflight checking any port but the forwarded one, or an exit 0 MUST fail this requirement
 
 ### Requirement: Leases take one of a fixed number of host-wide slots, one lease per worktree
-`vm up` SHALL take one host-wide slot atomically, at most the lane file's slot count and never more than two, and record its owner process and state (starting, ready, closing) when it takes it. Lease lookup, slot taking, reclaim, sweep and teardown SHALL be serialised host-wide, so a worktree holds at most one lease. With every slot held, busy or used within the idle limit, `vm up` SHALL exit 2 naming each holder's worktree and last use.
+`vm up` SHALL take one host-wide slot atomically, at most the lane file's slot count and never more than two, and record its owner process and state (starting, ready, closing) when it takes it. Lease lookup, slot taking, reclaim, sweep and teardown SHALL be serialised host-wide, so a worktree holds at most one lease. With every slot held, busy or used within the idle limit, `vm up` SHALL exit 2 naming each holder's worktree and last use. `vm up` SHALL reach a running clone over SSH even while `lume ls` reports it stopped without an address, taking the address from the DHCP lease of the clone's MAC address.
 
 #### Scenario: Two worktrees in parallel
 - **WHEN** two worktrees each run `vm up ios` at the same time with two slots configured
@@ -69,6 +69,10 @@ A routed command SHALL run the guest driver in the guest copy's directory matchi
 #### Scenario: Simultaneous starts for the last slot
 - **WHEN** two worktrees run `vm up` at the same moment and one slot is free
 - **THEN** exactly one of them takes it and the other exits 2 naming the holder
+
+#### Scenario: Fresh clone the listing reports stopped
+- **WHEN** a fresh clone's `lume run` process is alive and `lume ls` reports the clone stopped with no address from its first boot on
+- **THEN** `vm up` reaches the clone at the address of its DHCP lease and exits 0; waiting out the SSH limit and exiting 2 MUST fail this requirement
 
 #### Scenario: Negative control
 - **WHEN** both slots are held by leases used within the idle limit and a third worktree runs `vm up`, or one worktree runs `vm up` twice at the same moment
@@ -90,15 +94,19 @@ When no slot is free, `vm up` SHALL reclaim the ready lease idle longest beyond 
 - **THEN** deleting that clone, freeing that slot, reclaiming that lease, or an exit 0 of that `vm up` or `vm down` MUST fail this requirement
 
 ### Requirement: A routed command starts only in a ready lease, and a lease leaves ready only when none runs
-Admitting a routed command SHALL check that the lease is ready and has staged the target, and register the command as running, in one serialised step. Marking a lease for teardown or refresh SHALL happen in such a step too, and only while no routed command runs in it. A lease record that is missing, partial or unreadable SHALL count as not ready.
+Admitting a routed command SHALL check that the lease is ready and has staged the target, and register the command as running, in one serialised step. Marking a lease for teardown or refresh SHALL happen in such a step too, and only while no routed command runs in it. A lease record that is missing, partial or unreadable SHALL count as not ready. A routed command whose host process ended without removing its registration SHALL leave the lease marked orphaned with that pid; `vm up` of an orphaned lease SHALL delete and recreate its clone, printing the pid, and never refresh that clone in place.
 
 #### Scenario: Teardown under way
 - **WHEN** a lease has been marked for teardown and its clone still runs, and a routed command of that worktree starts
 - **THEN** it exits 2 naming `vm up` and runs no guest command
 
+#### Scenario: Host driver killed during a routed flow
+- **WHEN** a routed flow's host driver is killed while its guest flow runs, and the worktree then runs `vm up ios`
+- **THEN** `vm up` deletes the clone, naming the killed pid, and stages a new clone from the golden image
+
 #### Scenario: Negative control
-- **WHEN** a routed command starts while its lease is starting, closing or partially written
-- **THEN** the command running a guest command, or the clone being deleted while a routed command runs in it, MUST fail this requirement
+- **WHEN** a routed command starts while its lease is starting, closing or partially written, or a routed command's host driver was killed while its guest command ran
+- **THEN** the command running a guest command, the clone being deleted while a routed command whose host driver is alive runs in it, or a later `vm up` resetting the guest driver state or output of that clone in place MUST fail this requirement
 
 ### Requirement: Interrupted starts and teardowns are recovered by the next sweep
 A slot whose holder died while it was starting or closing, or whose record is partial, SHALL be torn down by the next `vm up`, `vm down` or `vm status`: every `lume` clone, stop or delete process the dead holder left naming its clone is ended first, then its clone is deleted and its slot freed only once the clone is gone, both printed by name.

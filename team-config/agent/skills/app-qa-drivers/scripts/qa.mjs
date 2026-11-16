@@ -1693,13 +1693,24 @@ const busyPids = (n) => {
   }
 };
 
-/** The live pids of the slot's routed commands; markers of dead pids are removed. Under the table lock only. */
+/**
+ * The live pids of the slot's routed commands; markers of dead pids are removed. A dead marker means the routed command's
+ * host process ended without its `finally` (SIGKILL, or SIGTERM, which the routed path does not handle) while its ssh child
+ * and guest command may still run, so its `ready` lease is marked `orphaned` with the pid and is never refreshed in place
+ * (design D4). Under the table lock only.
+ */
 function liveBusy(n) {
   const live = [];
+  const dead = [];
   for (const pid of busyPids(n)) {
     if (alive(pid)) live.push(pid);
-    else rmSync(join(busyDir(n), String(pid)), { force: true });
+    else {
+      rmSync(join(busyDir(n), String(pid)), { force: true });
+      dead.push(pid);
+    }
   }
+  const lease = dead.length ? readSlot(n).lease : null;
+  if (lease?.state === 'ready') writeLease(n, { ...lease, orphaned: [...(lease.orphaned ?? []), ...dead] });
   return live;
 }
 
@@ -1821,6 +1832,11 @@ function admitUp(worktree, lane) {
       if (lease.state === 'ready') {
         const busy = liveBusy(n);
         if (busy.length) return { refuse: `vm up: a routed command of this worktree's lease runs (pid ${busy.join(', ')}); wait for it to finish` };
+        const orphaned = readSlot(n).lease?.orphaned ?? [];
+        if (orphaned.length) {
+          writeLease(n, { ...lease, orphaned, state: 'closing', holder: process.pid });
+          return { mode: 'recreate', n, old: { ...lease, orphaned } };
+        }
         writeLease(n, { ...lease, state: 'starting', holder: process.pid, targets: [], inputs: {}, lastUsed: Date.now() });
         return { mode: 'refresh', n, forward: lease.forward, ip: lease.ip ?? null };
       }
@@ -1904,15 +1920,43 @@ function cloneRunning(clone, listed) {
   return vm !== undefined && (vm.status === 'running' || cloneRunAlive(clone));
 }
 
+/** The lease file of macOS's NAT DHCP server (bootpd), which hands Virtualization.framework guests their 192.168.64.x addresses. */
+const DHCP_LEASES = '/var/db/dhcpd_leases';
+
+/** A MAC address as six numbers; bootpd writes octets without leading zeros (`1,6:5:...`), lume with them. */
+const macOctets = (mac) => {
+  const parts = String(mac ?? '').replace(/^\d+,/, '').split(':');
+  return parts.length === 6 && parts.every((p) => /^[0-9a-f]{1,2}$/i.test(p)) ? parts.map((p) => parseInt(p, 16)).join(':') : null;
+};
+
+/** The `ip_address` of the DHCP lease for `mac` in bootpd's lease file, or null. */
+function dhcpAddress(mac) {
+  const want = macOctets(mac);
+  if (!want) return null;
+  let text;
+  try {
+    text = readFileSync(DHCP_LEASES, 'utf8');
+  } catch {
+    return null;
+  }
+  for (const block of text.split('}')) {
+    const field = (key) => new RegExp(`^\\s*${key}=(\\S+)\\s*$`, 'm').exec(block)?.[1];
+    const ip = field('ip_address');
+    if (ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip) && macOctets(field('hw_address')) === want) return ip;
+  }
+  return null;
+}
+
 /**
  * The address of a running clone: the one `lume ls` reports, else `known` (the address the lease recorded when `vm up` first
- * reached the guest); null when the clone is not running.
+ * reached the guest), else the DHCP lease of the clone's MAC address, which is all a fresh clone the listing reports stopped
+ * has (design D5); null when the clone is not running.
  */
 function cloneIp(clone, known = null) {
   const listed = lumeList();
   if (!cloneRunning(clone, listed)) return null;
   const vm = listed.find((v) => v.name === clone);
-  return (vm.status === 'running' && vm.ipAddress) || known;
+  return (vm.status === 'running' && vm.ipAddress) || known || dhcpAddress(vm.macAddress);
 }
 
 /** Waits until the clone has an address and accepts an ssh connection; returns the address or null after `seconds`. */
@@ -2142,16 +2186,17 @@ async function vmUp(ctx, args, lane) {
   let cloneExists = admission.mode === 'refresh';
   const clone = cloneName(n);
   try {
-    if (admission.mode === 'orphan' || admission.mode === 'reclaim') {
+    if (admission.mode === 'orphan' || admission.mode === 'reclaim' || admission.mode === 'recreate') {
       const old = admission.old;
       if (old?.forward) await killPid(old.forward.pid);
-      const r = await destroyClone(admission.mode === 'reclaim' ? old.clone : clone);
+      const r = await destroyClone(admission.mode === 'orphan' ? clone : old.clone);
       if (!r.ok) {
         say(`vm up: slot-${n}: ${r.why}`);
         return 2;
       }
       withTable(() => writeLease(n, newLease(n, ctx.worktree, 'starting')));
       if (admission.mode === 'reclaim') say(`lane: reclaimed slot ${n}: ${old.worktree} (idle since ${new Date(old.lastUsed).toISOString()}); deleted ${old.clone}`);
+      else if (admission.mode === 'recreate') say(`lane: a routed command of this lease ended on the host without finishing (pid ${old.orphaned.join(', ')}) and may still run in ${old.clone}; deleted ${old.clone} to recreate it`);
       else say(`lane: deleted the orphan clone ${clone} before taking slot ${n}`);
     }
     const built = await runBuilds(ctx, targets, port);
