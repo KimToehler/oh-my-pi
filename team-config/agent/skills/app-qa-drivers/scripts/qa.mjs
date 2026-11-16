@@ -1571,7 +1571,7 @@ function removeEmptyLock(dir) {
  * the directory only while empty. A live successor's lock holds another token, so a contender acting on an outdated read
  * deletes nothing of it.
  */
-function takeOverLock(dir, { names, pid }) {
+function takeOverLock(dir, { names, pid }, label) {
   let took = false;
   for (const name of names) {
     try {
@@ -1582,23 +1582,27 @@ function takeOverLock(dir, { names, pid }) {
     }
   }
   removeEmptyLock(dir);
-  if (took) say(`lane: took over the table lock of ${pid === null ? 'a holder without a token' : `dead pid ${pid}`}`);
+  if (took) say(`lane: took over the ${label} of ${pid === null ? 'a holder without a token' : `dead pid ${pid}`}`);
 }
 
+/** A token lock a live holder kept past the caller's wait. */
+class LockHeldError extends Error {}
+
 /**
- * The host-wide table lock (design D4): a directory prepared with this holder's token beside the lock and renamed into
- * place, which succeeds only while no lock is held (absent or empty), so a lock never exists without its holder.
- * Returns its release.
+ * A host-wide token lock (design D4): a directory prepared with this holder's token beside the lock and renamed into
+ * place, which succeeds only while no lock is held (absent or empty), so a lock never exists without its holder. A dead
+ * holder's lock is taken over. `onWait(pid)` runs once when a live holder makes this caller wait; after `waitMs` the
+ * call throws naming the holder. Returns its release.
  */
-function lockTable() {
-  ensureDir(vmDir());
-  const dir = tableLockDir();
+function takeTokenLock(dir, { label, waitMs, pollMs, onWait = () => {} }) {
+  ensureDir(dirname(dir));
   const token = `${process.pid}-${randomBytes(6).toString('hex')}`;
   const prepared = `${dir}.new-${process.pid}`;
   rmSync(prepared, { recursive: true, force: true });
   mkdirSync(prepared, { mode: 0o700 });
   writeFileSync(join(prepared, token), '');
-  const deadline = Date.now() + 60000;
+  const deadline = Date.now() + waitMs;
+  let waited = false;
   try {
     for (;;) {
       try {
@@ -1618,15 +1622,43 @@ function lockTable() {
       const held = readTableLock(dir);
       if (held === null || held.names.length === 0) continue;
       if (held.pid === null || !alive(held.pid)) {
-        takeOverLock(dir, held);
+        takeOverLock(dir, held, label);
         continue;
       }
-      if (Date.now() > deadline) throw new Error(`the table lock ${dir} stays held by pid ${held.pid}`);
-      sleepSync(10);
+      if (Date.now() > deadline) throw new LockHeldError(`the ${label} ${dir} stays held by pid ${held.pid}`);
+      if (!waited) onWait(held.pid);
+      waited = true;
+      sleepSync(pollMs);
     }
   } catch (e) {
     rmSync(prepared, { recursive: true, force: true });
     throw e;
+  }
+}
+
+/** The host-wide table lock (design D4) over the slot records. */
+const lockTable = () => takeTokenLock(tableLockDir(), { label: 'table lock', waitMs: 60000, pollMs: 10 });
+
+const flowTurnDir = () => join(vmDir(), 'flow-turn.lock');
+const FLOW_TURN_WAIT_MS = 20 * 60000;
+
+/**
+ * The host-wide flow turn (task 7.10): routed flows of all leases run one at a time, since parallel guests contend for
+ * the host's CPUs and a flow's own waits (the sign-in page, for example) can then run out. A waiting flow prints one line
+ * naming the holder; a killed holder's turn is taken over. Returns its release, or null after FLOW_TURN_WAIT_MS.
+ */
+function takeFlowTurn(target) {
+  try {
+    return takeTokenLock(flowTurnDir(), {
+      label: 'flow turn',
+      waitMs: FLOW_TURN_WAIT_MS,
+      pollMs: 250,
+      onWait: (pid) => say(`lane: flow ${target} waits for the routed flow of pid ${pid} (one routed flow at a time on this host)`),
+    });
+  } catch (e) {
+    if (!(e instanceof LockHeldError)) throw e;
+    say(`lane: ${e.message} after ${FLOW_TURN_WAIT_MS / 60000} min; rerun once it has finished`);
+    return null;
   }
 }
 
@@ -2613,8 +2645,15 @@ async function cmdRouted(ctx, args, command, lane) {
       }
       if (asked === undefined) tokens = [...tokens, { lit: '--port' }, { lit: String(lease.forward.port) }];
     }
+    const endTurn = command === 'flow' ? takeFlowTurn(target) : () => {};
+    if (!endTurn) return 2;
     say(`lane: ${command} ${target} runs in ${lease.clone} (slot ${n})`);
-    const result = await runHeld(lane, ip, remoteScript(ctx, lease, command, tokens));
+    let result;
+    try {
+      result = await runHeld(lane, ip, remoteScript(ctx, lease, command, tokens));
+    } finally {
+      endTurn();
+    }
     if (result.head.length < 3) {
       say(`lane: ${lease.clone} cannot be reached over ssh; ${restart}`);
       return 2;

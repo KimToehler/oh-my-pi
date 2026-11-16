@@ -2489,7 +2489,7 @@ test('route: root - a failing flow\'s kept root returns to a new 0700 host folde
   assert.ok(r.lines.some((l) => /^lane: .*app-qa-slot-1.*vm up ios/.test(l)));
 });
 
-test('route: flowlock - two routed flows started together in one lease take the guest\'s one flow lock: one Maestro run, the other exits 2 naming the holder', async () => {
+test('route: flowlock - two routed flows started together in one lease run one after the other: the second waits for the first by name, and the guest\'s one flow lock refuses neither', async () => {
   const L = laneLayout();
   L.stage({ fakeDriver: false });
   mkdirSync(L.guestDriver, { recursive: true });
@@ -2501,9 +2501,37 @@ test('route: flowlock - two routed flows started together in one lease take the 
     writeFileSync(join(base, 'flows', 'x.yaml'), 'appId: org.example.app\n---\n- assertVisible:\n    id: home\n');
   }
   const results = await Promise.all([0, 1].map(() => runQa(L, ['flow', 'ios', 'flows/x.yaml'])));
-  assert.deepEqual(results.map((r) => r.status).sort(), [0, 2], results.map(outputOf).join('\n----\n'));
-  assert.match(outputOf(results.find((r) => r.status === 2)), /another flow run holds the lock/);
-  assert.equal(L.gcalls('maestro').filter((c) => c.argv?.[0] === 'test').length, 1);
+  assert.deepEqual(results.map((r) => r.status), [0, 0], results.map(outputOf).join('\n----\n'));
+  const waited = results.filter((r) => /waits for the routed flow of pid/.test(outputOf(r)));
+  assert.equal(waited.length, 1, results.map(outputOf).join('\n----\n'));
+  const other = results.find((r) => r !== waited[0]);
+  assert.match(outputOf(waited[0]), new RegExp(`waits for the routed flow of pid ${other.pid}\\b`));
+  assert.equal(L.gcalls('maestro').filter((c) => c.argv?.[0] === 'test').length, 2);
+});
+
+test('route: turn - a routed flow waits while another routed flow holds the host\'s flow turn, runs once that holder is gone, and releases the turn; a routed preflight does not wait', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' });
+  const holder = spawn('sleep', ['60'], { stdio: 'ignore' });
+  const turn = join(L.vmDir, 'flow-turn.lock');
+  try {
+    mkdirSync(turn, { recursive: true });
+    writeFileSync(join(turn, `${holder.pid}-0123456789ab`), '');
+    const pre = await runQa(L, ['preflight', 'ios']);
+    assert.equal(pre.status, 0, outputOf(pre));
+    const before = L.gcalls('guest-driver').length;
+    const run = startQa(L, ['flow', 'ios', 'flows/x.yaml']);
+    await sleep(1500);
+    assert.equal(L.gcalls('guest-driver').length, before, 'the flow ran while another routed flow held the turn');
+    holder.kill('SIGKILL');
+    const r = await run.done;
+    assert.equal(r.status, 0, outputOf(r));
+    assert.match(outputOf(r), new RegExp(`waits for the routed flow of pid ${holder.pid}\\b`));
+    assert.equal(L.gcalls('guest-driver').length, before + 1);
+    assert.ok(!existsSync(turn), 'the flow turn is still held after the flow ended');
+  } finally {
+    holder.kill('SIGKILL');
+  }
 });
 
 // ---------- target: guest-side target start (task 3.2) ----------
