@@ -201,6 +201,10 @@ When the lease's clone stops, its port forward dies or the SSH connection drops 
 - **WHEN** the lease's port forward is killed while a routed sign-in flow runs
 - **THEN** the command exits 2 with the infrastructure line, and the flow's sanitized files still return to the host
 
+#### Scenario: Clone vanishes without closing the connection
+- **WHEN** the lease's clone stops or is deleted during a routed command and its SSH connection receives no close
+- **THEN** within about 60 s the command exits 2 with the infrastructure line and releases its busy marker; a command still waiting on that connection afterwards MUST fail this requirement
+
 #### Scenario: Negative control
 - **WHEN** the forward dies or the clone stops during a routed command that the guest driver reports as passed
 - **THEN** an exit 0, or any printed line starting with `PASS`, MUST fail this requirement

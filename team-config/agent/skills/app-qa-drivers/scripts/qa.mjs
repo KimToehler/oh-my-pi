@@ -1884,6 +1884,12 @@ function failStart(n, cloneExists) {
   });
 }
 
+/**
+ * The options of every ssh the lane runs. `ConnectTimeout` bounds the connect; the keepalive bounds an established
+ * connection whose guest vanished without closing it (a deleted or frozen clone sends nothing): ssh exits 255 after
+ * 4 unanswered probes 15 s apart, so a routed command reaches its loss checks, a forward dies with its clone, and an
+ * ssh orphaned by a killed driver ends too.
+ */
 const sshBase = (lane, ip) => [
   '-i', lane.sshKey,
   '-o', 'BatchMode=yes',
@@ -1891,6 +1897,8 @@ const sshBase = (lane, ip) => [
   '-o', 'UserKnownHostsFile=/dev/null',
   '-o', 'LogLevel=ERROR',
   '-o', 'ConnectTimeout=10',
+  '-o', 'ServerAliveInterval=15',
+  '-o', 'ServerAliveCountMax=4',
   `${lane.user}@${ip}`,
 ];
 

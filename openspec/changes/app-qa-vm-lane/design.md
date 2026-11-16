@@ -206,7 +206,7 @@ Translation table, closed:
 | Dependency | Lifetime | Holder | Check before | Check after | On loss |
 |---|---|---|---|---|---|
 | clone | lease | lume, slot record | running in `lume ls` (D2) | still running | exit 2, infrastructure line |
-| SSH connection of the routed command | one command | host driver | connects | exit status not 255 | exit 2, infrastructure line |
+| SSH connection of the routed command | one command | host driver | connects (`ConnectTimeout=10`) | exit status not 255; every ssh of the lane sets `ServerAliveInterval=15` and `ServerAliveCountMax=4`, so a connection whose clone vanished without closing it exits 255 after about 60 s instead of never (task 7.9) | exit 2, infrastructure line |
 | port forward | lease, restarted by `vm up` | recorded pid | pid alive and the guest probe of step 7 (D2) | the same pid alive and the guest probe | exit 2, infrastructure line |
 | guest console session | clone | autologin of the image (D9) | guest preflight's screen checks, as on the host | none | as on the host today |
 | host backend | outside the lane | the repository's own run command | guest preflight's health check, as on the host | none | an app outcome, as on the host today |

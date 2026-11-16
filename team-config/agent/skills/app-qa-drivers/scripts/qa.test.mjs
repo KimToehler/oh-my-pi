@@ -2125,6 +2125,30 @@ test('route: lost - a dependency lost during the guest run gives exit 2, the inf
   assert.equal(r.lines.filter((l) => l.startsWith('PASS')).length, 0);
 });
 
+test('route: peer-gone - a clone that vanishes without closing the routed command\'s connection ends the command within the keepalive bound: exit 2, the infrastructure line, the busy marker released', async () => {
+  const L = laneLayout();
+  routedLease(L, { pause: true });
+  L.setSsh({ watchPeer: true, aliveSecondMs: 20 });
+  const run = startQa(L, ['preflight', 'ios']);
+  await waitFor(join(L.guest.home, 'started'));
+  L.setVmStatus('app-qa-slot-1', 'stopped');
+  L.setSsh({ peerGone: true });
+  const r = await Promise.race([run.done, sleep(10000).then(() => null)]);
+  if (r === null) {
+    for (const c of L.calls('ssh').filter((c) => !c.forward)) {
+      try {
+        process.kill(c.pid, 'SIGKILL');
+      } catch {}
+    }
+    run.child.kill('SIGKILL');
+    await run.done;
+  }
+  assert.ok(r, 'the routed command still waited on its ssh 10 s after the guest vanished');
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(r.lines[1], /^lane: infrastructure lost during the run \(clone\)/, outputOf(r));
+  assert.deepEqual(busyLeft(L), []);
+});
+
 test('route: lost - no guest line is printed before the guest command has ended, and the lines then appear in order', async () => {
   const L = laneLayout();
   routedLease(L, { pause: true, lines: [{ s: 'out', t: 'PASS first' }, { s: 'err', t: 'second' }] });
