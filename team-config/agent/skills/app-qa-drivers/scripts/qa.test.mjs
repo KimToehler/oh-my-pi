@@ -478,7 +478,10 @@ function layout({ fixture = 'onara', config: configOrMake, fakes = ['spectre', '
   const driverDir = join(skillDir, 'scripts');
   mkdirSync(driverDir, { recursive: true });
   copyFileSync(QA_SOURCE, join(driverDir, 'qa.mjs'));
-  if (existsSync(join(HERE, 'vm'))) cpSync(join(HERE, 'vm'), join(driverDir, 'vm'), { recursive: true });
+  // The guest scripts beside the driver under test, so a QA_UNDER_TEST copy of the whole folder also swaps vm/; a lone
+  // qa.mjs variant gets this folder's vm/.
+  const vmSource = [join(dirname(QA_SOURCE), 'vm'), join(HERE, 'vm')].find((d) => existsSync(d));
+  if (vmSource) cpSync(vmSource, join(driverDir, 'vm'), { recursive: true });
   const L = {
     root: realpathSync(root),
     repo,
@@ -1873,9 +1876,24 @@ test('route: lane - a routed preflight runs the guest driver, names the lane and
   assert.equal(r.status, 0, outputOf(r));
   assert.match(r.lines[0], /^lane: .*app-qa-slot-1/);
   assert.ok(r.lines.includes('PASS guest check'));
-  assert.deepEqual(L.gcalls('guest-driver').map((c) => c.argv), [['preflight', 'ios']]);
+  assert.deepEqual(L.gcalls('guest-driver').map((c) => c.argv), [['preflight', 'ios', '--port', String(PORT)]]);
   assert.equal(hostTools(L), 0);
   assert.equal(existsSync(lockPath(L)), false);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: port - a routed preflight checks the port the lease forwards, and another --port is refused naming vm up', async () => {
+  const L = laneLayout();
+  routedLease(L, { port: 9876 });
+  const plain = await runQa(L, ['preflight', 'ios']);
+  assert.equal(plain.status, 0, outputOf(plain));
+  const same = await runQa(L, ['preflight', 'ios', '--port', '9876']);
+  assert.equal(same.status, 0, outputOf(same));
+  assert.deepEqual(L.gcalls('guest-driver').map((c) => c.argv), [['preflight', 'ios', '--port', '9876'], ['preflight', 'ios', '--port', '9876']]);
+  const other = await runQa(L, ['preflight', 'ios', '--port', '1234']);
+  assert.equal(other.status, 2, outputOf(other));
+  assert.match(outputOf(other), /forwards the backend port 9876, not 1234; run .* vm up ios --port 1234/);
+  assert.equal(L.gcalls('guest-driver').length, 2);
   assert.deepEqual(busyLeft(L), []);
 });
 
@@ -2463,6 +2481,28 @@ test('target: desktop - two vm up runs leave one app process and the first is ki
   assert.equal(javas.length, 2);
   await waitUntil(() => !isAlive(javas[0].pid));
   assert.ok(isAlive(javas[1].pid));
+});
+
+test('target: desktop-stop - a refresh starts the new app only after the old one has exited, and kills one that ignores SIGTERM', async () => {
+  const L = laneLayout();
+  L.gset({ javaTermMs: 3000 });
+  assert.equal((await L.up(['desktop'])).status, 0);
+  await waitUntil(() => L.gcalls('java').length === 1);
+  const [first] = L.gcalls('java');
+  const slow = await L.up(['desktop']);
+  assert.equal(slow.status, 0, outputOf(slow));
+  assert.equal(isAlive(first.pid), false, 'the slow predecessor is gone when vm up returns');
+  await waitUntil(() => L.gcalls('java').length === 2);
+  const order = L.gcalls().filter((c) => c.tool === 'java' || c.tool === 'java-exit').map((c) => `${c.tool}:${c.pid}`);
+  const second = L.gcalls('java')[1];
+  assert.ok(order.indexOf(`java-exit:${first.pid}`) !== -1 && order.indexOf(`java-exit:${first.pid}`) < order.indexOf(`java:${second.pid}`), order.join(' '));
+  L.gset({ javaTermMs: 'ignore' });
+  L.setSsh({ env: { ...L.guestEnv, QA_TARGET_STOP_MS: '300' } });
+  const stubborn = await L.up(['desktop']);
+  assert.equal(stubborn.status, 0, outputOf(stubborn));
+  assert.equal(isAlive(second.pid), false, 'a predecessor ignoring SIGTERM is killed before vm up returns');
+  await waitUntil(() => L.gcalls('java').length === 3);
+  assert.ok(isAlive(L.gcalls('java')[2].pid));
 });
 
 test('target: desktop - the command line holds the classpath, both options in order, the headless flag, the property and the launchctl prefix', async () => {

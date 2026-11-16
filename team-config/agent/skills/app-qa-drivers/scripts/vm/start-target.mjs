@@ -7,9 +7,10 @@
 // artifact, waits for the guest to settle, and, with a backend and --port, opens its health URL once to warm WebKit and
 // terminates Safari, then launches the app (`simctl launch --terminate-running-process`, bundle id from the artifact's
 // Info.plist).
-// desktop: kills the recorded app pid, reads the distributable's launcher cfg, waits for the guest to settle and starts
-// the app on JDK 21 in the console session. The pid is recorded under ~/.app-qa-lane/ (outside the TMPDIR state a
-// refresh resets).
+// desktop: stops the recorded app and waits until its pid has exited, reads the distributable's launcher cfg, waits for
+// the guest to settle and starts the app on JDK 21 in the console session. The pid is recorded under ~/.app-qa-lane/
+// (outside the TMPDIR state a refresh resets). Stopping sends SIGTERM, then SIGKILL after QA_TARGET_STOP_MS (default
+// 10000); a pid that outlives SIGKILL by 5 s fails the start, and the record stays until the pid is gone.
 // Settling: a fresh clone's boot work (simulator first-boot daemons, Spotlight) keeps the guest's load far above its CPU
 // count for minutes, and a sign-in started then times out on the SSO page. The start waits until the one-minute load
 // average (`sysctl -n hw.ncpu vm.loadavg`) is below the CPU count, polling every QA_TARGET_SETTLE_POLL_MS (default 5000)
@@ -145,16 +146,37 @@ async function warmWebKit(udid, url) {
   simctl('terminate', udid, 'com.apple.mobilesafari');
 }
 
-function stopRecorded(target) {
+/** Polls `pid` every 100 ms until it is gone or `ms` have passed; true when it is gone. */
+async function exited(pid, ms) {
+  const end = Date.now() + ms;
+  while (alive(pid)) {
+    if (Date.now() >= end) return false;
+    await pause(100);
+  }
+  return true;
+}
+
+async function stopRecorded(target) {
+  let pid;
   try {
-    const { pid } = JSON.parse(readFileSync(recordFile(target), 'utf8'));
-    if (pid) process.kill(pid, 'SIGTERM');
+    ({ pid } = JSON.parse(readFileSync(recordFile(target), 'utf8')));
   } catch {}
+  if (pid && alive(pid)) {
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {}
+    if (!(await exited(pid, Number(process.env.QA_TARGET_STOP_MS ?? 10000)))) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+      if (!(await exited(pid, 5000))) fail(`the previous ${target} app (pid ${pid}) is still running after SIGKILL`);
+    }
+  }
   rmSync(recordFile(target), { force: true });
 }
 
 async function startDesktop(flags, config) {
-  stopRecorded('desktop');
+  await stopRecorded('desktop');
   let cfg;
   try {
     cfg = readLauncherCfg(resolve(flags.artifact));

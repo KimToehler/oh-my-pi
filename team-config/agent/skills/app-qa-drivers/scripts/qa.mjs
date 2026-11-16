@@ -2537,8 +2537,19 @@ async function cmdRouted(ctx, args, command, lane) {
       say(`lane: the port forward of ${lease.clone} is not running; ${restart}`);
       return 2;
     }
+    // A routed preflight checks the backend port the lease forwards (D7): the guest copy cannot resolve it, since `vm up
+    // --port` and an ignored port property file never reach the guest. Another --port is refused rather than checked.
+    let tokens = translated.tokens;
+    if (command === 'preflight' && lease.forward) {
+      const asked = args.flags.port;
+      if (asked !== undefined && Number(asked) !== lease.forward.port) {
+        say(`lane: ${lease.clone} forwards the backend port ${lease.forward.port}, not ${asked}; run ${INVOKE} vm up ${target} --port ${asked}`);
+        return 2;
+      }
+      if (asked === undefined) tokens = [...tokens, { lit: '--port' }, { lit: String(lease.forward.port) }];
+    }
     say(`lane: ${command} ${target} runs in ${lease.clone} (slot ${n})`);
-    const result = await runHeld(lane, ip, remoteScript(ctx, lease, command, translated.tokens));
+    const result = await runHeld(lane, ip, remoteScript(ctx, lease, command, tokens));
     if (result.head.length < 3) {
       say(`lane: ${lease.clone} cannot be reached over ssh; ${restart}`);
       return 2;

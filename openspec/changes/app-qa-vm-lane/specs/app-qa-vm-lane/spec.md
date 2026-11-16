@@ -41,7 +41,7 @@ With the lane active, `preflight`, `desktop` and `flow` for `ios` and `desktop` 
 - **THEN** a command running on the host without `--host`, in another worktree's VM, or exiting 0 MUST fail this requirement
 
 ### Requirement: Routed commands reach the guest driver with the caller's arguments and location
-A routed command SHALL run the guest driver in the guest copy's directory matching the host working directory's path below the worktree, with every argument byte-identical. A flow file SHALL reach the guest driver as the same file of the guest copy, whatever subdirectory the command runs in, and one outside the worktree SHALL be refused with exit 2 before any guest command. `--config` and `--credentials` SHALL be refused with exit 2 naming `--host`.
+A routed command SHALL run the guest driver in the guest copy's directory matching the host working directory's path below the worktree, with every argument byte-identical, except that a routed `preflight` SHALL check the backend port the lease forwards: the port is added when the command names none, and another `--port` SHALL be refused with exit 2 naming `vm up TARGET --port N`. A flow file SHALL reach the guest driver as the same file of the guest copy, whatever subdirectory the command runs in, and one outside the worktree SHALL be refused with exit 2 before any guest command. `--config` and `--credentials` SHALL be refused with exit 2 naming `--host`.
 
 #### Scenario: Text with shell characters
 - **WHEN** a routed `desktop type` runs from `app_kmp/` with a text holding spaces, quotes, `$HOME` and `;`
@@ -51,9 +51,13 @@ A routed command SHALL run the guest driver in the guest copy's directory matchi
 - **WHEN** a routed flow runs from `app_kmp/` naming a flow file below `app_kmp/` by its path relative to `app_kmp/`
 - **THEN** the guest driver runs that same file of the guest copy
 
+#### Scenario: Backend port chosen at vm up
+- **WHEN** `vm up ios --port P` staged the lease with P other than the port the worktree's configuration resolves, and a routed `preflight ios` runs without `--port`
+- **THEN** the guest preflight checks the backend on P and passes while the host backend answers on P
+
 #### Scenario: Negative control
-- **WHEN** a routed command's text holds `$(id)` or `;`, a flow file outside the worktree is named, or `--credentials` names a host file
-- **THEN** the text being split or evaluated by a guest shell, the guest driver running for the outside flow or the foreign credentials, or an exit 0 MUST fail this requirement
+- **WHEN** a routed command's text holds `$(id)` or `;`, a flow file outside the worktree is named, `--credentials` names a host file, or a routed preflight names a `--port` other than the forwarded one
+- **THEN** the text being split or evaluated by a guest shell, the guest driver running for the outside flow or the foreign credentials, a routed preflight checking any port but the forwarded one, or an exit 0 MUST fail this requirement
 
 ### Requirement: Leases take one of a fixed number of host-wide slots, one lease per worktree
 `vm up` SHALL take one host-wide slot atomically, at most the lane file's slot count and never more than two, and record its owner process and state (starting, ready, closing) when it takes it. Lease lookup, slot taking, reclaim, sweep and teardown SHALL be serialised host-wide, so a worktree holds at most one lease. With every slot held, busy or used within the idle limit, `vm up` SHALL exit 2 naming each holder's worktree and last use.
@@ -145,7 +149,7 @@ The artifact `vm up` copies SHALL be the bytes it checked, including git-ignored
 - **THEN** staging bytes other than the checked ones, the credential printed or found in any file outside the clone and the credentials file, or `vm up` failing for want of a backend port, MUST fail this requirement
 
 ### Requirement: Every vm up leaves each staged target in one known state
-Each `vm up` SHALL reconcile its lease to one state: a stopped clone started again, one port forward (an earlier one stopped first), for `ios` one freshly created and booted simulator with the app installed, its web view warmed and the app launched (sign-in state reset), for `desktop` one app process started in the guest's logged-in console session on a JDK that allows Spectre's agent, with the configured system properties and the guest copy as working directory.
+Each `vm up` SHALL reconcile its lease to one state: a stopped clone started again, one port forward (an earlier one stopped first), for `ios` one freshly created and booted simulator with the app installed, its web view warmed and the app launched (sign-in state reset), for `desktop` one app process, started only after the previous one has exited, in the guest's logged-in console session on a JDK that allows Spectre's agent, with the configured system properties and the guest copy as working directory.
 
 #### Scenario: Desktop sign-in in the guest
 - **WHEN** `vm up desktop` has run and the routed desktop attach, wait and tap commands of a sign-in run
@@ -164,8 +168,8 @@ Each `vm up` SHALL reconcile its lease to one state: a stopped clone started aga
 - **THEN** the guest has one booted simulator and one desktop JVM, one port forward runs on the host, and the sign-in flow passes
 
 #### Scenario: Negative control
-- **WHEN** the desktop app is started from the SSH session, on the distributable's own runtime, a second `vm up` keeps the old simulator, app or forward running beside the new one, or a slot name is reused after a teardown
-- **THEN** `vm up` exiting 0 while attach finds no JVM, a headless JVM or two JVMs, a routed flow seeing two booted simulators, two forwards running, a desktop command after a refresh acting on the previous app's session record, or a new lease seeing a file, session record or flow lock of an earlier lease MUST fail this requirement
+- **WHEN** the desktop app is started from the SSH session, on the distributable's own runtime, a second `vm up` keeps the old simulator, app or forward running beside the new one, the previous desktop app takes seconds to exit or ignores SIGTERM, or a slot name is reused after a teardown
+- **THEN** `vm up` exiting 0 while attach finds no JVM, a headless JVM or two JVMs, a new desktop app started while the previous one still runs, a routed flow seeing two booted simulators, two forwards running, a desktop command after a refresh acting on the previous app's session record, or a new lease seeing a file, session record or flow lock of an earlier lease MUST fail this requirement
 
 ### Requirement: Routed output reaches the caller redacted and files return under the host's rules
 A routed command SHALL print the guest's lines, redacted with the host's values, and exit with its code; a non-zero exit SHALL add one line naming the clone and the `vm up` command that restarts the target. `--out` files SHALL return to the host path under the host's refusals; a flow without `--out` and a failing flow's kept root SHALL return to new owner-only host temporary folders whose paths are printed. No guest path SHALL be printed as evidence.

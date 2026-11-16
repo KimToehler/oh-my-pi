@@ -172,7 +172,7 @@ A failure in steps 4 to 8 applies the failure transition too, so the lease never
 
   Routed flow runs get `MAESTRO_DRIVER_STARTUP_TIMEOUT=180000`.
 - **desktop:**
-  1. Kill the recorded app pid.
+  1. Stop the recorded app pid and wait until it has exited: SIGTERM, then SIGKILL after `QA_TARGET_STOP_MS` (default 10 s); a pid still running 5 s after SIGKILL fails the start. The record is deleted only after the exit, so a refresh never starts the app beside a predecessor that is still shutting down.
   2. Read the distributable's `Contents/app/*.cfg` (format and reader in "Build vs. adopt: launcher cfg reader") for `app.classpath`, `app.mainclass` and `java-options`. The host runs the same reader on the snapshot before step 5 and refuses a cfg without a main class.
   3. Wait for the guest to settle (below). Run the app on the guest's JDK 21 (`/usr/libexec/java_home -v 21`) with `-Djava.awt.headless=false` and the configured `systemProperties`, replacing `{credentials}` with the guest credentials path.
   4. Start it with `sudo launchctl asuser UID sudo -u USER` in the console session, with the guest copy as working directory.
@@ -193,6 +193,7 @@ Translation table, closed:
 | `--out` (desktop capture, flow) | host refusals first (existing flow `--out`, existing capture files); the guest writes to a lease-private folder; files return to the given host path |
 | flow without `--out` | lease-private guest folder, returned to a new host `mkdtemp` folder, as the host driver's own default `app-qa-out-` folder (`qa.mjs:1209`) |
 | kept flow root | guest flow runs create their root in the lease-private run folder (`QA_FLOW_ROOT_DIR`), while the guest's `TMPDIR`, and so its one flow lock per clone, stays unchanged; a kept root returns to a new 0700 host `mkdtemp` |
+| `preflight` `--port` | the port the lease forwards (`lease.forward.port`): added when the command names none, refused with exit 2 naming `vm up TARGET --port N` when it names another. The guest copy cannot resolve that port itself: `vm up --port` and an ignored port property file never reach it |
 | every other argument | byte-identical |
 
 - **Quoting:** each remote argv element is POSIX single-quoted. The fake `ssh` runs the joined command through `sh -c`, as sshd does, so the tests exercise the quoting.
