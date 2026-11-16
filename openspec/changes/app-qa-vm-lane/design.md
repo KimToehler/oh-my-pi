@@ -88,7 +88,7 @@ It is user-owned: `scripts/install-team-config.ts` removes only files it install
 | teardown done | own `closing`, clone absent from `lume ls` | slot removed (or handed to the reclaimer's new lease) |
 
   Once a lease leaves `ready`, no routed command can register in it, so a clone is deleted only when no routed command runs in it.
-- **Teardown:** the closer kills the forward pid, runs `lume stop` and `lume delete` on the clone (an absent clone counts as deleted), checks that `lume ls` no longer lists it, and only then removes the slot under the lock.
+- **Teardown:** the closer kills the forward pid, then ends every other `lume clone`, `lume stop` or `lume delete` process naming the clone (SIGTERM, SIGKILL after two seconds): the teardown runs only when no live process owns the slot, so such a process belongs to a killed driver and would otherwise finish after the slot is freed, creating or deleting a clone of that name under the next lease. It then runs `lume stop` and `lume delete` on the clone (an absent clone counts as deleted), checks that `lume ls` no longer lists it, and only then removes the slot under the lock.
 - **Reset contract:** a fresh lease never reuses an earlier clone: a slot is freed only after its clone is gone from `lume ls`, so a slot name taken again is always cloned anew from the golden image, which holds no repository, credential or driver state (D9). A refresh keeps the clone and resets everything a routed command reads; it runs only while no routed command runs (table above), so nothing it deletes is in use.
 
 | Entry | Fresh lease (new or reused slot name) | Refresh (`vm up` on the worktree's lease) | Teardown (`vm down`, reclaim, sweep) |
@@ -150,7 +150,7 @@ A failure in steps 4 to 8 applies the failure transition too, so the lease never
 | Holder or sink | Contents | Rule |
 |---|---|---|
 | configured credentials file on the host | values | unchanged; read by the host driver |
-| host driver memory | redaction values (`loadRedaction`, `qa.mjs:323`) | never written |
+| host driver memory | redaction values (`loadRedaction`, loaded once in `main` before any command prints, the `vm` commands and the lane-file errors of routing included) | never written |
 | build stdout and stderr | may print values | kept in memory, redacted before it is kept or printed (step 3) |
 | SSH stdin of step 6.4 | the file's bytes | never in an argument vector, a log or a temporary file |
 | guest credentials file | values | 0600 inside the clone; deleted with the clone |
@@ -270,7 +270,7 @@ That branch changes `SKILL.md` and MODIFIES the routing requirement of `app-qa-d
 
 ## Risks / Trade-offs
 
-- [A leaked lease keeps a VM with credentials running] → it is reclaimed by the next `vm up` after `idleMinutes` or by `vm down`. The skill requires `vm down` before the final report. A lease nobody reclaims lives until the next `vm up` or `vm status` on the machine (accepted residual, gate.md).
+- [A leaked lease keeps a VM with credentials running] → it is reclaimed by `vm down` from its worktree, or by another worktree's `vm up` that finds no free slot once it is idle beyond `idleMinutes`. The skill requires `vm down` before the final report. No sweep tears down a `ready` lease whose clone runs, so a lease nobody takes down or reclaims keeps its VM running (accepted residual, gate.md).
 - [The guest has SIP off and grants Screen Recording to every SSH session] → NAT-only guest, key-only SSH, VNC off, disposable clone, dev accounts only. Documented in `vm-image.md`.
 - [The idle limit reclaims a lease between two commands of a slow session] → the next routed command exits 2 naming `vm up`, so the session re-stages. No silent host run.
 - [A build tool that reports up to date on changed inputs would stage an old artifact] → the build tool owns freshness, as it does for every host QA run today. No second freshness check exists.

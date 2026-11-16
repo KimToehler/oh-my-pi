@@ -101,15 +101,15 @@ Admitting a routed command SHALL check that the lease is ready and has staged th
 - **THEN** the command running a guest command, or the clone being deleted while a routed command runs in it, MUST fail this requirement
 
 ### Requirement: Interrupted starts and teardowns are recovered by the next sweep
-A slot whose holder died while it was starting or closing, or whose record is partial, SHALL be torn down by the next `vm up`, `vm down` or `vm status`: its clone is deleted first and its slot freed only once the clone is gone, both printed by name.
+A slot whose holder died while it was starting or closing, or whose record is partial, SHALL be torn down by the next `vm up`, `vm down` or `vm status`: every `lume` clone, stop or delete process the dead holder left naming its clone is ended first, then its clone is deleted and its slot freed only once the clone is gone, both printed by name.
 
 #### Scenario: Killed teardown
 - **WHEN** a `vm down` was killed after marking its lease closing and before its clone was deleted, and `vm status` runs
 - **THEN** the clone is deleted, the slot is free, and both are printed
 
 #### Scenario: Negative control
-- **WHEN** a teardown was killed before stop, between stop and delete, or after delete before freeing the slot; a process died between creating a slot and writing its record, leaving the table lock behind; or two sweeps and a `vm up` meet the same orphan clone
-- **THEN** the clone or the slot surviving the next `vm status`, the slot being freed while the clone still exists, the stale table lock blocking the next command, or a clone of a starting lease being deleted MUST fail this requirement
+- **WHEN** a teardown was killed before stop, between stop and delete, or after delete before freeing the slot; a driver was killed while its `lume clone` or `lume delete` of the slot clone still ran; a process died between creating a slot and writing its record, leaving the table lock behind; or two sweeps and a `vm up` meet the same orphan clone
+- **THEN** the clone or the slot surviving the next `vm status`, the slot being freed while the clone still exists or while the killed driver's `lume` process still runs, the stale table lock blocking the next command, or a clone of a starting lease being deleted MUST fail this requirement
 
 ### Requirement: The lane touches only its own clones
 The lane SHALL delete, stop or run only VMs named as its slot clones, and never the golden image. A lane file whose image name lies in the slot clones' namespace SHALL be refused with exit 2 naming the file and the cause.
@@ -172,7 +172,7 @@ Each `vm up` SHALL reconcile its lease to one state: a stopped clone started aga
 - **THEN** `vm up` exiting 0 while attach finds no JVM, a headless JVM or two JVMs, a new desktop app started while the previous one still runs, a routed flow seeing two booted simulators, two forwards running, a desktop command after a refresh acting on the previous app's session record, or a new lease seeing a file, session record or flow lock of an earlier lease MUST fail this requirement
 
 ### Requirement: Routed output reaches the caller redacted and files return under the host's rules
-A routed command SHALL print the guest's lines, redacted with the host's values, and exit with its code; a non-zero exit SHALL add one line naming the clone and the `vm up` command that restarts the target. `--out` files SHALL return to the host path under the host's refusals; a flow without `--out` and a failing flow's kept root SHALL return to new owner-only host temporary folders whose paths are printed. No guest path SHALL be printed as evidence.
+A routed command SHALL print the guest's lines, redacted with the host's values, and exit with its code; a non-zero exit SHALL add one line naming the clone and the `vm up` command that restarts the target. Every other line the driver prints in a lane, those of `vm up`, `vm down` and `vm status` and the lane-file errors of routing included, SHALL be redacted with the host's values too. `--out` files SHALL return to the host path under the host's refusals; a flow without `--out` and a failing flow's kept root SHALL return to new owner-only host temporary folders whose paths are printed. No guest path SHALL be printed as evidence.
 
 #### Scenario: Passing capture
 - **WHEN** a routed desktop capture runs with a host `--out` folder the session created
@@ -183,7 +183,7 @@ A routed command SHALL print the guest's lines, redacted with the host's values,
 - **THEN** the screenshot exists in a new host folder whose path is printed, and no guest path is printed
 
 #### Scenario: Negative control
-- **WHEN** a guest line holds a configured username or password, a returned flow root or capture JSON holds one, a returned file or folder is named after one, the return is interrupted after the archive reached the host, a host `--out` path already exists for a flow run, a capture's file exists in the host folder, or a returned archive holds an absolute path, `..` or a link
+- **WHEN** a guest line holds a configured username or password, a `vm status`, `vm up` or `vm down` line or a lane-file error holds one (in a worktree path, for example), a returned flow root or capture JSON holds one, a returned file or folder is named after one, the return is interrupted after the archive reached the host, a host `--out` path already exists for a flow run, a capture's file exists in the host folder, or a returned archive holds an absolute path, `..` or a link
 - **THEN** printing the value, writing a file holding the value anywhere on the host, overwriting a host file, writing outside the target folder, or exiting 0 MUST fail this requirement
 
 ### Requirement: Losing the VM or the port forward during a routed command is reported as infrastructure loss

@@ -1394,6 +1394,51 @@ test('lease: partial - a slot with a truncated lease.json is torn down with its 
   assert.deepEqual(L.slots(), []);
 });
 
+// A driver killed during `lume clone` or `lume delete` leaves that child running; freeing the slot before it ends lets it
+// create or delete a clone of that name under the next lease. The process of a held clone is never touched.
+for (const [state, verb] of [['starting', ['clone', 'app-qa-golden', 'app-qa-slot-1']], ['closing', ['delete', 'app-qa-slot-1', '--force']]]) {
+  test(`lease: mutation - a ${state} slot of a dead driver is freed only after the lume ${verb[0]} it left has ended`, async () => {
+    const L = laneLayout();
+    L.stage({ state, holder: await deadPid() });
+    L.stage({ n: 2, worktree: wtOf(L, 'b') });
+    const left = background();
+    const held = background();
+    L.set({
+      ps: [
+        ...DEFAULT_STATE.ps,
+        `${left} /Users/qa/.local/share/lume/lume.app/Contents/MacOS/lume ${verb.join(' ')}`,
+        `${held} /usr/local/bin/lume stop app-qa-slot-2`,
+      ],
+    });
+    const r = await runQa(L, ['vm', 'status']);
+    assert.equal(r.status, 0, outputOf(r));
+    assert.equal(isAlive(left), false, `the dead driver's lume ${verb[0]} outlived the teardown`);
+    assert.equal(isAlive(held), true, 'a lume process naming a held clone was ended');
+    assert.deepEqual(L.slots(), ['slot-2']);
+    assert.deepEqual(L.clones(), ['app-qa-slot-2']);
+  });
+}
+
+test('lease: redact - vm status prints a worktree path holding a configured username redacted', async () => {
+  const L = laneLayout();
+  L.stage({ worktree: wtOf(L, USER1) });
+  const status = await runQa(L, ['vm', 'status']);
+  assert.equal(status.status, 0, outputOf(status));
+  assert.match(status.stdout, /slot 1: ready worktree=/);
+  assert.ok(!outputOf(status).includes(USER1), outputOf(status));
+});
+
+test('lease: redact - a lane-file error of a routed command prints a home path holding a configured username redacted', async () => {
+  const L = laneLayout();
+  const home = join(L.root, USER1);
+  mkdirSync(join(home, '.omp', 'agent'), { recursive: true });
+  writeFileSync(join(home, '.omp', 'agent', 'app-qa-vm.json'), '{');
+  const r = await runQa(L, ['preflight', 'ios'], { env: { HOME: home } });
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /app-qa-vm\.json/);
+  assert.ok(!outputOf(r).includes(USER1), outputOf(r));
+});
+
 test('lease: foreign - vm status leaves every VM that is not a slot clone of this lane alone', async () => {
   const L = laneLayout();
   for (const name of ['app-qa-slot-golden', 'app-qa-slot-3', 'other-vm', 'app-qa-golden-copy']) L.addVm(name, 'running');

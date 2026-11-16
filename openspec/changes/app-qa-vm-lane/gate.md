@@ -13,7 +13,7 @@
   - The tier is product because a real credential is in reach. The class is auth-secrets-pii because the delivered change moves that credential across a VM boundary. The slot and lease state machine would also qualify as concurrency-state; only one class is recorded, and the depth is risky either way.
 - **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
 - **Accepted residual risks**:
-  - A lease nobody takes down or reclaims keeps its VM, with the dev credentials inside, running until the next `vm up` or `vm status` on the machine.
+  - A lease nobody takes down or reclaims keeps its VM, with the dev credentials inside, running: only `vm down` from its worktree, or another worktree's `vm up` that finds no free slot once the lease is idle beyond `idleMinutes`, removes it.
   - The guest runs with SIP off and grants Screen Recording to SSH sessions. It is NAT-only and key-only, and reachable from the host user alone.
   - Artifact freshness rests on the repository's own build tool and its up-to-date check, as it does for host QA today.
 - **Out of scope for blocking**:

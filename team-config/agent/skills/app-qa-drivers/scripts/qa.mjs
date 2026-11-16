@@ -703,7 +703,6 @@ async function cmdPreflight(ctx, args) {
   if (!['desktop', 'ios', 'android'].includes(target) || args.positional.length !== 1) return usage(synopsis);
   const port = args.flags.port;
   if (port !== undefined && !(/^\d+$/.test(port) && Number(port) >= 1 && Number(port) <= 65535)) return usage(synopsis);
-  loadRedaction(ctx);
   const checks = [];
   if (target === 'desktop') {
     const spectreBin = which('spectre');
@@ -902,7 +901,6 @@ function cmdDesktop(ctx, args) {
     say(`desktop: ${process.cwd()} is not in a git worktree; run desktop commands inside the app's worktree`);
     return 2;
   }
-  loadRedaction(ctx);
   if (verb === 'attach') return rest.length ? usage('desktop attach [--pid N]') : desktopAttach(ctx, args.flags);
   const record = readSession(ctx.worktree);
   if (!record) {
@@ -1498,8 +1496,28 @@ function lumeList() {
   }
 }
 
-/** Stops and deletes one slot clone and checks that `lume ls` no longer lists it; an absent clone counts as deleted. */
-function destroyClone(clone) {
+/**
+ * The pids of `lume clone`, `stop` and `delete` processes naming `clone` (design D4 teardown). A teardown runs only when
+ * no live process owns the slot, so such a process was left by a killed driver.
+ */
+function lumeMutationPids(clone) {
+  const r = run('ps', ['-Ao', 'pid=,args=']);
+  if (r.error || r.status !== 0) return [];
+  const pids = [];
+  for (const line of r.stdout.split('\n')) {
+    const [pid, ...t] = line.trim().split(/\s+/);
+    const at = t.findIndex((a) => basename(a) === 'lume');
+    if (at >= 0 && ['clone', 'stop', 'delete'].includes(t[at + 1]) && t.slice(at + 2).includes(clone)) pids.push(Number(pid));
+  }
+  return pids.filter((pid) => pid > 0 && pid !== process.pid);
+}
+
+/**
+ * Ends the `lume` mutations a killed driver left on one slot clone, then stops and deletes the clone and checks that
+ * `lume ls` no longer lists it; an absent clone counts as deleted.
+ */
+async function destroyClone(clone) {
+  for (const pid of lumeMutationPids(clone)) await killPid(pid);
   let list = lumeList();
   if (list === null) return { ok: false, why: 'lume ls cannot be read' };
   const vm = list.find((v) => v.name === clone);
@@ -1695,7 +1713,7 @@ const holderOf = (n, l) => `slot ${n}: ${l.worktree ?? 'no worktree'} (${l.state
 /** Ends one slot's teardown: only the closer, with its clone gone from `lume ls`, removes the slot. */
 async function finishTeardown(n, { clone, forward }) {
   if (forward) await killPid(forward.pid);
-  const r = destroyClone(clone);
+  const r = await destroyClone(clone);
   if (!r.ok) {
     say(`lane: slot-${n}: ${r.why}; the slot stays until ${clone} is gone`);
     return false;
@@ -2103,7 +2121,6 @@ async function vmUp(ctx, args, lane) {
     return 2;
   }
   if (flag !== undefined && !(/^\d+$/.test(flag) && Number(flag) >= 1 && Number(flag) <= 65535)) return usage(synopsis);
-  loadRedaction(ctx);
   const version = (run(lumeBin(), ['--version']).stdout ?? '').trim().split(/\s+/).at(-1);
   if (version !== LUME_VERSION) {
     say(`vm up: lume ${version || 'not found'}, this lane is pinned to lume ${LUME_VERSION}; install it from https://github.com/trycua/cua/releases (lume-v${LUME_VERSION})`);
@@ -2128,7 +2145,7 @@ async function vmUp(ctx, args, lane) {
     if (admission.mode === 'orphan' || admission.mode === 'reclaim') {
       const old = admission.old;
       if (old?.forward) await killPid(old.forward.pid);
-      const r = destroyClone(admission.mode === 'reclaim' ? old.clone : clone);
+      const r = await destroyClone(admission.mode === 'reclaim' ? old.clone : clone);
       if (!r.ok) {
         say(`vm up: slot-${n}: ${r.why}`);
         return 2;
@@ -2269,7 +2286,6 @@ async function vmStatus(lane) {
 function vmPack(ctx, args) {
   const dir = args.positional[1];
   if (!dir || args.positional.length !== 2 || !isAbsolute(dir)) return usage('vm pack DIR');
-  loadRedaction(ctx);
   if (!existsSync(dir)) return 0;
   for (const line of sweepCredentials(dir, redactValues)) complain(line);
   const r = spawnSync('tar', ['-c', '-f', '-', '-C', dir, '.'], { stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, COPYFILE_DISABLE: '1' } });
@@ -2515,7 +2531,6 @@ async function returnFiles(ctx, lane, ip, n, info, { kind, out }) {
 async function cmdRouted(ctx, args, command, lane) {
   const target = routeTarget(command, args);
   const restart = `run ${INVOKE} vm up ${target}`;
-  loadRedaction(ctx);
   const translated = translateRouted(ctx, args, command);
   if (translated.error) {
     say(translated.error);
@@ -2633,6 +2648,8 @@ async function main() {
     complain(ctx.error);
     return 2;
   }
+  // Every line after this point is redacted with the configured accounts' values: routing, the lane file and every command.
+  loadRedaction(ctx);
   if (laneRoutes(command, args, ctx)) {
     const lane = loadLane();
     if (lane.error) {
