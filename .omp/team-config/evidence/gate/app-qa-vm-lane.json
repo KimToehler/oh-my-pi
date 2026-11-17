@@ -1,0 +1,473 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/app-qa-vm-lane",
+  "plan_sha256": "900292e337cebe6947fedb0a18c2604c69231b2b229fe6db7077a626dbcd8922",
+  "reviewed_sha": "7a3687e8267cbbf3ef5ac275e1eff3e28bf362da",
+  "diff_base": "ead5264cf658b461ef1b46158fb0ce3b1a282dac",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "gate.md Depth risky (mandatory class auth-secrets-pii), Risk tier product: both invocations; F2 wave 9 DECISION: PASS on 7a3687e826 after fix 7.12; 70 QA rows (wave-9 matrix, one row per spec scenario, and its captures)",
+  "mandatory_class": "auth-secrets-pii",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "F2 wave 9 QA matrix",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/qa-matrix.md",
+      "artifact_sha256": "d7d9b844385bfc5e492d9872b6851fdac6fa7ea7a290fe9eb761eb34b69686b8"
+    },
+    {
+      "name": "S1 The driver runs only with a valid configuration of the current repository / Run from a subdirectory of a worktree",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/cfg-subdir.md",
+      "artifact_sha256": "1652b125cfab6ae6c2a824026b0280be2cf73c2e660dce2f1da7b5901f687f68"
+    },
+    {
+      "name": "S2 The driver runs only with a valid configuration of the current repository / Newer configuration than the driver",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/cfg-newer.md",
+      "artifact_sha256": "2bbdf4cbc3d34e8f51ea0e41c36f29baab4a2d65bf09b46782e356b7581807d3"
+    },
+    {
+      "name": "S3 The driver runs only with a valid configuration of the current repository / Earlier schema still accepted",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/cfg-v1.md",
+      "artifact_sha256": "feb6735125024c7811077b023d1be2325e08da172101fb77a760888eb02a61a1"
+    },
+    {
+      "name": "S4 The driver runs only with a valid configuration of the current repository / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/cfg-nc.md",
+      "artifact_sha256": "648f7ee4ed73983ea3c8f636c04363e6b69b1fee139f879b06438984a6f1ba60"
+    },
+    {
+      "name": "S5 The lane is active only where the machine and the repository both configure it / Machine without a lane file",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lane-nofile.md",
+      "artifact_sha256": "82d79bf23886535ba7e0c2a1baa24f00a8ca0ef82a818b8b6402b23e7fff91f6"
+    },
+    {
+      "name": "S6 The lane is active only where the machine and the repository both configure it / Repository without a vm section",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lane-novm.md",
+      "artifact_sha256": "58649cd7382c917d8a3d87065a1df7aeab8888d5a7043b64685cb89402c59daf"
+    },
+    {
+      "name": "S7 The lane is active only where the machine and the repository both configure it / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lane-nc.md",
+      "artifact_sha256": "503ac4053c3682ba2c1afc0a09059322758fb160140f441eda095a193f177185"
+    },
+    {
+      "name": "S8 An active lane routes iOS and desktop commands to the worktree's lease and never to the host / Routed preflight",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/route-preflight.md",
+      "artifact_sha256": "f7adfd41863cf34329c681c6b299a2e91c5fa9d73cbf9ff81a9bdfe14fa1a8f0"
+    },
+    {
+      "name": "S9 An active lane routes iOS and desktop commands to the worktree's lease and never to the host / No lease",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/route-nolease.md",
+      "artifact_sha256": "0167ab463c074b2ee44451065818ae164df4fbc4390c5a7b8c7081b02a186ff7"
+    },
+    {
+      "name": "S10 An active lane routes iOS and desktop commands to the worktree's lease and never to the host / Explicit host run",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/route-host.md",
+      "artifact_sha256": "495b97233a2db43194ff19f4ccebdf3c54f682965262e30cb5e065d7059edcc8"
+    },
+    {
+      "name": "S11 An active lane routes iOS and desktop commands to the worktree's lease and never to the host / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/route-nc.md",
+      "artifact_sha256": "a981553220ee2ab742c2d992cc49f8c3d1f545243ab2caeaf5e1a9a33b20c1bf"
+    },
+    {
+      "name": "S12 Routed commands reach the guest driver with the caller's arguments and location / Text with shell characters",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/args-shell.md",
+      "artifact_sha256": "10d95ff2d687fa7f835de339f2ced8c3df5ce4ded91740264890a13c4f03377d"
+    },
+    {
+      "name": "S13 Routed commands reach the guest driver with the caller's arguments and location / Flow from a subdirectory",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/args-flow.md",
+      "artifact_sha256": "b6f9dfff230c91cfd7c8e6c1a126e80e928749749c6a78334149ce97f4d36492"
+    },
+    {
+      "name": "S14 Routed commands reach the guest driver with the caller's arguments and location / Backend port chosen at vm up",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/route-port.md",
+      "artifact_sha256": "7301ec881ad012abc1641d475ca89edd61669a33fb5597ec2ae90fab1fa87f58"
+    },
+    {
+      "name": "S15 Routed commands reach the guest driver with the caller's arguments and location / Negative control [args-nc]",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/args-nc.md",
+      "artifact_sha256": "e21bd8a0d692ca2a6a624a695bf512c22c80366de866406bf559f0e95b4cee8a"
+    },
+    {
+      "name": "S15 Routed commands reach the guest driver with the caller's arguments and location / Negative control [cfg-override]",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/cfg-override.md",
+      "artifact_sha256": "706ae213ff67f6ea2340c1c2e9d526b8e6fc0807704cb0a6c3ef9af378137759"
+    },
+    {
+      "name": "S16 Leases take one of a fixed number of host-wide slots, one lease per worktree / Two worktrees in parallel",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lease-parallel.md",
+      "artifact_sha256": "0aefb7f741a52b05aa21c2f012e4b62e00650363876816a35a70d8b118d6d85a"
+    },
+    {
+      "name": "S17 Leases take one of a fixed number of host-wide slots, one lease per worktree / Simultaneous starts for the last slot",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lease-simul.md",
+      "artifact_sha256": "83b7ac4b7b8b5cc62c95e9431f44b953dc465b47d1eb500530dbe410aa06d2fa"
+    },
+    {
+      "name": "S19 Leases take one of a fixed number of host-wide slots, one lease per worktree / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lease-nc.md",
+      "artifact_sha256": "be5f53fc8a6b616f797e67766472d562235f530bf5c8c287ee1e2358ac53093c"
+    },
+    {
+      "name": "S20 Idle and orphaned VMs are reclaimed, busy and starting ones never / Idle lease reclaimed",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/reclaim-idle.md",
+      "artifact_sha256": "63edb99e2dc70edf7c7b110aae278f9ccef81e976cc51fb366e24e800f1a7155"
+    },
+    {
+      "name": "S21 Idle and orphaned VMs are reclaimed, busy and starting ones never / Crashed start",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/reclaim-crash.md",
+      "artifact_sha256": "fa8147642010ee2fa0baacb720f9510ebfbc0baff297363e34f8303cd96370ec"
+    },
+    {
+      "name": "S22 Idle and orphaned VMs are reclaimed, busy and starting ones never / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/reclaim-nc.md",
+      "artifact_sha256": "a525c833d892abaeae174834688777ed92cf3cb0a6587dd0c59b40ee4a5e0ee5"
+    },
+    {
+      "name": "S24 A routed command starts only in a ready lease, and a lease leaves ready only when none runs / Host driver killed during a routed flow",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/orphan-kill.md",
+      "artifact_sha256": "c0cf22e5d98c384db2c9e6dda9ec9300c53c26ea6cb3cdb35a230df0580c5cca"
+    },
+    {
+      "name": "S30 Staging builds on the host and copies the worktree, the artifacts and the credentials into the leased clone only / First staging",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/stage-first.md",
+      "artifact_sha256": "23acc34675010aff13749283281fa98a61c25daf642a6656106a0e253451e390"
+    },
+    {
+      "name": "S31 Staging builds on the host and copies the worktree, the artifacts and the credentials into the leased clone only / Refresh after a code change",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/stage-refresh.md",
+      "artifact_sha256": "1427c5dfb02798c5a7c7690975a6e433ea3560836e8185a9b9aaa06c8dd5dbef"
+    },
+    {
+      "name": "S32 Staging builds on the host and copies the worktree, the artifacts and the credentials into the leased clone only / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/stage-nc.md",
+      "artifact_sha256": "7b507b5f082e592ee531047cc53e052a08cfcc36d8a1443a1b67d888a98bb6ef"
+    },
+    {
+      "name": "S33 The lane sends nothing to a guest it has not authenticated / Pinned key [pin-hostkey]",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/pin-hostkey.md",
+      "artifact_sha256": "b014bbe285730b4e072f21c3637d5b2765634c897e722f906f1a24378cc72bad"
+    },
+    {
+      "name": "S34 The lane sends nothing to a guest it has not authenticated / Negative control [hostkey-nc]",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/hostkey-nc.md",
+      "artifact_sha256": "05eb6f87e194d812f6c44151e176644957e3a815946b1cfe76a135b5b60c3343"
+    },
+    {
+      "name": "S34 The lane sends nothing to a guest it has not authenticated / Negative control [lane-file]",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lane-file.md",
+      "artifact_sha256": "9e569ff76205ea1b1470428206c8f1416dc6716a6b067cb2c0c205e9c39943c1"
+    },
+    {
+      "name": "S37 Every vm up leaves each staged target in one known state / Desktop sign-in in the guest",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/target-desktop.md",
+      "artifact_sha256": "a734aa7ea0bd32f938efed03091401e696b754d89fd2b5f0222a39e58ea2d951"
+    },
+    {
+      "name": "S38 Every vm up leaves each staged target in one known state / Slot name reused",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/reset-reuse.md",
+      "artifact_sha256": "8002116b884ce3238799b0e17660fa8d22a215044510f954eb9b08ab8cc1c625"
+    },
+    {
+      "name": "S40 Every vm up leaves each staged target in one known state / Second vm up",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/target-rerun.md",
+      "artifact_sha256": "b7393078682c6dec623a8cc77db5c3cd45d7a0771adccff8900bff2c38b59036"
+    },
+    {
+      "name": "S41 Every vm up leaves each staged target in one known state / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/target-nc.md",
+      "artifact_sha256": "a6d6cb0f642203df82461e2eb41b21549e71cddec3a327a1cac2f37210c7c1ae"
+    },
+    {
+      "name": "S42 Routed output reaches the caller redacted and files return under the host's rules / Passing capture",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/out-capture.md",
+      "artifact_sha256": "c61368a8032810589f90904a6eee43b105d99d74cf8d5461181f220594e34fa5"
+    },
+    {
+      "name": "S43 Routed output reaches the caller redacted and files return under the host's rules / Flow without an output folder",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/out-noout.md",
+      "artifact_sha256": "d400a6e0326ea79f7d7b3ae79748a8811a7ebe7476deb14ba5175aaaae081a31"
+    },
+    {
+      "name": "S44 Routed output reaches the caller redacted and files return under the host's rules / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/out-nc.md",
+      "artifact_sha256": "ae5b7eff60b82c68b860cbe28372584201fb42550346934747f79bae7e1618d4"
+    },
+    {
+      "name": "S45 Losing the VM or the port forward during a routed command is reported as infrastructure loss / Forward lost mid-flow",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/route-lost.md",
+      "artifact_sha256": "2e9f21edccb454d622306a6250193fd92f1d01cb01ec89ecf783ad3e0dbf702a"
+    },
+    {
+      "name": "S48 Teardown removes the clone and everything copied into it / Session ends",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/down-clean.md",
+      "artifact_sha256": "6d479d2d915bbaac9d76294c596f8a7ee715cf1c5f5a2482de42206b0a0358d0"
+    },
+    {
+      "name": "S49 Teardown removes the clone and everything copied into it / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/down-nc.md",
+      "artifact_sha256": "2a2bb0b5fddf6df42147195047d69a560a4c3d7320f2c44cc7ae91ef924185ce"
+    },
+    {
+      "name": "S50 A routed QA run succeeds while the host screen is locked / Locked host [locked-ios]",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/locked-ios.md",
+      "artifact_sha256": "279b846810c5fa7442ac061d78c805bc8eb387eb05a917037e3371bf0d5878ea"
+    },
+    {
+      "name": "S50 A routed QA run succeeds while the host screen is locked / Locked host [locked-desktop]",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/locked-desktop.md",
+      "artifact_sha256": "417b21be6f4765a3bde5fe09c8171cd205caef004019f7469a954f96c984c741"
+    },
+    {
+      "name": "S51 A routed QA run succeeds while the host screen is locked / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/locked-nc.md",
+      "artifact_sha256": "178d6913edeafcdc97c819f06656bbc09dc2a09829d3c4e5fcfbffa91fd0572c"
+    },
+    {
+      "name": "S52 The team skill leads a fresh agent through the lane / iOS sign-in with the lane",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/agent-lane.md",
+      "artifact_sha256": "0afef60bb9ee83b1113dec9dd467522f9a87d87959c8faeb07a5357daf26cf1a"
+    },
+    {
+      "name": "S53 The team skill leads a fresh agent through the lane / Visible change tested through the lane",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/agent-edit.md",
+      "artifact_sha256": "a6f519c3041645abf9735558e4db5a1d40ee505037bf297d4b2a564572bfe9b5"
+    },
+    {
+      "name": "S54 The team skill leads a fresh agent through the lane / Negative control",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/agent-nc.md",
+      "artifact_sha256": "c8d23809fbf396670e384e3288e51babfa00b7edd6cedef41834cbb88613d247"
+    },
+    {
+      "name": "wave 9 supporting capture: agent-edit-capture.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/agent-edit-capture.txt",
+      "artifact_sha256": "bdb739c8fa4850d0634421ee2a0961372df05c54d292da0da99355a033266ab1"
+    },
+    {
+      "name": "wave 9 supporting capture: agent-edit-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/agent-edit-home.png",
+      "artifact_sha256": "9d7e9e16ccb5e1140fca6e2e6b939682d431a0cb4328713f6eb1558032887583"
+    },
+    {
+      "name": "wave 9 supporting capture: agent-lane-capture.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/agent-lane-capture.txt",
+      "artifact_sha256": "23b3fa7dfcbcfa48ff9d3349870c51a6273fd6dfd3f245580cc278800ba6ae09"
+    },
+    {
+      "name": "wave 9 supporting capture: agent-lane-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/agent-lane-home.png",
+      "artifact_sha256": "a58259765f1ef380adaf6df8f6e2bfbd65356a8b854d21d7b88c62f1615fdb2b"
+    },
+    {
+      "name": "wave 9 supporting capture: agent-nc-capture.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/agent-nc-capture.txt",
+      "artifact_sha256": "a8dcbf266b30a0d15178abc872b18eb806fc36641f075007c34c0ffa92593ccc"
+    },
+    {
+      "name": "wave 9 supporting capture: deployed-rev.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/deployed-rev.txt",
+      "artifact_sha256": "b868c453a5d4854144cff3c05210d7e6cf2000b907739c362e99219d81ae3d20"
+    },
+    {
+      "name": "wave 9 supporting capture: lease-parallel-slot1-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lease-parallel-slot1-home.png",
+      "artifact_sha256": "be38e4212c1bcf90f0d8ae954eaafeefd03acd49f789ac5704ca1ec3e04dc3ac"
+    },
+    {
+      "name": "wave 9 supporting capture: lease-parallel-slot2-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/lease-parallel-slot2-home.png",
+      "artifact_sha256": "be38e4212c1bcf90f0d8ae954eaafeefd03acd49f789ac5704ca1ec3e04dc3ac"
+    },
+    {
+      "name": "wave 9 supporting capture: locked-desktop-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/locked-desktop-home.png",
+      "artifact_sha256": "75a6da0a0299376993b5917ae16efb06ec60b7849300cce8ac213aa931bb38da"
+    },
+    {
+      "name": "wave 9 supporting capture: locked-ios-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/locked-ios-home.png",
+      "artifact_sha256": "537d3de3ced85e88614024c6dd70c6453d93846afeb606d6207d01fe959f675f"
+    },
+    {
+      "name": "wave 9 supporting capture: mutation-kill.md",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/mutation-kill.md",
+      "artifact_sha256": "3b135c47947540650bba64875b26b6be6f5623cf5ec74f87f1a842376a20036a"
+    },
+    {
+      "name": "wave 9 supporting capture: qa-test-full2.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/qa-test-full2.txt",
+      "artifact_sha256": "c619c701cd0d600d58f29be011a1269f8772948924f6418d7dc8b75789205421"
+    },
+    {
+      "name": "wave 9 supporting capture: qa-test-log.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/qa-test-log.txt",
+      "artifact_sha256": "2a0c08601c607c5d926d0f1a15663e7a84791542822a3c2b4d6af34baf8adafb"
+    },
+    {
+      "name": "wave 9 supporting capture: qa-test-rerun.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/qa-test-rerun.txt",
+      "artifact_sha256": "3d7bed311b440e03a42f3f4970e93016dc9ce129ed75dcc7dbea676e40c039af"
+    },
+    {
+      "name": "wave 9 supporting capture: redact-live.md",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/redact-live.md",
+      "artifact_sha256": "5122eaf40c3e67d8916a5b7606a36cbcaf7b9303b813bcb4135ec3afc6573c87"
+    },
+    {
+      "name": "wave 9 supporting capture: reset-reuse-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/reset-reuse-home.png",
+      "artifact_sha256": "41d14bfa876099fe9c321a5ce8a01bd97ed1b43f839f8cb6a950256945c530d1"
+    },
+    {
+      "name": "wave 9 supporting capture: rows-script.md",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/rows-script.md",
+      "artifact_sha256": "eacdf2dda9fb2482c556b7dda35c0aa2baf223e16ea390ed295b1e9ca520b21a"
+    },
+    {
+      "name": "wave 9 supporting capture: slot2-vm-limit.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/slot2-vm-limit.txt",
+      "artifact_sha256": "0e7a1955aca0ee63bb5da7c5ce4d747e5918de360d537f9c252001bb00d27ce9"
+    },
+    {
+      "name": "wave 9 supporting capture: stage-refresh-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/stage-refresh-home.png",
+      "artifact_sha256": "8e1f5c1301e8c245060d384fbcc20209a95941b84960f36d969f3f87ac356848"
+    },
+    {
+      "name": "wave 9 supporting capture: suite.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/suite.txt",
+      "artifact_sha256": "2832b6146643dff28c30927e97290b2acf86ed75ad9fdbc8803679dbead68795"
+    },
+    {
+      "name": "wave 9 supporting capture: target-desktop-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/target-desktop-home.png",
+      "artifact_sha256": "75a6da0a0299376993b5917ae16efb06ec60b7849300cce8ac213aa931bb38da"
+    },
+    {
+      "name": "wave 9 supporting capture: target-rerun-home.png",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/target-rerun-home.png",
+      "artifact_sha256": "44eb9b394096ae857d44f60411844d11f4a24a2fd76034a7d402e7348685fd43"
+    },
+    {
+      "name": "wave 9 supporting capture: team-config-test.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/team-config-test.txt",
+      "artifact_sha256": "19815106d87f1e58549f6f2897259a5f5cfef6824bd0a47c6f6953c4f1549678"
+    },
+    {
+      "name": "wave 9 supporting capture: team-config-test2.txt",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/f2/wave-9/team-config-test2.txt",
+      "artifact_sha256": "4127c6c92559dfb2f7744f13a1a9dd30de937d738abb76251814d87b3ad89f7b"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/implementation-audit-trailer.md",
+      "trailer_sha256": "ff4373a80c9b7a8ad0a6d445f8426e34bf4b73e37af454cafb3b7c06fb6617a2",
+      "note": ".omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/implementation-audit-trailer.md; QA matrix .omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/qa-matrix.md"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/strategic-risk-review-trailer.md",
+      "trailer_sha256": "10703cf43a3df517a137753c8c73af6beb310e85b77f3e6bbb5b027f366935eb",
+      "note": ".omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/strategic-risk-review-trailer.md; QA matrix .omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/qa-matrix.md"
+    }
+  ],
+  "blockers": []
+}

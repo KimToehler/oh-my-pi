@@ -1,0 +1,9 @@
+head 7a3687e8267cbbf3ef5ac275e1eff3e28bf362da
+ 19:43:23  up 6 days 19:41,  1 user,  load average: 14.00, 14.65, 25.33
+$ bun run test:team-config   (second run)
+ 991 pass
+ 0 fail
+ 1210 expect() calls
+Ran 991 tests across 10 files. [748.57s]
+[exit 0]
+ 19:55:52  up 6 days 19:53,  1 user,  load average: 11.67, 12.29, 18.08
