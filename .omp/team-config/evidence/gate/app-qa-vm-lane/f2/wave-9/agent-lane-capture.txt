@@ -1,0 +1,232 @@
+[call 1] read: {"path": "skill://app-qa-drivers", "i": "Re-reading app QA drivers skill"}
+[result 1] (read: 36696 chars, not quoted)
+[call 2] read: {"path": ".omp/app-qa.json", "i": "Reading app QA configuration"}
+[result 2] (read: 2388 chars, not quoted)
+[call 3] glob: {"path": ".agents/skills/*/SKILL.md;.omp/skills/*/SKILL.md;app_kmp/.agents/skills/*/SKILL.md", "i": "Locating repository QA skill"}
+[result 3] (glob: 100 chars, not quoted)
+[call 4] glob: {"path": "**/*-qa/SKILL.md;!**/evidence/**;!**/*-evidence/**", "i": "Locating repository QA skill"}
+[result 4] (glob: 36 chars, not quoted)
+[call 5] read: {"path": "docs/agent-skills/kmp-qa/SKILL.md", "i": "Reading app QA skill"}
+[result 5] (read: 12002 chars, not quoted)
+[call 6] bash: {"command": "test -f ~/.omp/agent/app-qa-vm.json && echo lane-file-present || echo no-lane-file; ls app_kmp/maestro/; cat app_kmp/maestro/signin-ios.yaml", "i": "Checking lane file and sign-in flow"}
+[result 6]
+  lane-file-present
+  f1-signin-home.yaml
+  f1-signin-wait.yaml
+  onboarding.yaml
+  profile.yaml
+  signin-android.yaml
+  signin-ios.yaml
+  # Sign-in subflow for the iOS simulator (kmp-qa-drivers design D8).
+  #
+  # Precondition: the app shows its login entry (id `sign-in`) or the SSO page is already open.
+  # Contract: MAESTRO_DEV_USER and MAESTRO_DEV_PW hold the dev account (the shared driver's
+  # `flow --account` puts them into Maestro's environment only); MAESTRO_EXPECT_TAG is the test tag of
+  # the screen sign-in lands on (`home`, or `onboarding-welcome` with `flow --expect onboarding`).
+  # Run it through `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios ...`, directly or
+  # by runFlow from a flow.
+  #
+  # Each SSO field is replaced whole, whatever it holds: the text field by two caret taps at the
+  # input's left edge, then › and the select-all item (no menu item on an empty field), the secure
+  # field by a double tap at its left edge; inputText then replaces the selection. The old value is
+  # never read. The form is submitted natively with Enter from the focused password field: a tap on
+  # the page's button can land on the on-screen keyboard and never submit (task 3.6).
+  # No screenshot, no hierarchy read and no consent step: sign-in ends on the expected tag.
+  appId: eu.onara.app.kmp
+  ---
+  - runFlow:
+      when:
+        visible:
+          id: "sign-in"
+      commands:
+        - tapOn:
+            id: "sign-in"
+  - runFlow:
+      when:
+        visible: "Continue|Fortfahren"
+      commands:
+        - tapOn: "Continue|Fortfahren"
+  - extendedWaitUntil:
+      visible: "Username or email"
+      timeout: 30000
+  # Text field: two taps at the start of the value, then select all.
+  - tapOn:
+      text: "Username or email"
+      index: 1
+      point: "3%,50%"
+      retryTapIfNoChange: false
+  - extendedWaitUntil:
+      visible: "qa-pause-never-shown"
+      timeout: 1500
+      optional: true
+  - tapOn:
+      text: "Username or email"
+      index: 1
+      point: "3%,50%"
+      retryTapIfNoChange: false
+  - extendedWaitUntil:
+      visible: "qa-pause-never-shown"
+      timeout: 1500
+      optional: true
+  - runFlow:
+      when:
+[call 7] bash: {"command": "cat app_kmp/maestro/f1-signin-home.yaml", "i": "Reading F1 sign-in home flow"}
+[result 7] (bash: 360 chars, not quoted)
+[call 8] bash: {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -30", "i": "Starting VM lane for iOS", "timeout": 1800}
+[result 8] (bash: 348 chars, not quoted)
+[call 9] wait: {"i": "Waiting for VM up"}
+[result 9]
+  ## Still Running (1)
+  
+  - `bg_1` [bash] — Starting VM lane for iOS — node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -30
+  
+  No job finished within 5.0s. Nothing else left? Call `wait` right away with no other tool call: it then blocks up to 4m.
+[call 10] wait: {"i": "Waiting for VM up"}
+[result 10]
+  ## Still Running (1)
+  
+  - `bg_1` [bash] — Starting VM lane for iOS — node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -30
+  
+  No job finished within 4m. Nothing else left? Call `wait` right away with no other tool call: it then blocks up to 4m.<system-notice>
+  Nothing new after 4m5s of back-to-back waits.
+  Waiting is not progress: each response MUST advance the task.
+  Make as much progress as you can on everything that does not need what you are waiting on,
+  and NEVER start `sleep` jobs to wait longer.
+  Results and messages arrive on their own.
+  </system-notice>
+[call 11] wait: {"i": "Waiting for VM up"}
+[result 11]
+  ## Completed (1)
+  
+  ### bg_1 [bash] — completed
+  Intent: Starting VM lane for iOS
+  Label: node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -30
+  Delivery: delivered by this wait — it finished while you were waiting.
+  ```
+  ssh: settle: load 7.69 below 8 CPUs after 256 s
+  ssh: ios: B99E7FE3-95BE-4B90-96D2-60D2401A9D02
+  vm up: app-qa-slot-1 holds ios
+  
+  
+  Wall time: 454.82 seconds
+  ```
+[call 12] bash: {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs preflight ios 2>&1", "i": "Running iOS preflight in lane", "timeout": 300}
+[result 12]
+  lane: preflight ios runs in app-qa-slot-1 (slot 1)
+  PASS driver: maestro 2.12.1
+  PASS tools: xcrun simctl
+  PASS device: B99E7FE3-95BE-4B90-96D2-60D2401A9D02
+  PASS backend: http://127.0.0.1:8081/actuator/health UP
+  
+  
+  Wall time: 14.92 seconds
+[call 13] bash: {"command": "mkdir /tmp/onara-qa-signin-acct1", "i": "Creating new output folder"}
+[result 13] (bash: 24 chars, not quoted)
+[call 14] bash: {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios app_kmp/maestro/f1-signin-home.yaml --account 1 --expect home --out /tmp/onara-qa-signin-acct1/run1 2>&1", "i": "Signing account 1 in on iOS", "timeout": 600}
+[result 14]
+  lane: flow ios runs in app-qa-slot-1 (slot 1)
+  
+  Backgrounded as job bg_2 (killed once it has run 600s in total; `timeout: 0` disables the deadline); its output is injected into the conversation as a follow-up the moment it finishes. Do NOT poll for it (no `sleep`, `ps`, `pgrep`, `top`, `pidwait`, log tailing): every poll is a wasted turn. Do other work, or end your reply and wait to be woken.
+[call 15] wait: {"i": "Waiting for sign-in flow"}
+[result 15]
+  ## Still Running (1)
+  
+  - `bg_2` [bash] — Signing account 1 in on iOS — node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios app_kmp/maestro/f1-signin-home.yaml --account 1 --exp...
+  
+  No job finished within 5.0s. Nothing else left? Call `wait` right away with no other tool call: it then blocks up to 4m.
+[call 16] wait: {"i": "Waiting for sign-in flow"}
+[result 16]
+  ## Completed (1)
+  
+  ### bg_2 [bash] — failed
+  Intent: Signing account 1 in on iOS
+  Label: node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios app_kmp/maestro/f1-signin-home.yaml --account 1 --exp...
+  Delivery: delivered by this wait — it finished while you were waiting.
+  Error: lane: flow ios runs in app-qa-slot-1 (slot 1)
+  credentials: /Users/[redacted]/git/onara/.worktrees/app-qa-vm-f1/.dev-credentials.env
+  device: B99E7FE3-95BE-4B90-96D2-60D2401A9D02
+  root: $HOST_TMP/app-qa-root-IDwUlI
+  out: /tmp/onara-qa-signin-acct1/run1
+  sweep: deleted out/2026-11-17_075343/f1-signin-home/commands.json
+  FAIL f1-signin-home 36.1s: Assertion is false: "Username or email" is visible
+  root kept: $HOST_TMP/app-qa-root-IDwUlI
+  lane: app-qa-slot-1: the guest command exited 1; to restart the app, simulator or forward run node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios
+  
+  
+  Wall time: 82.80 seconds
+  
+  Command exited with code 1
+[call 17] bash: {"command": "grep -n \"flowPath\\|flow file\\|copyFlow\\|stageFlow\" ~/.omp/agent/skills/app-qa-drivers/scripts/*.mjs | head -30", "i": "Checking how lane ships flow files"}
+[result 17]
+  ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs:2429: * The routed form of the command line (design D7): `--config` and `--credentials` are refused, the flow file is sent
+  ~/.omp/agent/skills/app-qa-drivers/scripts/qa.test.mjs:570:/** A flow file inside the worktree (a routed flow must lie in it). */
+[call 18] read: {"path": "~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs:2425-2470", "i": "Reading routed flow handling"}
+[result 18] (read: 3220 chars, not quoted)
+[call 19] bash: {"command": "cat app_kmp/maestro/f1-signin-wait.yaml; git -C . status --short app_kmp/maestro", "i": "Reading alternate F1 flow"}
+[result 19] (bash: 424 chars, not quoted)
+[call 20] bash: {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -10 && node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios app_kmp/maestro/f1-signin-home.yaml --account 1 --expect home --out /tmp/onara-qa-signin-acct1/run2 2>&1", "i": "Resetting lane and retrying sign-in", "timeout": 1800}
+[result 20] (bash: 348 chars, not quoted)
+[call 21] wait: {"i": "Waiting for retry"}
+[result 21]
+  ## Still Running (1)
+  
+  - `bg_3` [bash] — Resetting lane and retrying sign-in — node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -10 && node ~/.omp/agent/skills/app-qa-d...
+  
+  No job finished within 5.0s. Nothing else left? Call `wait` right away with no other tool call: it then blocks up to 4m.
+[call 22] wait: {"i": "Waiting for retry"}
+[result 22]
+  ## Still Running (1)
+  
+  - `bg_3` [bash] — Resetting lane and retrying sign-in — node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -10 && node ~/.omp/agent/skills/app-qa-d...
+  
+  No job finished within 4m. Nothing else left? Call `wait` right away with no other tool call: it then blocks up to 4m.<system-notice>
+  Nothing new after 4m5s of back-to-back waits.
+  Waiting is not progress: each response MUST advance the task.
+  Make as much progress as you can on everything that does not need what you are waiting on,
+  and NEVER start `sleep` jobs to wait longer.
+  Results and messages arrive on their own.
+  </system-notice>
+[call 23] wait: {"i": "Waiting for retry"}
+[result 23]
+  ## Completed (1)
+  
+  ### bg_3 [bash] — completed
+  Intent: Resetting lane and retrying sign-in
+  Label: node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -10 && node ~/.omp/agent/skills/app-qa-d...
+  Delivery: delivered by this wait — it finished while you were waiting.
+  ```
+  ssh: settle: load 7.83 below 8 CPUs after 210 s
+  ssh: ios: EDF40666-E02B-4786-8779-6396577A71A5
+  vm up: app-qa-slot-1 holds ios
+  lane: flow ios runs in app-qa-slot-1 (slot 1)
+  credentials: /Users/[redacted]/git/onara/.worktrees/app-qa-vm-f1/.dev-credentials.env
+  device: EDF40666-E02B-4786-8779-6396577A71A5
+  root: (not kept)
+  out: /tmp/onara-qa-signin-acct1/run2
+  sweep: deleted out/2026-11-17_080051/f1-signin-home/commands.json
+  sweep: redacted debug/.maestro/tests/2026-11-17_080051/maestro.log
+  sweep: redacted out/2026-11-17_080051/f1-signin-home/logs/device-simulator.log
+  sweep: redacted out/2026-11-17_080051/f1-signin-home/logs/maestro.log
+  screenshot: /tmp/onara-qa-signin-acct1/run2/f1-home.png
+  PASS f1-signin-home 50.2s
+  
+  
+  Wall time: 391.23 seconds
+  ```
+[call 24] bash: {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan /tmp/onara-qa-signin-acct1/run2 2>&1; echo \"exit=$?\"", "i": "Scanning returned screenshot"}
+[result 24] (bash: 69 chars, not quoted)
+[call 25] read: {"path": "/tmp/onara-qa-signin-acct1/run2/f1-home.png", "i": "Showing home screen screenshot"}
+[result 25] (read: 160 chars, not quoted)
+[call 26] bash: {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm down 2>&1", "i": "Releasing VM lane", "timeout": 300}
+[result 26]
+  vm down: deleted app-qa-slot-1, slot 1 is free
+  
+  
+  Wall time: 10.27 seconds
+[final report]
+Account 1 is signed in on the iOS simulator. The screenshot is above: the home screen reads **"Signed in as Tim Köhler"**, with the Running generations card ("Nothing is being generated right now."), the Coach chat card, Profile and Logout.
+
+- **How it ran:** the simulator ran inside a leased VM (`app-qa-slot-1`), because this machine is set up for that. The iOS check passed (Maestro 2.12.1, simulator, backend on `:8081` reporting UP). Sign-in went through the `app_kmp/maestro/f1-signin-home.yaml` flow, which signs in, checks that the `home` screen is showing, and only then takes the screenshot. The login values went only to the test tool and were stripped from its log files afterwards. The flow passed in 50.2 s.
+- **First attempt failed:** the login form ("Username or email") didn't appear within 30 s. Without checking the screen, I reset the simulator to a fresh state and ran the flow once more, which passed. Why the first run failed is unknown; a slow-loading login page is likely but unconfirmed. The failed run's files are still in `$HOST_TMP/app-qa-root-IDwUlI`, which I didn't open.
+- **Screenshot:** saved at `/tmp/onara-qa-signin-acct1/run2/f1-home.png`. A scan for passwords, tokens and test markers found nothing in it.
+- **VM shut down:** I ran `vm down` to free the slot, so that simulator, and the signed-in session on it, no longer exists. To use the app further, I'd have to start the VM and sign in again.

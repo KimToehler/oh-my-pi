@@ -1,0 +1,42 @@
+head 7a3687e8267cbbf3ef5ac275e1eff3e28bf362da (first wave-9 run, 2026-11-17, log kept from /tmp)
+$ bun test --timeout 120000 team-config/tests team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs scripts/install-team-config.test.ts team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts scripts/ensure-openspec-cli.test.ts team-config/agent/skills/context-review/scripts/measure-context.test.ts team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs
+bun test v1.4.4 (5d9cc0f4f)
+[pi-natives] ~/git/oh-my-pi/packages/natives/native/pi_natives.darwin-arm64.node is @oh-my-pi/pi-natives@18.18.2, but this checkout is @18.20.2. Symbols this checkout expects may be missing and shared ones may behave differently; run `bun run build:native` before trusting results from this tree.
+
+team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:
+554 | const hashes = (dir) => Object.fromEntries(filesBelow(dir).map((f) => [f, createHash('sha256').update(readFileSync(f)).digest('hex')]));
+555 | 
+556 | async function waitFor(path, ms = 10000) {
+557 |   const end = Date.now() + ms;
+558 |   while (!existsSync(path)) {
+559 |     if (Date.now() > end) throw new Error(`timed out waiting for ${path}`);
+                                          ^
+error: timed out waiting for /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-A3xw8y/holds/tar-x-before.held
+      at waitFor (~/git/oh-my-pi/.worktrees/app-qa-vm-lane/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:559:37)
+      at async heldReturn (~/git/oh-my-pi/.worktrees/app-qa-vm-lane/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:2459:9)
+      at async <anonymous> (~/git/oh-my-pi/.worktrees/app-qa-vm-lane/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:2466:32)
+      at async <anonymous> (node:test:1445:26)
+      at async executeTestNode (node:test:1448:63)
+(fail) route: interrupt - a host killed before the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID [10891.09ms]
+554 | const hashes = (dir) => Object.fromEntries(filesBelow(dir).map((f) => [f, createHash('sha256').update(readFileSync(f)).digest('hex')]));
+555 | 
+556 | async function waitFor(path, ms = 10000) {
+557 |   const end = Date.now() + ms;
+558 |   while (!existsSync(path)) {
+559 |     if (Date.now() > end) throw new Error(`timed out waiting for ${path}`);
+                                          ^
+error: timed out waiting for /private/var/folders/c6/rmmgm5s52vsc2_g434mnp_nm0000gn/T/qa-test-HedJL6/holds/tar-x-after.held
+      at waitFor (~/git/oh-my-pi/.worktrees/app-qa-vm-lane/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:559:37)
+      at async heldReturn (~/git/oh-my-pi/.worktrees/app-qa-vm-lane/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:2459:9)
+      at async <anonymous> (~/git/oh-my-pi/.worktrees/app-qa-vm-lane/team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs:2466:32)
+      at async <anonymous> (node:test:1445:26)
+      at async executeTestNode (node:test:1448:63)
+(fail) route: interrupt - a host killed after the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID [11051.38ms]
+warning: in the working copy of 'evidence/merge-gate.json', LF will be replaced by CRLF the next time Git touches it
+
+ 989 pass
+ 2 fail
+ 1210 expect() calls
+Ran 991 tests across 10 files. [1919.62s]
+error: script "test:team-config" exited with code 1
+[exit 1]

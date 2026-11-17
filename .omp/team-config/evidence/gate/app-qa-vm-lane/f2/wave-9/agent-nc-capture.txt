@@ -1,0 +1,97 @@
+[call 1] read: {"path": "skill://app-qa-drivers", "i": "Reading app QA drivers skill"}
+[result 1] (read: 36696 chars, not quoted)
+[call 2] read: {"path": ".omp/app-qa.json", "i": "Reading app QA configuration"}
+[result 2] (read: 2388 chars, not quoted)
+[call 3] glob: {"path": ".omp/skills/*/SKILL.md;.agents/skills/*/SKILL.md;docs/agent-skills/*/SKILL.md", "i": "Locating repository QA skill"}
+[call 4] bash: {"command": "ls ~/.omp/agent/app-qa-vm.json 2>/dev/null && echo lane-file-present || echo no-lane-file; omp config get power.sleepPrevention 2>&1 | tail -1", "i": "Checking VM lane file"}
+[result 3] (glob: 168 chars, not quoted)
+[result 4] (bash: 60 chars, not quoted)
+[call 5] read: {"path": "docs/agent-skills/kmp-qa/SKILL.md", "i": "Reading repository QA skill"}
+[result 5] (read: 12002 chars, not quoted)
+[call 6] bash: {"command": "ls app_kmp/maestro/; echo ---; cat app_kmp/maestro/signin-ios.yaml", "i": "Inspecting Maestro sign-in flows"}
+[result 6]
+  f1-signin-home.yaml
+  onboarding.yaml
+  profile.yaml
+  signin-android.yaml
+  signin-ios.yaml
+  ---
+  # Sign-in subflow for the iOS simulator (kmp-qa-drivers design D8).
+  #
+  # Precondition: the app shows its login entry (id `sign-in`) or the SSO page is already open.
+  # Contract: MAESTRO_DEV_USER and MAESTRO_DEV_PW hold the dev account (the shared driver's
+  # `flow --account` puts them into Maestro's environment only); MAESTRO_EXPECT_TAG is the test tag of
+  # the screen sign-in lands on (`home`, or `onboarding-welcome` with `flow --expect onboarding`).
+  # Run it through `node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios ...`, directly or
+  # by runFlow from a flow.
+  #
+  # Each SSO field is replaced whole, whatever it holds: the text field by two caret taps at the
+  # input's left edge, then › and the select-all item (no menu item on an empty field), the secure
+  # field by a double tap at its left edge; inputText then replaces the selection. The old value is
+  # never read. The form is submitted natively with Enter from the focused password field: a tap on
+  # the page's button can land on the on-screen keyboard and never submit (task 3.6).
+  # No screenshot, no hierarchy read and no consent step: sign-in ends on the expected tag.
+  appId: eu.onara.app.kmp
+  ---
+  - runFlow:
+      when:
+        visible:
+          id: "sign-in"
+      commands:
+        - tapOn:
+            id: "sign-in"
+  - runFlow:
+      when:
+        visible: "Continue|Fortfahren"
+      commands:
+        - tapOn: "Continue|Fortfahren"
+  - extendedWaitUntil:
+      visible: "Username or email"
+      timeout: 30000
+  # Text field: two taps at the start of the value, then select all.
+  - tapOn:
+      text: "Username or email"
+      index: 1
+      point: "3%,50%"
+      retryTapIfNoChange: false
+  - extendedWaitUntil:
+      visible: "qa-pause-never-shown"
+      timeout: 1500
+      optional: true
+  - tapOn:
+      text: "Username or email"
+      index: 1
+      point: "3%,50%"
+      retryTapIfNoChange: false
+  - extendedWaitUntil:
+      visible: "qa-pause-never-shown"
+      timeout: 1500
+      optional: true
+  - runFlow:
+      when:
+        visible: "Auswählen"
+[call 7] read: {"path": "app_kmp/maestro/f1-signin-home.yaml", "i": "Reading sign-in-home flow"}
+[result 7] (read: 418 chars, not quoted)
+[call 8] bash: {"command": "node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios 2>&1 | tail -25; echo \"exit=${PIPESTATUS[0]}\"", "i": "Starting iOS VM lane", "timeout": 1800}
+[result 8]
+  vm up: no free slot; every slot is held or used within 30 min:
+    slot 1: /Users/[redacted]/git/onara/.worktrees/app-qa-vm-f1 (ready, last used 8 min ago)
+    slot 2: /Users/[redacted]/git/onara/.worktrees/app-qa-vm-f1b (ready, last used less than a minute ago)
+  exit=2
+  
+  
+  Wall time: 6.25 seconds
+[final report]
+I couldn't sign account 1 in. The VM lane refused to start, so no flow ran and there is no screen to show you.
+
+`node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios` exited 2: `no free slot; every slot is held or used within 30 min`. Both slots are taken by other worktrees:
+- **Slot 1:** `.worktrees/app-qa-vm-f1`, ready, last used 8 minutes ago.
+- **Slot 2:** `.worktrees/app-qa-vm-f1b`, ready, used less than a minute ago.
+
+Nothing was built, cloned or signed in, so there is nothing to clean up and no `vm down` is needed. No screenshot, accessibility read or `computer` call was made.
+
+The sign-in is ready to go once a slot frees up. It would use the existing `app_kmp/maestro/f1-signin-home.yaml`, which signs in through `signin-ios.yaml`, waits for the `home` tag and only then takes the `f1-home` screenshot. It runs in three steps: `vm up ios`, then `preflight ios`, then `flow ios app_kmp/maestro/f1-signin-home.yaml --account 1 --out <new dir>`.
+
+To go ahead, either:
+1. Free a slot by running `vm down` in one of those two worktrees, or wait until slot 1 has been idle for 30 minutes and the next `vm up` reclaims it.
+2. Tell me to use the host simulator instead (`--host`). The QA procedure only allows that when you ask for it, so I haven't used it.

@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import {
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -24,7 +25,7 @@ import {
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
-import { after, test } from 'node:test';
+import { after, afterEach, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -154,10 +155,40 @@ await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
 const PORT = server.address().port;
 
 const roots = [];
+
+/** Pids of live processes whose command line names one of the test roots (the fakes run from `ROOT/bin`, `ROOT/guest/bin`). */
+function processesIn(rootList) {
+  if (!rootList.length) return [];
+  const r = spawnSync('ps', ['-Ao', 'pid=,args='], { encoding: 'utf8' });
+  const prefixes = rootList.flatMap((d) => [d, `/private${d}`]);
+  const found = [];
+  for (const line of r.stdout.split('\n')) {
+    const m = /^\s*(\d+)\s+(.*)$/.exec(line);
+    if (m && Number(m[1]) !== process.pid && prefixes.some((p) => m[2].includes(p))) found.push(Number(m[1]));
+  }
+  return found;
+}
+
+/** Kills what the tests' fakes left running: the detached port forwards, fake JVMs and lume runs outlive the test that started them. */
+function reapRoots() {
+  for (const pid of processesIn(roots)) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {}
+  }
+}
+
+// Every test is over before the next starts; a leftover process of an earlier test would only slow the later ones down.
+afterEach(reapRoots);
 after(() => {
+  // Assert before reaping: reaping first made the assertion unable to fail. Only the per-test reaper above keeps this empty.
+  // The server closes before the assertion: a hook that throws skips the later ones, and an open server hangs the run.
+  const left = processesIn(roots);
+  reapRoots();
   server.closeAllConnections?.();
   server.close();
   for (const r of roots) rmSync(r, { recursive: true, force: true });
+  assert.deepEqual(left, [], 'processes of the tests are still alive after teardown');
 });
 
 // ---------- fakes ----------
@@ -323,8 +354,40 @@ const pw = env.MAESTRO_DEV_PW ?? '';
 `,
   xcrun: `
 log({ tool: 'xcrun', argv });
-const devices = st.iosDevices.map((d) => ({ udid: d.udid, name: d.name, state: 'Booted', isAvailable: true }));
-out(JSON.stringify({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-26-4': devices } }));
+// The lane's simulators (create, boot, install, openurl, terminate, delete) live in st.sims; st.iosDevices stay the
+// booted devices of every other test.
+const RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-4';
+const sims = st.sims ?? [];
+const [, sub, verb] = argv;
+const simOf = (udid) => sims.find((d) => d.udid === udid);
+if (sub === 'list' && verb === 'runtimes') {
+  out(JSON.stringify({ runtimes: st.runtimes ?? [{ identifier: RUNTIME, name: 'iOS 26.4', platform: 'iOS', isAvailable: true }] }));
+  process.exit(0);
+}
+if (sub === 'create') {
+  const udid = 'LANE-SIM-' + (st.simSeq = (st.simSeq ?? 0) + 1);
+  st.sims = [...sims, { udid, name: argv[2], deviceType: argv[3], runtime: argv[4], state: 'Shutdown', installed: [] }];
+  save(); out(udid); process.exit(0);
+}
+if (sub === 'launch') {
+  const udid = argv[2] === '--terminate-running-process' ? argv[3] : argv[2];
+  if (st.launchFails || !simOf(udid) || simOf(udid).state !== 'Booted') { process.stderr.write('launch failed\\n'); process.exit(1); }
+  process.exit(0);
+}
+if (['boot', 'delete', 'install', 'openurl', 'terminate'].includes(sub)) {
+  const d = simOf(argv[2]);
+  if (!d) { process.stderr.write('Invalid device: ' + argv[2] + '\\n'); process.exit(164); }
+  if (sub === 'boot') d.state = 'Booted';
+  if (sub === 'install') {
+    if (d.state !== 'Booted' || !fs.existsSync(argv[3])) process.exit(1);
+    d.installed.push(argv[3]);
+  }
+  if (sub === 'delete') st.sims = sims.filter((x) => x !== d);
+  save(); process.exit(0);
+}
+const booted = st.iosDevices.map((d) => ({ udid: d.udid, name: d.name, state: 'Booted', isAvailable: true }));
+const own = sims.filter((d) => !argv.includes('booted') || d.state === 'Booted').map((d) => ({ udid: d.udid, name: d.name, state: d.state, isAvailable: true }));
+out(JSON.stringify({ devices: { [RUNTIME]: [...booted, ...own] } }));
 `,
   adb: `
 log({ tool: 'adb', argv });
@@ -338,6 +401,15 @@ out('+-o Root  <class IORegistryEntry, id 0x100000100, retain 31>\\n    {\\n    
   ps: `
 log({ tool: 'ps', argv });
 out(st.ps.join('\\n'));
+`,
+  // `sysctl -n hw.ncpu vm.loadavg`: st.ncpu (default 8) and the next of st.loads (default 1), the last one repeating.
+  sysctl: `
+log({ tool: 'sysctl', argv });
+const loads = st.loads ?? [1];
+const load = loads.length > 1 ? loads.shift() : loads[0];
+st.loads = loads;
+save();
+out((st.ncpu ?? 8) + '\\n{ ' + load.toFixed(2) + ' 1.00 1.00 }');
 `,
 };
 
@@ -395,19 +467,28 @@ function makeRepo(repo, fixture, config = CONFIGS[fixture]) {
   return realpathSync(repo);
 }
 
-function layout({ fixture = 'onara', config, fakes = ['spectre', 'lsof', 'maestro', 'xcrun', 'adb', 'ioreg', 'ps'], state = {} } = {}) {
+function layout({ fixture = 'onara', config: configOrMake, fakes = ['spectre', 'lsof', 'maestro', 'xcrun', 'adb', 'ioreg', 'ps'], state = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'qa-test-'));
   roots.push(root);
+  // A function builds the configuration once the layout's real root is known (vm builds name files below it).
+  const config = typeof configOrMake === 'function' ? configOrMake(realpathSync(root)) : configOrMake;
   const repo = makeRepo(join(root, 'repo'), fixture, config);
-  const driverDir = join(root, 'driver');
-  mkdirSync(driverDir);
+  // The deployed layout: <skill>/scripts/qa.mjs with the guest scripts in <skill>/scripts/vm/.
+  const skillDir = join(root, 'driver');
+  const driverDir = join(skillDir, 'scripts');
+  mkdirSync(driverDir, { recursive: true });
   copyFileSync(QA_SOURCE, join(driverDir, 'qa.mjs'));
+  // The guest scripts beside the driver under test, so a QA_UNDER_TEST copy of the whole folder also swaps vm/; a lone
+  // qa.mjs variant gets this folder's vm/.
+  const vmSource = [join(dirname(QA_SOURCE), 'vm'), join(HERE, 'vm')].find((d) => existsSync(d));
+  if (vmSource) cpSync(vmSource, join(driverDir, 'vm'), { recursive: true });
   const L = {
     root: realpathSync(root),
     repo,
     fixture,
     config: config ?? CONFIGS[fixture],
     qa: join(driverDir, 'qa.mjs'),
+    skillDir,
     bin: join(root, 'bin'),
     tmp: join(root, 'tmp'),
     home: join(root, 'home'),
@@ -486,12 +567,230 @@ function flowFile(L, name = 'scenario') {
   return f;
 }
 
+/** A flow file inside the worktree (a routed flow must lie in it). */
+function repoFlow(L, name = 'scenario') {
+  const f = join(L.repo, `${name}.yaml`);
+  writeFileSync(f, 'appId: org.example.app\n---\n- assertVisible:\n    id: home\n');
+  return f;
+}
 const flow = (L, extra = [], opts) => runQa(L, ['flow', 'ios', flowFile(L), ...extra], opts);
 const maestroRuns = (L) => L.calls('maestro').filter((c) => c.argv?.[0] === 'test');
 const qaDir = (L) => join(L.tmp, 'app-qa');
 const lockPath = (L) => join(qaDir(L), 'flow.lock');
 const sessionPath = (L, worktree) =>
   join(qaDir(L), 'sessions', `${createHash('sha256').update(worktree).digest('hex').slice(0, 16)}.json`);
+
+// ---------- vm lane harness (openspec change app-qa-vm-lane) ----------
+// A lane layout adds to a layout: the fake lume (a clone list in a state file) and ssh (runs the joined remote command
+// through `sh -c` in a local guest directory) on the host PATH, real tar and cp, a guest directory with its own fake
+// tools, driver state and call log, a lane file under the private HOME, and a fake build tool the vm section names.
+
+const FAKE_DIR = join(FIXTURES, 'fakes');
+const FAKE_BUILD = join(FIXTURES, 'fake-build.mjs');
+const PRELOAD_SLOT = join(HERE, 'qa-test-preload-slotblock.mjs');
+const PRELOAD_WRITES = join(HERE, 'qa-test-preload-writes.mjs');
+const PRELOAD_LOCKPAUSE = join(HERE, 'qa-test-preload-lockpause.mjs');
+const PRELOAD_DHCP = join(HERE, 'qa-test-preload-dhcp.mjs');
+const PRELOAD_ORPHAN = join(HERE, 'qa-test-preload-orphanblock.mjs');
+const layouts = [];
+const procs = [];
+
+after(() => {
+  for (const L of layouts) {
+    let calls = [];
+    try {
+      calls = [...L.calls('ssh'), ...L.gcalls('java')];
+    } catch {}
+    for (const c of calls) {
+      if (c.forward || c.tool === 'java') {
+        try {
+          process.kill(c.pid, 'SIGKILL');
+        } catch {}
+      }
+    }
+  }
+  for (const pid of procs) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {}
+  }
+});
+
+const LAUNCHER_CFG = `[Application]
+app.classpath=$APPDIR/onara.jar
+app.classpath=$APPDIR/lib/compose.jar
+app.mainclass=eu.onara.app.MainKt
+
+[JavaOptions]
+java-options=-Dfirst=1
+java-options=-Xmx512m
+java-options=-Dapp.dir=$APPDIR
+`;
+const BUILD_ARTIFACTS = {
+  ios: { path: 'build/App.app', files: { 'Info.plist': 'ios app v1 port={port}\nbundle=eu.onara.app.test\n', 'bin/app': 'binary-v1' } },
+  desktop: { path: 'build/Onara.app', files: { 'Contents/app/Onara.cfg': LAUNCHER_CFG, 'Contents/app/onara.jar': 'jar-v1' } },
+};
+
+const isAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM';
+  }
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const readJson = (f) => JSON.parse(readFileSync(f, 'utf8'));
+const patchJson = (f, patch) => writeFileSync(f, JSON.stringify({ ...readJson(f), ...patch }));
+
+/** A host process the test controls (a fake forward); killed after the suite. */
+function background() {
+  const child = spawn(NODE, ['-e', 'setInterval(() => {}, 1 << 30)'], { detached: true, stdio: 'ignore' });
+  child.unref();
+  procs.push(child.pid);
+  return child.pid;
+}
+
+const LANE_DEFAULTS = { schema: 'app-qa-vm/1', image: 'app-qa-golden', user: 'lume', slots: 2, idleMinutes: 30, ios: { deviceType: 'iPhone 17 Pro' } };
+/** The host key the fake guest presents by default (the fake ssh's default too). */
+const GUEST_HOST_KEY = 'ssh-ed25519 AAAAfakeguestkey';
+
+function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = [] } = {}) {
+  const make = (root) => {
+    const control = join(root, 'build-control.json');
+    const port = backend ? ['{port}'] : [];
+    const base = backend ? CONFIGS.onara : (({ backend: _b, ...rest }) => rest)(CONFIGS.onara);
+    return v2(base, {
+      ios: { artifact: 'build/App.app', build: { argv: [NODE, FAKE_BUILD, control, 'ios', ...port], cwd: '.' } },
+      desktop: {
+        artifact: 'build/Onara.app',
+        build: { argv: [NODE, FAKE_BUILD, control, 'desktop', ...port], cwd: 'app' },
+        systemProperties: { 'onara.devCredentialsFile': '{credentials}' },
+      },
+    });
+  };
+  const L = layout({ config: make });
+  layouts.push(L);
+  writeFileSync(join(L.repo, '.gitignore'), '.worktrees/\nbuild/\n.dev-credentials.env\n');
+  git(L.repo, 'add', '.gitignore');
+  git(L.repo, 'commit', '-qm', 'ignore build output');
+  // host
+  L.control = join(L.root, 'build-control.json');
+  writeFileSync(L.control, JSON.stringify({ print: {}, artifacts: BUILD_ARTIFACTS }));
+  L.setControl = (patch) => patchJson(L.control, patch);
+  L.builds = () => (existsSync(`${L.control}.runs`) ? readFileSync(`${L.control}.runs`, 'utf8').split('\n').filter(Boolean).map(JSON.parse) : []);
+  L.holds = join(L.root, 'holds');
+  mkdirSync(L.holds);
+  L.lumeFile = join(L.root, 'lume-state.json');
+  writeFileSync(L.lumeFile, JSON.stringify({ version: '0.7.2', vms: [{ name: 'app-qa-golden', status: 'stopped', ipAddress: null }], hold: {} }));
+  L.lume = () => readJson(L.lumeFile);
+  L.setLume = (patch) => patchJson(L.lumeFile, patch);
+  L.clones = () => L.lume().vms.map((v) => v.name).filter((n) => n.startsWith('app-qa-slot-'));
+  L.addVm = (name, status = 'running') => {
+    const s = L.lume();
+    s.vms.push({ name, status, ipAddress: status === 'running' ? `192.168.64.${20 + s.vms.length}` : null });
+    writeFileSync(L.lumeFile, JSON.stringify(s));
+  };
+  L.setVmStatus = (name, status) => {
+    const s = L.lume();
+    const vm = s.vms.find((v) => v.name === name);
+    vm.status = status;
+    vm.ipAddress = status === 'running' ? '192.168.64.30' : null;
+    writeFileSync(L.lumeFile, JSON.stringify(s));
+  };
+  L.hold = (name, target = true) => patchJson(L.lumeFile, { hold: { ...L.lume().hold, [name]: target } });
+  L.held = (name) => join(L.holds, `${name}.held`);
+  L.release = (name) => writeFileSync(join(L.holds, `${name}.release`), '');
+  // guest
+  const g = join(L.root, 'guest');
+  L.guest = { dir: g, home: join(g, 'home'), tmp: join(g, 'tmp'), bin: join(g, 'bin'), jdk: join(g, 'jdk21'), stateFile: join(g, 'state.json'), callFile: join(g, 'calls.jsonl') };
+  for (const d of [L.guest.home, L.guest.tmp, L.guest.bin, join(L.guest.jdk, 'bin')]) mkdirSync(d, { recursive: true });
+  L.guestCopy = join(L.guest.home, 'work', 'onara');
+  L.guestDriver = join(L.guest.home, '.omp', 'agent', 'skills', 'app-qa-drivers', 'scripts');
+  writeFileSync(L.guest.stateFile, JSON.stringify({ ...structuredClone(DEFAULT_STATE), jvms: [], iosDevices: [] }));
+  writeFileSync(L.guest.callFile, '');
+  L.gstate = () => readJson(L.guest.stateFile);
+  L.gset = (patch) => patchJson(L.guest.stateFile, patch);
+  L.gcalls = (tool) => (existsSync(L.guest.callFile) ? readFileSync(L.guest.callFile, 'utf8').split('\n').filter(Boolean).map(JSON.parse) : []).filter((c) => !tool || c.tool === tool);
+  L.guestEnv = {
+    PATH: `${L.guest.bin}:/usr/bin:/bin`,
+    HOME: L.guest.home,
+    TMPDIR: L.guest.tmp,
+    FAKE_STATE: L.guest.stateFile,
+    FAKE_CALLS: L.guest.callFile,
+    FAKE_FIXTURES: FIXTURES,
+    FAKE_JAVA_HOME: L.guest.jdk,
+    QA_TARGET_WARM_MS: '0',
+    QA_TARGET_SETTLE_POLL_MS: '0',
+  };
+  const fakeFile = (name, file, dir) => {
+    writeFileSync(join(dir, name), `#!${NODE}\n${readFileSync(join(FAKE_DIR, file), 'utf8')}`);
+    chmodSync(join(dir, name), 0o755);
+  };
+  for (const f of ['spectre', 'lsof', 'maestro', 'xcrun', 'ioreg', 'ps', 'sysctl']) L.fake(f, L.guest.bin);
+  for (const [n, f] of [['nc', 'nc.cjs'], ['sudo', 'sudo.cjs'], ['launchctl', 'launchctl.cjs'], ['java_home', 'java_home.cjs'], ['plutil', 'plutil.cjs']]) fakeFile(n, f, L.guest.bin);
+  fakeFile('java', 'java.cjs', join(L.guest.jdk, 'bin'));
+  symlinkSync(GIT, join(L.guest.bin, 'git'));
+  symlinkSync(NODE, join(L.guest.bin, 'node'));
+  L.setLume({ guestWipe: [L.guest.home, L.guest.tmp] });
+  L.sshFile = join(L.root, 'ssh-state.json');
+  writeFileSync(L.sshFile, JSON.stringify({ guestDir: L.guest.home, env: L.guestEnv }));
+  L.setSsh = (patch) => patchJson(L.sshFile, patch);
+  fakeFile('lume', 'lume.cjs', L.bin);
+  fakeFile('ssh', 'ssh.cjs', L.bin);
+  fakeFile('tar', 'tar.cjs', L.bin);
+  fakeFile('tar', 'tar.cjs', L.guest.bin);
+  symlinkSync('/bin/cp', join(L.bin, 'cp'));
+  Object.assign(L.env, { FAKE_LUME_STATE: L.lumeFile, FAKE_SSH_STATE: L.sshFile, FAKE_HOLD_DIR: L.holds, FAKE_VM_DIR: join(L.tmp, 'app-qa', 'vm') });
+  // lane file
+  L.laneFile = join(L.home, '.omp', 'agent', 'app-qa-vm.json');
+  L.sshKey = join(L.root, 'id_test');
+  writeFileSync(L.sshKey, 'test key\n');
+  // The fake guest presents GUEST_HOST_KEY (ssh-state `hostKey` overrides it); the lane pins it under the image name.
+  L.knownHosts = join(L.root, 'known_hosts');
+  writeFileSync(L.knownHosts, `${LANE_DEFAULTS.image} ${GUEST_HOST_KEY}\n`);
+  L.writeLane = (patch = {}, raw) => {
+    mkdirSync(dirname(L.laneFile), { recursive: true });
+    writeFileSync(L.laneFile, raw ?? JSON.stringify({ ...validLane(L), ...lane, ...patch }, null, 2));
+  };
+  if (!noLane) L.writeLane();
+  // leases
+  L.vmDir = join(L.tmp, 'app-qa', 'vm');
+  L.slotDir = (n) => join(L.vmDir, `slot-${n}`);
+  L.lease = (n) => readJson(join(L.slotDir(n), 'lease.json'));
+  L.slots = () => (existsSync(L.vmDir) ? readdirSync(L.vmDir).filter((e) => /^slot-\d+$/.test(e)).sort() : []);
+  L.writeLease = (n, lease) => {
+    mkdirSync(L.slotDir(n), { recursive: true });
+    writeFileSync(join(L.slotDir(n), 'lease.json'), JSON.stringify(lease));
+  };
+  L.lumeCalls = (verb) => L.calls('lume').filter((c) => !verb || c.argv[0] === verb);
+  L.up = (args, opts) => runQa(L, ['vm', 'up', ...args], opts);
+  /** A ready lease of `worktree` staged for `targets`, its clone running, a live fake forward, the guest driver faked. */
+  L.stage = ({ n = 1, worktree = L.repo, targets = ['ios'], state = 'ready', holder = null, forward = true, lastUsed = Date.now(), port = PORT, fakeDriver = true } = {}) => {
+    const clone = `app-qa-slot-${n}`;
+    if (!L.lume().vms.some((v) => v.name === clone)) L.addVm(clone);
+    const fwd = forward ? { pid: background(), port } : null;
+    const lease = { worktree, clone, slot: n, state, holder, targets, inputs: Object.fromEntries(targets.map((t) => [t, { port, argv: [] }])), forward: fwd, lastUsed };
+    L.writeLease(n, lease);
+    mkdirSync(join(L.guestCopy, '.omp'), { recursive: true });
+    copyFileSync(join(L.repo, '.omp', 'app-qa.json'), join(L.guestCopy, '.omp', 'app-qa.json'));
+    copyFileSync(join(L.repo, '.dev-credentials.env'), join(L.guestCopy, '.dev-credentials.env'));
+    if (!existsSync(join(L.guestCopy, '.git'))) git(L.guestCopy, 'init', '-q');
+    if (fakeDriver) L.fakeGuestDriver();
+    return lease;
+  };
+  L.fakeGuestDriver = (cfg) => {
+    mkdirSync(L.guestDriver, { recursive: true });
+    copyFileSync(QA_SOURCE, join(L.guestDriver, 'qa-real.mjs'));
+    cpSync(join(dirname(QA_SOURCE), 'vm'), join(L.guestDriver, 'vm'), { recursive: true });
+    copyFileSync(join(FAKE_DIR, 'guest-driver.mjs'), join(L.guestDriver, 'qa.mjs'));
+    if (cfg) L.driverCfg(cfg);
+  };
+  L.driverCfg = (cfg) => writeFileSync(join(L.guest.home, 'fake-driver.json'), JSON.stringify(cfg));
+  return L;
+}
+
+const writeLaneFile = (L, patch, raw) => L.writeLane(patch, raw);
 
 // ---------- config ----------
 
@@ -525,16 +824,1876 @@ test('config: --config names the file in force, also outside a git checkout', as
 });
 
 test('config: a newer schema id names the file, both ids and the redeploy', async () => {
-  const L = layout({ config: { ...CONFIGS.minimal, schema: 'app-qa/2' }, fixture: 'minimal' });
+  const L = layout({ config: { ...CONFIGS.minimal, schema: 'app-qa/3' }, fixture: 'minimal' });
   const r = await runQa(L, ['preflight', 'desktop']);
   assert.equal(r.status, 2);
   assert.deepEqual(r.lines, []);
   const file = join(L.repo, '.omp', 'app-qa.json');
   assert.ok(r.stderr.includes(file), r.stderr);
-  assert.match(r.stderr, /app-qa\/2/);
+  assert.match(r.stderr, /app-qa\/3/);
   assert.match(r.stderr, /app-qa\/1/);
+  assert.match(r.stderr, /app-qa\/2/);
   assert.match(r.stderr, /redeploy team config/);
   assert.equal(L.calls().length, 0);
+});
+
+/** `vm` sections of the app-qa/2 schema (design D8): artifacts and builds per target. */
+const VM_SECTION = {
+  ios: { artifact: 'build/App.app', build: { argv: ['./gradlew', 'iosApp', '-Pport={port}'], cwd: '.' } },
+  desktop: {
+    artifact: 'build/Onara.app',
+    build: { argv: ['./gradlew', 'createDistributable'], cwd: 'app' },
+    systemProperties: { 'onara.devCredentialsFile': '{credentials}' },
+  },
+};
+const v2 = (config, vm) => ({ ...config, schema: 'app-qa/2', vm });
+
+/** Invalid `vm` sections (and their placement), each with the cause the refusal must name. */
+const BROKEN_VM = [
+  ['vm under app-qa/1', () => ({ ...CONFIGS.onara, vm: VM_SECTION }), /vm: unknown key/],
+  ['an empty vm section', () => v2(CONFIGS.onara, {}), /vm: expected at least one of ios, desktop/],
+  ['an unknown vm target', () => v2(CONFIGS.onara, { ...VM_SECTION, android: VM_SECTION.ios }), /vm\.android: unknown key/],
+  ['an absolute artifact path', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, artifact: '/tmp/App.app' } }), /vm\.ios\.artifact: .*relative/],
+  ['a .. in the artifact path', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, artifact: '../App.app' } }), /vm\.ios\.artifact: .*\.\./],
+  ['a build without argv', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, build: { cwd: '.' } } }), /vm\.ios\.build\.argv: missing/],
+  ['an empty argv element', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, build: { argv: ['make', ''], cwd: '.' } } }), /vm\.ios\.build\.argv: expected a list of non-empty strings/],
+  ['an absolute build cwd', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, build: { argv: ['make'], cwd: '/tmp' } } }), /vm\.ios\.build\.cwd: .*relative/],
+  ['an empty system property value', () => v2(CONFIGS.onara, { desktop: { ...VM_SECTION.desktop, systemProperties: { a: '' } } }), /vm\.desktop\.systemProperties\.a: expected a non-empty string/],
+  ['systemProperties on ios', () => v2(CONFIGS.onara, { ios: { ...VM_SECTION.ios, systemProperties: { a: 'b' } } }), /vm\.ios\.systemProperties: unknown key/],
+  ['{port} without a backend section', () => {
+    const { backend, ...noBackend } = CONFIGS.onara;
+    return v2(noBackend, { ios: VM_SECTION.ios });
+  }, /vm\.ios\.build\.argv\.2: \{port\} needs a backend section/],
+];
+
+test('config: app-qa/2 refuses an invalid vm section with exit 2 naming the file and the cause', async () => {
+  const L = layout();
+  const file = join(L.repo, '.omp', 'app-qa.json');
+  for (const [label, make, cause] of BROKEN_VM) {
+    writeConfig(L.repo, make());
+    const r = await runQa(L, ['preflight', 'desktop']);
+    assert.equal(r.status, 2, label);
+    assert.deepEqual(r.lines, [], label);
+    assert.ok(r.stderr.includes(file), `${label}: ${r.stderr}`);
+    assert.match(r.stderr, cause, label);
+  }
+  assert.equal(L.calls().length, 0);
+});
+
+test('config: a valid app-qa/2 configuration is accepted with and without a backend', async () => {
+  const withBackend = layout({ config: v2(CONFIGS.onara, VM_SECTION) });
+  const a = await runQa(withBackend, ['preflight', 'desktop']);
+  assert.equal(a.status, 0, a.stdout + a.stderr);
+  assert.equal(a.lines.length, 4);
+  const { backend, ...noBackend } = CONFIGS.onara;
+  const noPort = { ios: { ...VM_SECTION.ios, build: { argv: ['./gradlew', 'iosApp'], cwd: '.' } }, desktop: VM_SECTION.desktop };
+  const without = layout({ config: v2(noBackend, noPort) });
+  const b = await runQa(without, ['preflight', 'desktop']);
+  assert.equal(b.status, 0, b.stdout + b.stderr);
+  assert.equal(b.lines.length, 3);
+});
+
+// ---------- lane: the machine lane file and the lane's activation ----------
+
+test('lane: with no lane file preflight runs on the host and vm up exits 2 naming the file', async () => {
+  const L = laneLayout({ noLane: true });
+  const host = await runQa(L, ['preflight', 'desktop']);
+  assert.equal(host.status, 0, host.stdout + host.stderr);
+  assert.equal(host.lines.length, 4);
+  const up = await L.up(['ios']);
+  assert.equal(up.status, 2);
+  assert.ok(up.stderr.includes(L.laneFile), up.stderr);
+  assert.match(up.stderr, /missing/);
+  assert.equal(L.calls('lume').length + L.calls('ssh').length, 0);
+  assert.equal(L.builds().length, 0);
+});
+
+test('lane: without a vm section every command runs on the host', async () => {
+  const L = laneLayout();
+  writeConfig(L.repo, CONFIGS.onara);
+  const r = await runQa(L, ['preflight', 'desktop']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(r.lines.length, 4);
+  assert.equal(L.calls('lume').length + L.calls('ssh').length, 0);
+  const up = await L.up(['ios']);
+  assert.equal(up.status, 2);
+  assert.match(up.stderr, /vm: .*no vm section|no vm section/);
+});
+
+/** A valid lane file of layout `L`. */
+const validLane = (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, knownHosts: L.knownHosts });
+/** Invalid lane files, each with the cause its refusal must name. */
+const BROKEN_LANES = [
+  ['a misspelled key', (L) => ({ ...LANE_DEFAULTS, sshkey: L.sshKey, knownHosts: L.knownHosts }), /sshkey: unknown key/],
+  ['a missing image', (L) => ({ ...validLane(L), image: undefined }), /image: missing/],
+  ['slots 3', (L) => ({ ...validLane(L), slots: 3 }), /slots: expected 1 or 2/],
+  ['another schema id', (L) => ({ ...validLane(L), schema: 'app-qa-vm/2' }), /schema "?app-qa-vm\/2"?.*app-qa-vm\/1/],
+  ['an image named like a slot clone', (L) => ({ ...validLane(L), image: 'app-qa-slot-golden' }), /image: .*app-qa-slot-/],
+  ['a relative ssh key', (L) => ({ ...validLane(L), sshKey: 'id_test' }), /sshKey: expected an absolute path/],
+  ['no pinned host key', (L) => ({ ...validLane(L), knownHosts: undefined }), /knownHosts: missing/],
+  ['idleMinutes 0', (L) => ({ ...validLane(L), idleMinutes: 0 }), /idleMinutes: expected a positive integer/],
+  ['a missing ios section', (L) => ({ ...validLane(L), ios: undefined }), /ios: missing/],
+  ['an empty device type', (L) => ({ ...validLane(L), ios: { deviceType: '' } }), /ios\.deviceType: expected a non-empty string/],
+];
+
+test('lane: an invalid lane file exits 2 naming the file and the cause before any host check or lume call', async () => {
+  const L = laneLayout();
+  const invalid = [...BROKEN_LANES.map(([label, make, cause]) => [label, JSON.stringify(make(L)), cause]), ['not JSON', '{ "schema": ', /not valid JSON/]];
+  const evidence = join(L.root, 'evidence');
+  mkdirSync(evidence);
+  for (const [label, text, cause] of invalid) {
+    writeFileSync(L.laneFile, text);
+    for (const args of [['preflight', 'desktop'], ['preflight', 'ios'], ['desktop', 'attach'], ['flow', 'ios', flowFile(L)], ['vm', 'status'], ['vm', 'up', 'ios'], ['vm', 'down']]) {
+      const r = await runQa(L, args);
+      assert.equal(r.status, 2, `${label}: ${args.join(' ')}`);
+      assert.deepEqual(r.lines, [], label);
+      assert.ok(r.stderr.includes(L.laneFile), `${label}: ${r.stderr}`);
+      assert.match(r.stderr, cause, label);
+    }
+    // Android and scan never use the lane, and --host runs the host command as before.
+    assert.equal((await runQa(L, ['scan', evidence])).status, 0, label);
+    const host = await runQa(L, ['preflight', 'desktop', '--host']);
+    assert.equal(host.status, 0, `${label}: ${host.stdout}${host.stderr}`);
+  }
+  assert.equal(L.calls('lume').length + L.calls('ssh').length, 0);
+  assert.equal(L.calls('maestro').length + L.calls('xcrun').length, 0);
+});
+
+test('lane: the lane file path is fixed under HOME and the file may not be an environment override', async () => {
+  const L = laneLayout({ noLane: true });
+  const elsewhere = join(L.root, 'elsewhere.json');
+  writeFileSync(elsewhere, JSON.stringify(validLane(L)));
+  const r = await L.up(['ios'], { env: { APP_QA_VM_FILE: elsewhere, APP_QA_VM: elsewhere } });
+  assert.equal(r.status, 2);
+  assert.ok(r.stderr.includes(L.laneFile), r.stderr);
+});
+
+// ---------- lease: slots, leases, admission, sweep and teardown ----------
+
+const outputOf = (r) => r.stdout + r.stderr;
+async function waitUntil(fn, ms = 20000) {
+  const end = Date.now() + ms;
+  while (!(await fn())) {
+    if (Date.now() > end) throw new Error('timed out waiting for a condition');
+    await sleep(25);
+  }
+}
+async function deadPid() {
+  const child = spawn(NODE, ['-e', '0']);
+  await new Promise((ok) => child.on('close', ok));
+  return child.pid;
+}
+const releaseBuilds = (L) => writeFileSync(`${L.control}.release`, '');
+const wtOf = (L, name) => L.worktree(L.repo, join(L.root, `wt-${name}`));
+/** Every lume run, stop or delete names a slot clone and never the image (spec "The lane touches only its own clones"). */
+function assertOwnClonesOnly(L) {
+  for (const c of L.lumeCalls()) {
+    if (!['run', 'stop', 'delete'].includes(c.argv[0])) continue;
+    const name = c.argv.filter((a) => !a.startsWith('--')).at(-1);
+    assert.match(name, /^app-qa-slot-[12]$/, `lume ${c.argv.join(' ')}`);
+  }
+}
+const lockOf = (L) => join(L.vmDir, 'table.lock');
+/** A table lock held by `pid` (its token `PID-NONCE`), or with `entries` (name -> content) of no holder token. */
+const plantLock = (L, pid, entries = {}) => {
+  mkdirSync(lockOf(L), { recursive: true });
+  if (pid !== null) writeFileSync(join(lockOf(L), `${pid}-0`), '');
+  for (const [name, content] of Object.entries(entries)) writeFileSync(join(lockOf(L), name), content);
+};
+
+test('lease: lumels - a log line before the JSON of lume ls leaves vm status, a second vm up and a routed command working', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  L.setLume({ lsLogLine: true });
+  const status = await runQa(L, ['vm', 'status']);
+  assert.equal(status.status, 0, outputOf(status));
+  assert.match(status.stdout, /slot 1: ready/);
+  const again = await L.up(['ios']);
+  assert.equal(again.status, 0, outputOf(again));
+  assert.doesNotMatch(outputOf(again), /cannot be read/);
+  const routed = await runQa(L, ['preflight', 'ios']);
+  assert.doesNotMatch(outputOf(routed), /cannot be read|not running|infrastructure lost/);
+  assert.match(routed.lines[0], /^lane: .*app-qa-slot-1/);
+  assert.equal(L.lease(1).state, 'ready');
+});
+
+test('lease: lsof-probe - lume ls reporting a running clone stopped keeps it ready while its lume run process is alive, and not otherwise', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  assert.match(L.lease(1).ip, /^192\.168\.64\.\d+$/);
+  const runs = () => L.calls('lume').filter((c) => c.argv[0] === 'run').length;
+  const before = runs();
+  L.setLume({ lsStoppedNoIp: true });
+  L.set({ ps: [`4242 /usr/local/bin/lume run --detach --display none --vnc disabled ${L.lease(1).clone}`] });
+  // Seen on the driver before 9af7721945: the status line below passes (vm status reads the lease, not lume ls), so it is a control;
+  // the second vm up (exit 2, ssh never accepted; a second lume run) and the routed command (clone "not running") fail there.
+  const status = await runQa(L, ['vm', 'status']);
+  assert.equal(status.status, 0, outputOf(status));
+  assert.match(status.stdout, /slot 1: ready/);
+  const again = await L.up(['ios']);
+  assert.equal(again.status, 0, outputOf(again));
+  assert.equal(runs(), before, 'a second lume run was started for a clone whose run process is alive');
+  const routed = await runQa(L, ['preflight', 'ios']);
+  assert.doesNotMatch(outputOf(routed), /not running|infrastructure lost|cannot be read/);
+  assert.match(routed.lines[0], /^lane: .*app-qa-slot-1/);
+  // without a live run process the stopped clone is not running
+  L.set({ ps: [] });
+  const dead = await runQa(L, ['preflight', 'ios']);
+  assert.equal(dead.status, 2);
+  assert.match(outputOf(dead), /app-qa-slot-1 is not running/);
+});
+
+test('lease: dhcp - a fresh clone lume ls reports stopped without an address from its first boot is reached at the address of its DHCP lease', async () => {
+  const L = laneLayout();
+  L.setLume({ lsStoppedNoIp: true, runPs: true });
+  L.set({ ps: [] });
+  // bootpd's form: octets without leading zeros; another MAC's lease comes first. The first clone's MAC is 0e:00:00:00:00:01.
+  const leases = join(L.root, 'dhcpd_leases');
+  const entry = (ip, mac) => `{\n\tname=AppleViMachine1\n\tip_address=${ip}\n\thw_address=1,${mac}\n\tidentifier=1,${mac}\n\tlease=0x6939a1b2\n}\n`;
+  writeFileSync(leases, entry('192.168.64.40', 'e:0:0:0:0:9') + entry('192.168.64.41', 'e:0:0:0:0:1'));
+  const r = await L.up(['ios'], { env: { QA_TEST_DHCP_LEASES: leases }, argv0: (script, args) => [NODE, ['--import', PRELOAD_DHCP, script, ...args]] });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lease(1).ip, '192.168.64.41');
+  assert.equal(L.calls('lume').filter((c) => c.argv[0] === 'run').length, 1);
+});
+
+test('lease: parallel - two worktrees started together get their own slot and neither clone is deleted', async () => {
+  const L = laneLayout();
+  const wtB = wtOf(L, 'b');
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  const b = startQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  await waitUntil(() => L.builds().length === 2);
+  assert.deepEqual(L.slots(), ['slot-1', 'slot-2']);
+  const leases = [L.lease(1), L.lease(2)];
+  assert.deepEqual(leases.map((l) => l.worktree).sort(), [L.repo, wtB].sort());
+  assert.deepEqual(leases.map((l) => l.state), ['starting', 'starting']);
+  assert.deepEqual(leases.map((l) => l.holder).sort(), [a.child.pid, b.child.pid].sort());
+  assert.deepEqual(leases.map((l) => l.clone).sort(), ['app-qa-slot-1', 'app-qa-slot-2']);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  releaseBuilds(L);
+  await Promise.all([a.done, b.done]);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  assert.equal(L.lumeCalls('clone').length, 2);
+});
+
+test('lease: same-worktree - two vm up started together give one slot, one build and one exit 2 naming the owner', async () => {
+  const L = laneLayout();
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  const b = startQa(L, ['vm', 'up', 'ios']);
+  const [loser, winner] = await Promise.race([a.done.then((r) => [r, b]), b.done.then((r) => [r, a])]);
+  assert.equal(loser.status, 2, outputOf(loser));
+  assert.ok(outputOf(loser).includes(String(winner.child.pid)), outputOf(loser));
+  assert.deepEqual(L.slots(), ['slot-1']);
+  await waitUntil(() => L.builds().length === 1);
+  releaseBuilds(L);
+  await winner.done;
+  assert.equal(L.builds().length, 1);
+});
+
+test('lease: refuse - a third worktree is refused naming each holder, with no build and no lume clone', async () => {
+  const L = laneLayout();
+  const [wtB, wtC] = [wtOf(L, 'b'), wtOf(L, 'c')];
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  const b = startQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  await waitUntil(() => L.builds().length === 2);
+  const c = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  assert.equal(c.status, 2, outputOf(c));
+  for (const wt of [L.repo, wtB]) assert.ok(outputOf(c).includes(wt), outputOf(c));
+  assert.match(outputOf(c), /last used/);
+  assert.equal(L.builds().length, 2);
+  assert.equal(L.lumeCalls('clone').length, 0);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  assert.deepEqual(L.slots(), ['slot-1', 'slot-2']);
+  releaseBuilds(L);
+  await Promise.all([a.done, b.done]);
+});
+
+test('lease: simultaneous - two worktrees started together for one free slot give one holder, one build and one clone', async () => {
+  const L = laneLayout({ lane: { slots: 1 } });
+  const wtB = wtOf(L, 'b');
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  const b = startQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  const [loser, winner] = await Promise.race([a.done.then((r) => [r, b]), b.done.then((r) => [r, a])]);
+  assert.equal(loser.status, 2, outputOf(loser));
+  assert.ok(outputOf(loser).includes(String(winner.child.pid)), outputOf(loser));
+  assert.deepEqual(L.slots(), ['slot-1']);
+  releaseBuilds(L);
+  await winner.done;
+  assert.equal(L.builds().length, 1);
+  assert.equal(L.lumeCalls('clone').length, 1);
+});
+
+test('lease: stale-lock - a table lock left by a dead pid is taken over by the next vm status', async () => {
+  const L = laneLayout();
+  const pid = await deadPid();
+  plantLock(L, pid);
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, new RegExp(`took over.*table lock.*${pid}`));
+  assert.equal(existsSync(lockOf(L)), false);
+  const again = await runQa(L, ['vm', 'status']);
+  assert.equal(again.status, 0);
+  assert.doesNotMatch(again.stdout, /took over/);
+});
+
+test('lease: stale-lock - an empty table lock and one of an earlier layout without a token do not block the next vm status', async () => {
+  for (const entries of [{}, { pid: `${await deadPid()}\n` }]) {
+    const L = laneLayout();
+    plantLock(L, null, entries);
+    const r = await runQa(L, ['vm', 'status']);
+    assert.equal(r.status, 0, outputOf(r));
+    assert.equal(existsSync(lockOf(L)), false, JSON.stringify(entries));
+  }
+});
+
+test('lease: takeover - a contender that read a dead holder before a successor took the lock never moves or deletes the successor\'s lock', async () => {
+  const L = laneLayout();
+  const pause = join(L.root, 'pause');
+  mkdirSync(pause);
+  L.hold('ls');
+  // D takes the lock and dies inside it (its sweep holds in lume ls).
+  const d = startQa(L, ['vm', 'status']);
+  await waitFor(L.held('ls'));
+  assert.ok(existsSync(lockOf(L)), 'D holds the table lock while lume ls holds');
+  for (const pid of [d.child.pid, Number(readFileSync(L.held('ls'), 'utf8'))]) process.kill(pid, 'SIGKILL');
+  await d.done;
+  rmSync(L.held('ls'));
+  // B reads D's dead lock and stops before its first rename or removal of it.
+  const b = startQa(L, ['vm', 'status'], {
+    env: { QA_TEST_PAUSE_LOCK: lockOf(L), QA_TEST_PAUSE_DIR: pause },
+    argv0: (script, args) => [NODE, ['--import', PRELOAD_LOCKPAUSE, script, ...args]],
+  });
+  let a;
+  try {
+    await waitFor(join(pause, 'before'));
+    // A takes the lock over and holds it inside its sweep.
+    a = startQa(L, ['vm', 'status']);
+    await waitFor(L.held('ls'));
+    const held = () => (existsSync(lockOf(L)) ? readdirSync(lockOf(L)).sort() : null);
+    const successor = held();
+    assert.ok(successor?.length, 'A holds the table lock');
+    writeFileSync(join(pause, 'go'), '');
+    await waitFor(join(pause, 'after'));
+    assert.deepEqual(held(), successor, 'B moved or deleted the lock A holds');
+  } finally {
+    for (const f of ['go', 'go2']) writeFileSync(join(pause, f), '');
+    L.release('ls');
+  }
+  const [ra, rb] = await Promise.all([a.done, b.done]);
+  assert.equal(ra.status, 0, outputOf(ra));
+  assert.equal(rb.status, 0, outputOf(rb));
+  assert.equal(existsSync(lockOf(L)), false);
+});
+
+test('lease: busy - a routed command registers busy/PID while it runs and removes it at its end, setting lastUsed at both ends', async () => {
+  const L = laneLayout();
+  const before = Date.now() - 600000;
+  L.stage({ lastUsed: before });
+  L.driverCfg({ started: '$HOME/started', pause: '$HOME/release', lines: [{ s: 'out', t: 'GUEST OUT' }] });
+  const run = startQa(L, ['preflight', 'ios']);
+  await waitFor(join(L.guest.home, 'started'));
+  assert.deepEqual(readdirSync(join(L.slotDir(1), 'busy')), [String(run.child.pid)]);
+  const during = L.lease(1).lastUsed;
+  assert.ok(during > before);
+  writeFileSync(join(L.guest.home, 'release'), '');
+  const r = await run.done;
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(readdirSync(join(L.slotDir(1), 'busy')), []);
+  assert.ok(L.lease(1).lastUsed >= during);
+  assert.equal(L.lease(1).state, 'ready');
+});
+
+/** Leases a routed command must refuse, each with the lease the test plants. */
+const NOT_ROUTABLE = [
+  ['a starting lease with a live holder', (L) => L.stage({ state: 'starting', holder: background(), targets: [] })],
+  ['a closing lease', (L) => L.stage({ state: 'closing', holder: background() })],
+  ['a lease that did not stage the target', (L) => L.stage({ targets: ['desktop'] })],
+  ['a truncated lease.json', (L) => {
+    L.stage();
+    writeFileSync(join(L.slotDir(1), 'lease.json'), '{"worktree": "');
+  }],
+  ['a slot without lease.json', (L) => {
+    L.stage();
+    rmSync(join(L.slotDir(1), 'lease.json'));
+  }],
+  ['no lease at all', () => {}],
+];
+
+test('lease: admit - a routed command against a lease that is not ready for its target exits 2 naming vm up and runs no guest command', async () => {
+  for (const [label, plant] of NOT_ROUTABLE) {
+    const L = laneLayout();
+    plant(L);
+    L.fakeGuestDriver();
+    const r = await runQa(L, ['preflight', 'ios']);
+    assert.equal(r.status, 2, `${label}: ${outputOf(r)}`);
+    assert.match(outputOf(r), /vm up ios/, label);
+    assert.equal(L.gcalls('guest-driver').length, 0, label);
+    assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0, label);
+    assert.equal(L.calls('xcrun').length + L.calls('spectre').length, 0, label);
+    assert.equal(existsSync(join(L.slotDir(1), 'busy')) ? readdirSync(join(L.slotDir(1), 'busy')).length : 0, 0, label);
+  }
+});
+
+test('lease: reclaim - the ready lease idle longest beyond the limit is reclaimed for a third worktree', async () => {
+  const L = laneLayout();
+  const [wtB, wtC] = [wtOf(L, 'b'), wtOf(L, 'c')];
+  const old = L.stage({ n: 1, worktree: L.repo, lastUsed: Date.now() - 3 * 3600e3 });
+  L.stage({ n: 2, worktree: wtB, lastUsed: Date.now() - 2 * 3600e3 });
+  L.setControl({ hold: true });
+  const c = startQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  await waitUntil(() => L.builds().length === 1);
+  assert.equal(L.lease(1).worktree, wtC);
+  assert.equal(L.lease(1).state, 'starting');
+  assert.equal(L.lease(2).worktree, wtB);
+  assert.equal(isAlive(old.forward.pid), false);
+  const verbs = L.lumeCalls().filter((x) => x.argv.filter((a) => !a.startsWith('--')).at(-1) === 'app-qa-slot-1' && ['stop', 'delete'].includes(x.argv[0])).map((x) => x.argv[0]);
+  assert.deepEqual(verbs, ['stop', 'delete']);
+  assert.ok(L.lumeCalls('delete').every((x) => x.slots.includes('slot-1')), 'deleted while its slot still existed');
+  releaseBuilds(L);
+  const r = await c.done;
+  assert.match(r.stdout, new RegExp(`reclaimed.*${L.repo.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}`));
+  assertOwnClonesOnly(L);
+});
+
+test('lease: reclaim - an idle lease with a live busy pid is not reclaimed', async () => {
+  const L = laneLayout();
+  const [wtB, wtC] = [wtOf(L, 'b'), wtOf(L, 'c')];
+  const old = Date.now() - 3 * 3600e3;
+  L.stage({ n: 1, worktree: L.repo, lastUsed: old });
+  L.stage({ n: 2, worktree: wtB, lastUsed: Date.now() });
+  mkdirSync(join(L.slotDir(1), 'busy'));
+  writeFileSync(join(L.slotDir(1), 'busy', String(background())), '');
+  const r = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  assert.equal(r.status, 2, outputOf(r));
+  assert.equal(L.lumeCalls('delete').length + L.lumeCalls('stop').length, 0);
+  assert.equal(L.lease(1).worktree, L.repo);
+  assert.equal(L.builds().length, 0);
+  // With the other lease idle too, that one is reclaimed instead.
+  L.stage({ n: 2, worktree: wtB, lastUsed: Date.now() - 2 * 3600e3 });
+  L.setControl({ hold: true });
+  const c = startQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  await waitUntil(() => L.builds().length === 1);
+  assert.equal(L.lease(2).worktree, wtC);
+  assert.equal(L.lease(1).worktree, L.repo);
+  releaseBuilds(L);
+  await c.done;
+});
+
+test('lease: admit - during a reclaim whose delete is held a routed command of the reclaimed worktree exits 2 and runs no guest command', async () => {
+  const L = laneLayout();
+  const [wtB, wtC] = [wtOf(L, 'b'), wtOf(L, 'c')];
+  L.stage({ n: 1, worktree: L.repo, lastUsed: Date.now() - 3 * 3600e3 });
+  L.stage({ n: 2, worktree: wtB });
+  L.hold('delete');
+  const c = startQa(L, ['vm', 'up', 'ios'], { cwd: wtC });
+  await waitFor(L.held('delete'));
+  assert.equal(L.lease(1).state, 'closing');
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /vm up ios/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  L.release('delete');
+  await c.done;
+});
+
+test('lease: refresh-busy - vm up in the worktree of a running routed flow exits 2 naming the busy pid and changes nothing', async () => {
+  const L = laneLayout();
+  const lease = L.stage();
+  writeFileSync(join(L.guestCopy, 'marker.txt'), 'guest copy');
+  L.driverCfg({ started: '$HOME/started', pause: '$HOME/release' });
+  const flowRun = startQa(L, ['flow', 'ios', repoFlow(L)]);
+  await waitFor(join(L.guest.home, 'started'));
+  const before = L.lease(1);
+  const up = await L.up(['ios']);
+  assert.equal(up.status, 2, outputOf(up));
+  assert.ok(outputOf(up).includes(String(flowRun.child.pid)), outputOf(up));
+  const after = L.lease(1);
+  for (const key of ['state', 'holder', 'targets', 'forward', 'clone', 'worktree']) assert.deepEqual(after[key], before[key], key);
+  assert.equal(isAlive(lease.forward.pid), true);
+  assert.equal(readFileSync(join(L.guestCopy, 'marker.txt'), 'utf8'), 'guest copy');
+  assert.equal(L.builds().length, 0);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  writeFileSync(join(L.guest.home, 'release'), '');
+  assert.equal((await flowRun.done).status, 0);
+});
+
+test('lease: down-busy - vm down during a routed command exits 2 naming the busy pid', async () => {
+  const L = laneLayout();
+  const lease = L.stage();
+  L.driverCfg({ started: '$HOME/started', pause: '$HOME/release' });
+  const run = startQa(L, ['preflight', 'ios']);
+  await waitFor(join(L.guest.home, 'started'));
+  const down = await runQa(L, ['vm', 'down']);
+  assert.equal(down.status, 2, outputOf(down));
+  assert.ok(outputOf(down).includes(String(run.child.pid)), outputOf(down));
+  assert.equal(L.lease(1).state, 'ready');
+  assert.equal(isAlive(lease.forward.pid), true);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  writeFileSync(join(L.guest.home, 'release'), '');
+  await run.done;
+});
+
+test('lease: starting - vm status during another worktree\'s starting vm up deletes nothing and leaves its lease', async () => {
+  const L = laneLayout();
+  L.setControl({ hold: true });
+  const up = startQa(L, ['vm', 'up', 'ios']);
+  await waitUntil(() => L.builds().length === 1);
+  const r = await runQa(L, ['vm', 'status'], { cwd: wtOf(L, 'b') });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lumeCalls('delete').length + L.lumeCalls('stop').length, 0);
+  assert.equal(L.lease(1).state, 'starting');
+  assert.equal(L.lease(1).holder, up.child.pid);
+  assert.match(r.stdout, /slot 1.*starting/);
+  releaseBuilds(L);
+  await up.done;
+});
+
+test('lease: crashed - a killed vm up after its clone appeared is cleaned by vm status, both printed', async () => {
+  const L = laneLayout();
+  L.hold('run');
+  const up = startQa(L, ['vm', 'up', 'ios']);
+  await waitFor(L.held('run'));
+  assert.deepEqual(L.clones(), ['app-qa-slot-1']);
+  up.child.kill('SIGKILL');
+  await up.done;
+  process.kill(Number(readFileSync(L.held('run'), 'utf8')), 'SIGKILL');
+  L.setLume({ hold: {} });
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, /app-qa-slot-1/);
+  assert.match(r.stdout, /slot-1/);
+  assert.deepEqual(L.clones(), []);
+  assert.deepEqual(L.slots(), []);
+  assert.ok(L.lumeCalls('delete').every((x) => x.slots.includes('slot-1')));
+  assertOwnClonesOnly(L);
+});
+
+/** A vm down killed at each of its three points (D4 sweep): before stop, between stop and delete, after delete. */
+for (const [point, hold] of [['before stop', 'stop'], ['between stop and delete', 'delete'], ['after delete before the slot removal', 'lsAfterDelete']]) {
+  test(`lease: closing - a vm down killed ${point} is completed by the next vm status`, async () => {
+    const L = laneLayout();
+    const lease = L.stage();
+    L.hold(hold);
+    const down = startQa(L, ['vm', 'down']);
+    await waitFor(L.held(hold));
+    down.child.kill('SIGKILL');
+    await down.done;
+    if (hold !== 'lsAfterDelete') process.kill(Number(readFileSync(L.held(hold), 'utf8')), 'SIGKILL');
+    assert.equal(L.lease(1).state, 'closing');
+    assert.equal(L.lease(1).holder, down.child.pid);
+    L.setLume({ hold: {} });
+    const r = await runQa(L, ['vm', 'status']);
+    assert.equal(r.status, 0, outputOf(r));
+    assert.deepEqual(L.clones(), []);
+    assert.deepEqual(L.slots(), []);
+    assert.match(r.stdout, /app-qa-slot-1/);
+    assert.equal(isAlive(lease.forward.pid), false);
+    for (const c of L.lumeCalls('delete')) assert.ok(c.slots.includes('slot-1'), 'the slot outlived the delete call');
+    assertOwnClonesOnly(L);
+  });
+}
+
+test('lease: closing - a slot is never freed while the fake lume ls still lists its clone', async () => {
+  const L = laneLayout();
+  L.stage({ state: 'closing', holder: await deadPid() });
+  L.setLume({ deleteFails: true });
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.deepEqual(L.slots(), ['slot-1']);
+  assert.deepEqual(L.clones(), ['app-qa-slot-1']);
+  assert.match(outputOf(r), /app-qa-slot-1.*still/);
+});
+
+test('lease: partial - a slot with a truncated lease.json is torn down with its clone by vm status', async () => {
+  const L = laneLayout();
+  L.stage();
+  writeFileSync(join(L.slotDir(1), 'lease.json'), '{"worktree"');
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(L.clones(), []);
+  assert.deepEqual(L.slots(), []);
+});
+
+// A driver killed during `lume clone` or `lume delete` leaves that child running; freeing the slot before it ends lets it
+// create or delete a clone of that name under the next lease. The process of a held clone is never touched.
+for (const [state, verb] of [['starting', ['clone', 'app-qa-golden', 'app-qa-slot-1']], ['closing', ['delete', 'app-qa-slot-1', '--force']]]) {
+  test(`lease: mutation - a ${state} slot of a dead driver is freed only after the lume ${verb[0]} it left has ended`, async () => {
+    const L = laneLayout();
+    L.stage({ state, holder: await deadPid() });
+    L.stage({ n: 2, worktree: wtOf(L, 'b') });
+    const left = background();
+    const held = background();
+    L.set({
+      ps: [
+        ...DEFAULT_STATE.ps,
+        `${left} /Users/qa/.local/share/lume/lume.app/Contents/MacOS/lume ${verb.join(' ')}`,
+        `${held} /usr/local/bin/lume stop app-qa-slot-2`,
+      ],
+    });
+    const r = await runQa(L, ['vm', 'status']);
+    assert.equal(r.status, 0, outputOf(r));
+    assert.equal(isAlive(left), false, `the dead driver's lume ${verb[0]} outlived the teardown`);
+    assert.equal(isAlive(held), true, 'a lume process naming a held clone was ended');
+    assert.deepEqual(L.slots(), ['slot-2']);
+    assert.deepEqual(L.clones(), ['app-qa-slot-2']);
+  });
+}
+
+test('lease: redact - vm status prints a worktree path holding a configured username redacted', async () => {
+  const L = laneLayout();
+  L.stage({ worktree: wtOf(L, USER1) });
+  const status = await runQa(L, ['vm', 'status']);
+  assert.equal(status.status, 0, outputOf(status));
+  assert.match(status.stdout, /slot 1: ready worktree=/);
+  assert.ok(!outputOf(status).includes(USER1), outputOf(status));
+});
+
+test('lease: redact - a lane-file error of a routed command prints a home path holding a configured username redacted', async () => {
+  const L = laneLayout();
+  const home = join(L.root, USER1);
+  mkdirSync(join(home, '.omp', 'agent'), { recursive: true });
+  writeFileSync(join(home, '.omp', 'agent', 'app-qa-vm.json'), '{');
+  const r = await runQa(L, ['preflight', 'ios'], { env: { HOME: home } });
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /app-qa-vm\.json/);
+  assert.ok(!outputOf(r).includes(USER1), outputOf(r));
+});
+
+test('lease: foreign - vm status leaves every VM that is not a slot clone of this lane alone', async () => {
+  const L = laneLayout();
+  for (const name of ['app-qa-slot-golden', 'app-qa-slot-3', 'other-vm', 'app-qa-golden-copy']) L.addVm(name, 'running');
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lumeCalls('delete').length + L.lumeCalls('stop').length, 0);
+  assert.deepEqual(L.lume().vms.map((v) => v.name).sort(), ['app-qa-golden', 'app-qa-golden-copy', 'app-qa-slot-3', 'app-qa-slot-golden', 'other-vm']);
+});
+
+test('lease: orphan - an orphan app-qa-slot-2 is deleted by the sweep, printed by name', async () => {
+  const L = laneLayout();
+  L.addVm('app-qa-slot-2', 'running');
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, /app-qa-slot-2/);
+  assert.deepEqual(L.clones(), []);
+  assert.deepEqual(L.slots(), []);
+  assert.ok(L.lumeCalls('delete').every((x) => x.slots.includes('slot-2')), 'reserved before the delete');
+});
+
+test('lease: orphan - with the orphan\'s delete held a second sweep leaves it alone and vm up never takes slot 2 until it is free', async () => {
+  const L = laneLayout();
+  const wtB = wtOf(L, 'b');
+  L.addVm('app-qa-slot-2', 'running');
+  L.hold('delete');
+  const first = startQa(L, ['vm', 'status']);
+  await waitFor(L.held('delete'));
+  // A second sweep that deletes too waits on the held delete; release it so the test fails on the count instead of hanging.
+  const run2 = startQa(L, ['vm', 'status']);
+  let settled = false;
+  run2.done.then(() => (settled = true));
+  await waitUntil(() => settled || L.lumeCalls('delete').length > 1, 120000);
+  if (!settled) L.release('delete');
+  assert.equal(L.lumeCalls('delete').length, 1, 'the second sweep deleted the orphan the first sweep holds');
+  const second = await run2.done;
+  assert.equal(second.status, 0, outputOf(second));
+  assert.deepEqual(L.slots(), ['slot-2']);
+  L.setControl({ hold: true });
+  const a = startQa(L, ['vm', 'up', 'ios']);
+  await waitUntil(() => L.builds().length === 1);
+  assert.equal(L.lease(1).worktree, L.repo);
+  const refused = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  assert.equal(refused.status, 2, outputOf(refused));
+  assert.equal(L.lumeCalls('clone').length, 0);
+  L.setLume({ hold: {} });
+  L.release('delete');
+  assert.equal((await first.done).status, 0);
+  releaseBuilds(L);
+  await a.done;
+  const b = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  assert.ok(L.lumeCalls('clone').some((c) => c.argv.at(-1) === 'app-qa-slot-2'), outputOf(b));
+  assert.equal(L.lease(2).worktree, wtB);
+});
+
+test('lease: publish - a vm up killed after creating slot-N before its record is recovered by one vm status', async () => {
+  const L = laneLayout();
+  const marker = join(L.root, 'slot-blocked');
+  const up = startQa(L, ['vm', 'up', 'ios'], {
+    env: { QA_TEST_BLOCK_MARKER: marker, QA_TEST_BLOCK_RELEASE: join(L.root, 'never') },
+    argv0: (script, args) => [NODE, ['--import', PRELOAD_SLOT, script, ...args]],
+  });
+  await waitFor(marker);
+  up.child.kill('SIGKILL');
+  await up.done;
+  assert.deepEqual(L.slots(), ['slot-1']);
+  assert.equal(existsSync(join(L.slotDir(1), 'lease.json')), false);
+  assert.equal(existsSync(lockOf(L)), true);
+  assert.equal(L.builds().length + L.lumeCalls('clone').length, 0);
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.stdout, /took over/);
+  assert.match(r.stdout, /slot-1/);
+  assert.deepEqual(L.slots(), []);
+  assert.equal(existsSync(lockOf(L)), false);
+  assert.equal(L.lumeCalls('delete').length, 0);
+  L.setControl({ hold: true });
+  const again = startQa(L, ['vm', 'up', 'ios']);
+  await waitUntil(() => L.builds().length === 1);
+  assert.equal(L.lease(1).worktree, L.repo);
+  releaseBuilds(L);
+  assert.equal((await again.done).status !== undefined, true);
+});
+
+test('lease: publish - slot-1 without a record, a dead-pid table lock and a listed clone are recovered by one vm status', async () => {
+  const L = laneLayout();
+  plantLock(L, await deadPid());
+  mkdirSync(L.slotDir(1));
+  L.addVm('app-qa-slot-1', 'running');
+  const r = await runQa(L, ['vm', 'status']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(L.clones(), []);
+  assert.deepEqual(L.slots(), []);
+  assert.equal(existsSync(lockOf(L)), false);
+  const deletes = L.lumeCalls('delete');
+  assert.equal(deletes.length, 1);
+  assert.ok(deletes[0].slots.includes('slot-1'), 'the clone was deleted before slot-1 was removed');
+});
+
+test('lease: image - the golden image is never named in a lume run, stop or delete call', async () => {
+  const L = laneLayout();
+  L.stage({ n: 1 });
+  L.addVm('app-qa-slot-2', 'running');
+  assert.equal((await runQa(L, ['vm', 'status'])).status, 0);
+  assert.equal((await runQa(L, ['vm', 'down'])).status, 0);
+  assert.ok(L.lumeCalls('delete').length >= 2);
+  for (const c of L.lumeCalls()) {
+    if (['run', 'stop', 'delete'].includes(c.argv[0])) assert.ok(!c.argv.includes('app-qa-golden'), c.argv.join(' '));
+  }
+  assertOwnClonesOnly(L);
+});
+
+test('lease: down removes the clone, the forward and the slot, and vm status shows the slot free', async () => {
+  const L = laneLayout();
+  const lease = L.stage();
+  const r = await runQa(L, ['vm', 'down']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(L.clones(), []);
+  assert.equal(isAlive(lease.forward.pid), false);
+  assert.deepEqual(L.slots(), []);
+  const status = await runQa(L, ['vm', 'status']);
+  assert.equal(status.status, 0);
+  assert.match(status.stdout, /slot 1: free/);
+  assert.deepEqual(L.lumeCalls().filter((c) => ['stop', 'delete'].includes(c.argv[0])).map((c) => c.argv[0]), ['stop', 'delete']);
+});
+
+test('lease: down in another worktree leaves the lease alone and exits 0 without a lease', async () => {
+  const L = laneLayout();
+  const lease = L.stage();
+  const r = await runQa(L, ['vm', 'down'], { cwd: wtOf(L, 'b') });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lease(1).state, 'ready');
+  assert.equal(L.lease(1).worktree, L.repo);
+  assert.equal(isAlive(lease.forward.pid), true);
+  assert.deepEqual(L.clones(), ['app-qa-slot-1']);
+  assert.equal(L.lumeCalls('delete').length + L.lumeCalls('stop').length, 0);
+  const none = laneLayout();
+  const empty = await runQa(none, ['vm', 'down']);
+  assert.equal(empty.status, 0, outputOf(empty));
+});
+
+// ---------- stage: build, snapshot, copy, credentials (task 3.1) ----------
+
+const MARKER = 'BUILD-MARKER-9f2c41';
+/** A tracked source file of the worktree `repo`, committed. */
+function addSource(repo, rel, content) {
+  mkdirSync(dirname(join(repo, rel)), { recursive: true });
+  writeFileSync(join(repo, rel), content);
+  git(repo, 'add', rel);
+  git(repo, 'commit', '-qm', `add ${rel}`);
+}
+/** Regular files below `dirs` whose bytes hold any of `needles`. */
+function filesHolding(dirs, needles) {
+  const hits = [];
+  for (const dir of [].concat(dirs)) {
+    for (const f of filesBelow(dir)) {
+      const text = readFileSync(f).toString('latin1');
+      if (needles.some((n) => text.includes(Buffer.from(n).toString('latin1')))) hits.push(f);
+    }
+  }
+  return hits;
+}
+/** The files of a guest copy, relative to it, without Git's own folder. */
+const guestFiles = (L) => filesBelow(L.guestCopy).map((f) => relative(L.guestCopy, f)).filter((f) => !f.startsWith('.git/'));
+
+test('stage: build - a failing build and a build without its artifact on a worktree without a lease exit 2, hold no slot and start no VM', async () => {
+  const L = laneLayout();
+  for (const [label, patch] of [['failing', { exit: { ios: 1 }, print: { ios: ['compiling', 'error: broken'] } }], ['no artifact', { exit: {}, noArtifact: { ios: true }, print: { ios: ['compiling', 'done'] } }]]) {
+    L.setControl(patch);
+    const r = await L.up(['ios']);
+    assert.equal(r.status, 2, `${label}: ${outputOf(r)}`);
+    assert.match(r.stdout, /compiling/, label);
+    assert.deepEqual(L.slots(), [], label);
+    for (const verb of ['clone', 'run', 'stop', 'delete']) assert.equal(L.lumeCalls(verb).length, 0, `${label}: lume ${verb}`);
+    assert.equal(L.calls('ssh').length, 0, label);
+  }
+});
+
+test('stage: build - {port} is replaced by the backend port, or by --port', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  assert.equal(L.builds().at(-1).port, String(PORT));
+  assert.equal((await L.up(['ios', '--port', '9876'])).status, 0);
+  assert.equal(L.builds().at(-1).port, '9876');
+});
+
+test('stage: refresh-fail - a failing build and then a missing artifact on refresh leave a ready lease with no staged target', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  assert.deepEqual(L.lease(1).targets, ['ios']);
+  const sshBefore = L.calls('ssh').length;
+  L.setControl({ exit: { ios: 1 } });
+  const failed = await L.up(['ios']);
+  assert.equal(failed.status, 2, outputOf(failed));
+  rmSync(join(L.repo, 'build'), { recursive: true, force: true });
+  L.setControl({ exit: {}, noArtifact: { ios: true } });
+  const missing = await L.up(['ios']);
+  assert.equal(missing.status, 2, outputOf(missing));
+  for (const [label, r] of [['failed', failed], ['missing', missing]]) assert.match(r.stdout, /vm up: /, label);
+  assert.equal(L.lease(1).state, 'ready');
+  assert.deepEqual(L.lease(1).targets, []);
+  const sshMid = L.calls('ssh').length;
+  const routed = await runQa(L, ['preflight', 'ios']);
+  assert.equal(routed.status, 2, outputOf(routed));
+  assert.match(outputOf(routed), /vm up ios/);
+  assert.equal(L.calls('ssh').length, sshMid);
+  assert.ok(sshMid >= sshBefore);
+});
+
+test('stage: redact - a build printing account 1\'s password prints [redacted], and only the two credentials files hold it afterwards', async () => {
+  const L = laneLayout();
+  L.setControl({ print: { ios: ['compiling', `login with ${PW1} and ${USER1}`] } });
+  const ok = await L.up(['ios']);
+  assert.equal(ok.status, 0, outputOf(ok));
+  L.setControl({ exit: { ios: 1 } });
+  const failed = await L.up(['ios']);
+  assert.equal(failed.status, 2);
+  assert.match(failed.stdout, /login with \[redacted\] and \[redacted\]/);
+  for (const r of [ok, failed]) assert.deepEqual(leaks(outputOf(r), [PW1, USER1]), []);
+  const hits = filesHolding([L.root], [PW1, USER1]).filter((f) => !f.startsWith(join(L.root, 'driver')) && f !== L.control);
+  assert.deepEqual(hits.sort(), [join(L.repo, '.dev-credentials.env'), join(L.guestCopy, '.dev-credentials.env')].sort());
+});
+
+test('stage: memory - build output is never written to a file while the build runs or after it ends', async () => {
+  const L = laneLayout();
+  L.setControl({ print: { ios: [MARKER, PW1] }, hold: true });
+  const scanRoots = [L.tmp, L.home, L.repo];
+  const up = startQa(L, ['vm', 'up', 'ios']);
+  await waitFor(`${L.control}.held`);
+  await sleep(200);
+  assert.deepEqual(filesHolding(scanRoots, [MARKER, PW1]).filter((f) => f !== join(L.repo, '.dev-credentials.env')), []);
+  releaseBuilds(L);
+  const done = await up.done;
+  assert.equal(done.status, 0, outputOf(done));
+  assert.deepEqual(filesHolding(scanRoots, [MARKER, PW1]).filter((f) => f !== join(L.repo, '.dev-credentials.env')), []);
+  rmSync(`${L.control}.release`);
+  L.setControl({ hold: false, exit: { ios: 1 } });
+  const failed = await L.up(['ios']);
+  assert.equal(failed.status, 2);
+  assert.match(failed.stdout, new RegExp(MARKER));
+  assert.deepEqual(filesHolding(scanRoots, [MARKER, PW1]).filter((f) => f !== join(L.repo, '.dev-credentials.env')), []);
+});
+
+test('stage: memory - a write recorder over every node:fs write entry point sees no chunk holding the marker or the password', async () => {
+  const L = laneLayout();
+  const log = join(L.root, 'writes.jsonl');
+  const run = (extra = {}) =>
+    L.up(['ios'], {
+      env: { QA_TEST_WRITE_LOG: log },
+      argv0: (script, args) => [NODE, ['--import', PRELOAD_WRITES, script, ...args]],
+      ...extra,
+    });
+  L.setControl({ print: { ios: [MARKER, PW1] } });
+  const ok = await run();
+  assert.equal(ok.status, 0, outputOf(ok));
+  L.setControl({ exit: { ios: 1 } });
+  const failed = await run();
+  assert.equal(failed.status, 2);
+  const chunks = readFileSync(log, 'utf8').split('\n').filter(Boolean).map(JSON.parse);
+  assert.ok(chunks.length > 5, 'the recorder saw the driver write');
+  assert.ok(chunks.some((c) => /lease\.json/.test(c.path)), 'the recorder saw the lease record');
+  for (const c of chunks) {
+    assert.ok(!c.text.includes(MARKER) && !c.text.includes(PW1), `${c.fn} ${c.path} wrote build output`);
+  }
+  for (const run of L.builds()) assert.deepEqual(run.pipes, [true, true], 'build stdout and stderr are pipes, not files');
+});
+
+test('stage: copy - the guest holds the tracked and untracked unignored files, the credentials file with mode 0600 and the driver', async () => {
+  const L = laneLayout();
+  addSource(L.repo, 'src/Main.kt', 'fun main() = Unit\n');
+  writeFileSync(join(L.repo, 'notes.txt'), 'untracked, not ignored\n');
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  const expected = [
+    '.dev-credentials.env', '.gitignore', '.omp/app-qa.json', 'app_kmp/gradle.properties', 'notes.txt', 'src/Main.kt',
+    'build/App.app/Info.plist', 'build/App.app/bin/app',
+  ].sort();
+  assert.deepEqual(guestFiles(L).sort(), expected);
+  assert.equal(readFileSync(join(L.guestCopy, 'src/Main.kt'), 'utf8'), 'fun main() = Unit\n');
+  assert.equal(statSync(join(L.guestCopy, '.dev-credentials.env')).mode & 0o777, 0o600);
+  assert.equal(readFileSync(join(L.guestCopy, '.dev-credentials.env'), 'utf8'), readFileSync(join(L.repo, '.dev-credentials.env'), 'utf8'));
+  assert.equal(existsSync(join(L.guestCopy, '.git')), true);
+  const head = spawnSync(GIT, ['-C', L.guestCopy, 'rev-parse', '--verify', 'HEAD'], { encoding: 'utf8' });
+  assert.notEqual(head.status, 0, 'git init without a commit');
+  assert.deepEqual(readFileSync(join(L.guestDriver, 'qa.mjs')), readFileSync(L.qa));
+  assert.equal(existsSync(join(L.guestDriver, 'vm')), true);
+  assert.equal(existsSync(join(L.slotDir(1), 'stage')), false, 'the snapshot is deleted after the copy');
+  assert.equal(L.lease(1).state, 'ready');
+  assert.deepEqual(L.lease(1).targets, ['ios']);
+});
+
+test('stage: ignored - the artifact in a git-ignored build folder reaches the guest at its relative path and no other ignored file does', async () => {
+  const L = laneLayout();
+  writeFileSync(join(L.repo, '.gitignore'), '.worktrees/\nbuild/\n.dev-credentials.env\nnode_modules/\n.gradle/\n');
+  git(L.repo, 'commit', '-qam', 'ignore more');
+  mkdirSync(join(L.repo, 'build'), { recursive: true });
+  writeFileSync(join(L.repo, 'build', 'cache.bin'), 'ignored build cache');
+  mkdirSync(join(L.repo, 'node_modules', 'x'), { recursive: true });
+  writeFileSync(join(L.repo, 'node_modules', 'x', 'index.js'), 'ignored');
+  mkdirSync(join(L.repo, '.gradle'));
+  writeFileSync(join(L.repo, '.gradle', 'state'), 'ignored');
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  const files = guestFiles(L);
+  assert.ok(files.includes('build/App.app/Info.plist'));
+  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\nbundle=eu.onara.app.test\n`);
+  for (const ignored of ['build/cache.bin', 'node_modules/x/index.js', '.gradle/state']) assert.equal(files.includes(ignored), false, ignored);
+});
+
+test('stage: snapshot - an artifact rewritten after the snapshot leaves the guest with the snapshot\'s bytes', async () => {
+  const L = laneLayout();
+  L.setControl({ watch: { untilTool: 'lume', untilVerb: 'clone', calls: L.callFile, rewrite: { path: 'Info.plist', content: 'MUTATED AFTER THE SNAPSHOT\n' } } });
+  L.hold('run');
+  const up = startQa(L, ['vm', 'up', 'ios']);
+  await waitFor(L.held('run'));
+  await waitUntil(() => readFileSync(join(L.repo, 'build/App.app/Info.plist'), 'utf8').startsWith('MUTATED'));
+  assert.deepEqual(readFileSync(join(L.slotDir(1), 'stage', 'ios', 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\nbundle=eu.onara.app.test\n`);
+  L.setLume({ hold: {} });
+  L.release('run');
+  const r = await up.done;
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), `ios app v1 port=${PORT}\nbundle=eu.onara.app.test\n`);
+  assert.equal(statSync(join(L.slotDir(1))).mode & 0o700, 0o700);
+});
+
+test('stage: credentials - no credential value reaches an argument vector of the fake logs, and the file travels over stdin with umask 077', async () => {
+  const L = laneLayout();
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  const logs = JSON.stringify([...L.calls(), ...L.gcalls()]);
+  assert.deepEqual(leaks(logs, [USER1, PW1, USER2, PW2]), []);
+  assert.ok(L.calls('ssh').some((c) => c.argv.join(' ').includes('umask 077')), 'the credentials upload sets umask 077');
+  assert.deepEqual(leaks(outputOf(r), [USER1, PW1, USER2, PW2]), []);
+});
+
+test('stage: hostkey - a guest presenting a host key other than the pinned one gets no input: vm up exits 2 naming the pin, the guest holds no credentials and the lease stages no target; the pinned key stages', async () => {
+  const L = laneLayout();
+  L.setSsh({ hostKey: 'ssh-ed25519 AAAAimpostorkey' });
+  const refused = await L.up(['ios']);
+  assert.equal(refused.status, 2, outputOf(refused));
+  assert.match(outputOf(refused), /does not present the host key pinned for app-qa-golden in .*known_hosts; nothing was copied/);
+  assert.equal(existsSync(join(L.guestCopy, '.dev-credentials.env')), false, 'no credentials reached the impostor');
+  assert.deepEqual(L.gcalls(), [], 'the impostor ran no command');
+  assert.deepEqual([L.lease(1).state, L.lease(1).targets], ['ready', []], 'the failed start stages no target (D4)');
+  L.setSsh({ hostKey: GUEST_HOST_KEY });
+  const staged = await L.up(['ios']);
+  assert.equal(staged.status, 0, outputOf(staged));
+  assert.equal(existsSync(join(L.guestCopy, '.dev-credentials.env')), true);
+});
+
+test('stage: refresh - a rerun after a file change builds again and holds the new content in the same clone', async () => {
+  const L = laneLayout();
+  addSource(L.repo, 'src/Main.kt', 'v1\n');
+  assert.equal((await L.up(['ios'])).status, 0);
+  const slot = L.lease(1);
+  writeFileSync(join(L.repo, 'src/Main.kt'), 'v2 changed\n');
+  L.setControl({ artifacts: { ...BUILD_ARTIFACTS, ios: { ...BUILD_ARTIFACTS.ios, files: { 'Info.plist': 'ios app v2\nbundle=eu.onara.app.v2\n' } } } });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.builds().length, 2);
+  assert.equal(L.lumeCalls('clone').length, 1);
+  assert.equal(L.lumeCalls('run').length, 1);
+  assert.equal(L.lease(1).clone, slot.clone);
+  assert.equal(L.lease(1).state, 'ready');
+  assert.equal(readFileSync(join(L.guestCopy, 'src/Main.kt'), 'utf8'), 'v2 changed\n');
+  assert.equal(readFileSync(join(L.guestCopy, 'build/App.app/Info.plist'), 'utf8'), 'ios app v2\nbundle=eu.onara.app.v2\n');
+});
+
+test('stage: nobackend - a backend-free desktop configuration stages with no ssh -R call, and --port is refused', async () => {
+  const L = laneLayout({ backend: false });
+  const r = await L.up(['desktop']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(L.lease(1).targets, ['desktop']);
+  assert.equal(L.lease(1).forward, null);
+  assert.equal(L.calls('ssh').filter((c) => c.argv.includes('-R') || c.argv.includes('-N')).length, 0);
+  const refused = await L.up(['desktop', '--port', '9000']);
+  assert.equal(refused.status, 2);
+  assert.match(outputOf(refused), /--port/);
+  assert.equal(L.calls('ssh').filter((c) => c.argv.includes('-R')).length, 0);
+  assert.equal(L.builds().length, 1);
+});
+
+test('stage: reset - a refresh deletes a planted guest session record, flow lock and output file, and a routed desktop tap asks for desktop attach', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['desktop'])).status, 0);
+  const planted = [
+    join(L.guest.tmp, 'app-qa', 'sessions', 'stale.json'),
+    join(L.guest.tmp, 'app-qa', 'flow.lock', 'pid'),
+    join(L.guest.tmp, 'app-qa-lease', 'out', 'planted.txt'),
+  ];
+  for (const f of planted) {
+    mkdirSync(dirname(f), { recursive: true });
+    writeFileSync(f, '1\n');
+  }
+  assert.equal((await L.up(['desktop'])).status, 0);
+  for (const f of planted) assert.equal(existsSync(f), false, f);
+  const tap = await runQa(L, ['desktop', 'tap', 'sign-in']);
+  assert.notEqual(tap.status, 0, outputOf(tap));
+  assert.match(outputOf(tap), /desktop attach/);
+});
+
+test('stage: reset - worktree A\'s vm down and worktree B\'s vm up on the same slot clone the image again and B\'s guest holds none of A\'s files', async () => {
+  const L = laneLayout({ lane: { slots: 1 } });
+  const wtB = wtOf(L, 'b');
+  assert.equal((await L.up(['ios'])).status, 0);
+  writeFileSync(join(L.guestCopy, 'A-planted.txt'), 'A');
+  writeFileSync(join(L.guest.home, 'A-home.txt'), 'A');
+  writeFileSync(join(L.guest.tmp, 'A-tmp.txt'), 'A');
+  assert.equal((await runQa(L, ['vm', 'down'])).status, 0);
+  const r = await runQa(L, ['vm', 'up', 'ios'], { cwd: wtB });
+  assert.equal(r.status, 0, outputOf(r));
+  const clones = L.lumeCalls('clone');
+  assert.equal(clones.length, 2);
+  assert.deepEqual(clones[1].argv, ['clone', 'app-qa-golden', 'app-qa-slot-1']);
+  assert.deepEqual(filesBelow(L.guest.home).map((f) => relative(L.guest.home, f)).filter((f) => /^A-|A-planted/.test(f) || f.includes('A-')), []);
+  assert.equal(L.lease(1).worktree, wtB);
+});
+
+test('stage: vnc - lume run starts the clone with --vnc disabled and --display none', async () => {
+  const L = laneLayout();
+  const up = await L.up(['ios']);
+  assert.equal(up.status, 0, outputOf(up));
+  const run = L.lumeCalls('run');
+  assert.equal(run.length, 1);
+  const at = (flag) => run[0].argv[run[0].argv.indexOf(flag) + 1];
+  assert.equal(at('--vnc'), 'disabled');
+  assert.equal(at('--display'), 'none');
+  assert.ok(run[0].argv.includes('--detach'));
+  assert.equal(run[0].argv.at(-1), 'app-qa-slot-1');
+});
+
+// ---------- stage: forward and clone reconcile (task 3.3) ----------
+
+test('stage: forward - after two vm up runs exactly one forward process is alive, forwarding the backend port into the guest', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  const first = L.lease(1).forward;
+  assert.ok(first && isAlive(first.pid));
+  assert.equal(first.port, PORT);
+  assert.equal((await L.up(['ios'])).status, 0);
+  const forwards = L.calls('ssh').filter((c) => c.forward);
+  assert.equal(forwards.length, 2);
+  await waitUntil(() => !isAlive(first.pid));
+  assert.equal(forwards.filter((c) => isAlive(c.pid)).length, 1);
+  assert.equal(L.lease(1).forward.pid, forwards[1].pid);
+  const argv = forwards[1].argv;
+  assert.equal(argv[argv.indexOf('-R') + 1], `${PORT}:127.0.0.1:${PORT}`);
+  assert.ok(argv.join(' ').includes('ExitOnForwardFailure=yes'));
+  assert.ok(L.gcalls('nc').some((c) => c.argv.join(' ') === `-z 127.0.0.1 ${PORT}`));
+  for (const pid of forwards.map((c) => c.pid)) if (isAlive(pid)) process.kill(pid, 'SIGKILL');
+});
+
+test('stage: stopped - a stopped clone is run again by vm up, which stages and leaves the lease ready', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  L.setVmStatus('app-qa-slot-1', 'stopped');
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(L.lumeCalls('run').length, 2);
+  assert.equal(L.lumeCalls('clone').length, 1);
+  assert.equal(L.lease(1).state, 'ready');
+  assert.deepEqual(L.lease(1).targets, ['ios']);
+});
+
+test('stage: unestablished - a forward process alive with no listener behind it exits 2 naming the forward, stages no target and leaves routed commands refused', async () => {
+  const L = laneLayout();
+  L.gset({ ncFails: true });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /forward/);
+  assert.equal(L.lease(1).state, 'ready');
+  assert.deepEqual(L.lease(1).targets, []);
+  const fwd = L.calls('ssh').filter((c) => c.forward);
+  assert.equal(fwd.length, 1);
+  await waitUntil(() => !isAlive(fwd[0].pid));
+  assert.equal(L.gcalls('xcrun').filter((c) => c.argv[1] === 'create').length, 0, 'no target started');
+  const routed = await runQa(L, ['preflight', 'ios']);
+  assert.equal(routed.status, 2, outputOf(routed));
+  assert.match(outputOf(routed), /vm up ios/);
+});
+
+// ---------- route: routing, lease health and dependency loss (task 4.1) ----------
+
+/** The staged lease of `L`'s worktree with a guest driver that prints `lines` (after pausing until $HOME/release when `pause`). */
+function routedLease(L, { target = 'ios', lines = [{ s: 'out', t: 'PASS guest check' }], pause = false, exit = 0, ...stage } = {}) {
+  L.stage({ targets: [target], ...stage });
+  L.driverCfg({ started: '$HOME/started', ...(pause ? { pause: '$HOME/release' } : {}), lines, exit });
+}
+const hostTools = (L) => L.calls('xcrun').length + L.calls('spectre').length + L.calls('maestro').length;
+const busyLeft = (L) => (existsSync(join(L.slotDir(1), 'busy')) ? readdirSync(join(L.slotDir(1), 'busy')) : []);
+
+for (const sweep of ['none', 'a vm status killed while recording the orphan']) {
+  test(`lease: orphaned-run - vm up after a routed command whose host driver was killed mid-run deletes and recreates the clone instead of resetting it in place (earlier sweep: ${sweep})`, async () => {
+    const L = laneLayout();
+    routedLease(L, { pause: true });
+    const run = startQa(L, ['preflight', 'ios']);
+    await waitFor(join(L.guest.home, 'started'));
+    run.child.kill('SIGKILL');
+    await run.done;
+    writeFileSync(join(L.guest.home, 'release'), '');
+    if (sweep !== 'none') {
+      const marker = join(L.root, 'orphan-blocked');
+      const status = startQa(L, ['vm', 'status'], {
+        env: { QA_TEST_BLOCK_MARKER: marker, QA_TEST_BLOCK_RELEASE: join(L.root, 'never') },
+        argv0: (script, args) => [NODE, ['--import', PRELOAD_ORPHAN, script, ...args]],
+      });
+      await waitFor(marker);
+      status.child.kill('SIGKILL');
+      await status.done;
+      assert.deepEqual(busyLeft(L), [String(run.child.pid)], 'the dead marker outlives a sweeper killed before the orphan is recorded');
+    }
+    const before = L.calls('lume').length;
+    const up = await L.up(['ios']);
+    assert.equal(up.status, 0, outputOf(up));
+    assert.match(outputOf(up), new RegExp(`pid ${run.child.pid}\\b.*deleted app-qa-slot-1 to recreate it`));
+    const verbs = L.calls('lume').slice(before).map((c) => c.argv.join(' '));
+    const deleted = verbs.findIndex((v) => v.startsWith('delete ') && v.split(' ').includes('app-qa-slot-1'));
+    assert.ok(deleted >= 0, verbs.join('\n'));
+    assert.ok(verbs.slice(deleted).some((v) => v.startsWith('clone ') && v.split(' ').includes('app-qa-slot-1')), verbs.join('\n'));
+    assert.equal(L.lease(1).state, 'ready');
+    assert.equal(L.lease(1).orphaned, undefined);
+    assert.deepEqual(busyLeft(L), []);
+  });
+}
+
+test('route: lane - a routed preflight runs the guest driver, names the lane and the clone first, and leaves the host tools and flow lock untouched', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(r.lines[0], /^lane: .*app-qa-slot-1/);
+  assert.ok(r.lines.includes('PASS guest check'));
+  assert.deepEqual(L.gcalls('guest-driver').map((c) => c.argv), [['preflight', 'ios', '--port', String(PORT)]]);
+  assert.equal(hostTools(L), 0);
+  assert.equal(existsSync(lockPath(L)), false);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: port - a routed preflight checks the port the lease forwards, and another --port is refused naming vm up', async () => {
+  const L = laneLayout();
+  routedLease(L, { port: 9876 });
+  const plain = await runQa(L, ['preflight', 'ios']);
+  assert.equal(plain.status, 0, outputOf(plain));
+  const same = await runQa(L, ['preflight', 'ios', '--port', '9876']);
+  assert.equal(same.status, 0, outputOf(same));
+  assert.deepEqual(L.gcalls('guest-driver').map((c) => c.argv), [['preflight', 'ios', '--port', '9876'], ['preflight', 'ios', '--port', '9876']]);
+  const other = await runQa(L, ['preflight', 'ios', '--port', '1234']);
+  assert.equal(other.status, 2, outputOf(other));
+  assert.match(outputOf(other), /forwards the backend port 9876, not 1234; run .* vm up ios --port 1234/);
+  assert.equal(L.gcalls('guest-driver').length, 2);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: nolease - with no lease, and with a lease only another worktree holds, desktop attach exits 2 naming vm up desktop and runs nothing on the host', async () => {
+  const L = laneLayout();
+  const none = await runQa(L, ['desktop', 'attach']);
+  assert.equal(none.status, 2, outputOf(none));
+  assert.match(outputOf(none), /vm up desktop/);
+  routedLease(L, { target: 'desktop' });
+  const wtB = wtOf(L, 'b');
+  const other = await runQa(L, ['desktop', 'attach'], { cwd: wtB });
+  assert.equal(other.status, 2, outputOf(other));
+  assert.match(outputOf(other), /vm up desktop/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.equal(hostTools(L), 0);
+});
+
+test('route: other - a worktree never runs in another worktree\'s clone', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const wtB = wtOf(L, 'b');
+  const r = await runQa(L, ['preflight', 'ios'], { cwd: wtB });
+  assert.equal(r.status, 2, outputOf(r));
+  assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0);
+  assert.deepEqual(L.lease(1).worktree, L.repo);
+});
+
+test('route: target - a lease that staged only ios refuses a desktop command naming vm up desktop', async () => {
+  const L = laneLayout();
+  routedLease(L, { target: 'ios' });
+  const r = await runQa(L, ['desktop', 'attach']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /vm up desktop/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: stopped - a clone that is not running exits 2 naming vm up and leaves no busy marker', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  L.setVmStatus('app-qa-slot-1', 'stopped');
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /vm up ios/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.equal(hostTools(L), 0);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: forward - a dead forward pid and a forward with no listener behind it each exit 2 naming vm up and run no guest driver', async () => {
+  const dead = laneLayout();
+  routedLease(dead, { forward: false });
+  const lease = dead.lease(1);
+  dead.writeLease(1, { ...lease, forward: { pid: await deadPid(), port: PORT } });
+  const a = await runQa(dead, ['preflight', 'ios']);
+  assert.equal(a.status, 2, outputOf(a));
+  assert.match(outputOf(a), /vm up ios/);
+  assert.equal(dead.gcalls('guest-driver').length, 0);
+  assert.deepEqual(busyLeft(dead), []);
+  const silent = laneLayout();
+  routedLease(silent);
+  silent.gset({ ncFails: true });
+  const b = await runQa(silent, ['preflight', 'ios']);
+  assert.equal(b.status, 2, outputOf(b));
+  assert.match(outputOf(b), /vm up ios/);
+  assert.equal(silent.gcalls('guest-driver').length, 0);
+  assert.deepEqual(busyLeft(silent), []);
+});
+
+test('route: unreachable - ssh exiting 255 before the guest command exits 2 naming vm up and leaves no busy marker', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  L.setSsh({ connectFails: true });
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /vm up ios/);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.equal(hostTools(L), 0);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: host - --host runs the host checks and no guest driver', async () => {
+  const L = laneLayout();
+  routedLease(L, { target: 'desktop' });
+  const r = await runQa(L, ['preflight', 'desktop', '--host']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(r.lines.length, 4);
+  assert.ok(L.calls('spectre').length > 0);
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.equal(L.calls('ssh').length, 0);
+});
+
+test('route: android - preflight android and scan run on the host with the lane active and no lease', async () => {
+  const L = laneLayout();
+  const r = await runQa(L, ['preflight', 'android']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.ok(L.calls('adb').length > 0);
+  const evidence = join(L.root, 'evidence');
+  mkdirSync(evidence);
+  assert.equal((await runQa(L, ['scan', evidence])).status, 0);
+  assert.equal(L.calls('ssh').length, 0);
+});
+
+/** The loss cases of design D7: each happens while the guest driver pauses, or after the guest command. */
+const LOSSES = [
+  ['forward killed', 'forward', async (L) => process.kill(L.lease(1).forward.pid, 'SIGKILL')],
+  ['clone stopped', 'clone', async (L) => L.setVmStatus('app-qa-slot-1', 'stopped')],
+  ['forward probe failing with its pid alive', 'forward', async (L) => L.gset({ ncFails: true })],
+];
+
+test('route: lost - a dependency lost during the guest run gives exit 2, the infrastructure line first after the lane line, and the guest PASS only behind its prefix', async () => {
+  for (const [label, dep, lose] of LOSSES) {
+    const L = laneLayout();
+    routedLease(L, { pause: true });
+    const run = startQa(L, ['preflight', 'ios']);
+    await waitFor(join(L.guest.home, 'started'));
+    await lose(L);
+    writeFileSync(join(L.guest.home, 'release'), '');
+    const r = await run.done;
+    assert.equal(r.status, 2, `${label}: ${outputOf(r)}`);
+    assert.match(r.lines[0], /^lane: /, label);
+    assert.match(r.lines[1], new RegExp(`^lane: infrastructure lost during the run \\(${dep}\\); this is not an app result, run .*vm up ios`), `${label}: ${r.lines[1]}`);
+    assert.ok(r.lines.includes('guest (not an app result): PASS guest check'), label);
+    assert.equal(r.lines.filter((l) => l.startsWith('PASS')).length, 0, label);
+    assert.deepEqual(busyLeft(L), [], label);
+  }
+  const L = laneLayout();
+  routedLease(L);
+  L.setSsh({ exit255: 'after' });
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(r.lines[1], /^lane: infrastructure lost during the run \(connection\)/);
+  assert.ok(r.lines.includes('guest (not an app result): PASS guest check'));
+  assert.equal(r.lines.filter((l) => l.startsWith('PASS')).length, 0);
+});
+
+test('route: peer-gone - a clone that vanishes without closing the routed command\'s connection ends the command within the keepalive bound: exit 2, the infrastructure line, the busy marker released', async () => {
+  const L = laneLayout();
+  routedLease(L, { pause: true });
+  L.setSsh({ watchPeer: true, aliveSecondMs: 20 });
+  const run = startQa(L, ['preflight', 'ios']);
+  await waitFor(join(L.guest.home, 'started'));
+  L.setVmStatus('app-qa-slot-1', 'stopped');
+  L.setSsh({ peerGone: true });
+  const r = await Promise.race([run.done, sleep(10000).then(() => null)]);
+  if (r === null) {
+    for (const c of L.calls('ssh').filter((c) => !c.forward)) {
+      try {
+        process.kill(c.pid, 'SIGKILL');
+      } catch {}
+    }
+    run.child.kill('SIGKILL');
+    await run.done;
+  }
+  assert.ok(r, 'the routed command still waited on its ssh 10 s after the guest vanished');
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(r.lines[1], /^lane: infrastructure lost during the run \(clone\)/, outputOf(r));
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: lost - no guest line is printed before the guest command has ended, and the lines then appear in order', async () => {
+  const L = laneLayout();
+  routedLease(L, { pause: true, lines: [{ s: 'out', t: 'PASS first' }, { s: 'err', t: 'second' }] });
+  const run = startQa(L, ['preflight', 'ios']);
+  const stamps = [];
+  run.child.stdout.on('data', (c) => stamps.push([Date.now(), String(c)]));
+  await waitFor(join(L.guest.home, 'started'));
+  await sleep(400);
+  const released = Date.now();
+  writeFileSync(join(L.guest.home, 'release'), '');
+  const r = await run.done;
+  assert.equal(r.status, 0, outputOf(r));
+  const guestLines = stamps.filter(([, text]) => text.includes('PASS first'));
+  assert.equal(guestLines.length, 1);
+  assert.ok(guestLines[0][0] >= released, 'the guest line was printed before the guest command ended');
+  assert.ok(stamps[0][1].startsWith('lane: '));
+  assert.ok(r.lines.indexOf('PASS first') >= 0);
+});
+
+// ---------- route: argument and location translation (task 4.2) ----------
+
+/** A staged lease whose host worktree and guest copy both hold `files` (relative path -> content). */
+function routedFiles(L, files, opts = {}) {
+  routedLease(L, opts);
+  for (const [rel, content] of Object.entries(files)) {
+    for (const base of [L.repo, L.guestCopy]) {
+      mkdirSync(dirname(join(base, rel)), { recursive: true });
+      writeFileSync(join(base, rel), content);
+    }
+  }
+}
+const guestCall = (L) => L.gcalls('guest-driver').at(-1);
+
+test('route: quote - a text with spaces, quotes, $HOME, $(id) and ; reaches the guest driver as one byte-identical argument and runs no command', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'app_kmp/keep': 'x' }, { target: 'desktop' });
+  const text = `a b "q" 'single' $HOME $(id) \`id\` ; touch ${join(L.root, 'pwned')} \\ & | > x`;
+  const r = await runQa(L, ['desktop', 'type', 'login-field', text], { cwd: join(L.repo, 'app_kmp') });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(guestCall(L).argv, ['desktop', 'type', 'login-field', text]);
+  assert.equal(existsSync(join(L.root, 'pwned')), false);
+  assert.equal(existsSync(join(L.guest.home, 'pwned')), false);
+  const ssh = L.calls('ssh').filter((c) => !c.forward);
+  assert.ok(ssh.every((c) => !c.argv.join(' ').includes('uid=')));
+});
+
+test('route: cwd - a run from app_kmp/ runs the guest driver in the guest copy\'s app_kmp/', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'app_kmp/keep': 'x' });
+  const r = await runQa(L, ['preflight', 'ios'], { cwd: join(L.repo, 'app_kmp') });
+  assert.equal(r.status, 0, outputOf(r));
+  assert.equal(realpathSync(guestCall(L).cwd), realpathSync(join(L.guestCopy, 'app_kmp')));
+  const root = await runQa(L, ['preflight', 'ios']);
+  assert.equal(root.status, 0, outputOf(root));
+  assert.equal(realpathSync(guestCall(L).cwd), realpathSync(L.guestCopy));
+});
+
+test('route: flowpath - a flow named by its path relative to app_kmp/ opens that same file of the guest copy, never a decoy, and an outside flow exits 2 with no ssh', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'app_kmp/maestro/signin.yaml': 'host\n' });
+  writeFileSync(join(L.guestCopy, 'app_kmp/maestro/signin.yaml'), 'guest\n');
+  mkdirSync(join(L.guestCopy, 'app_kmp/app_kmp/maestro'), { recursive: true });
+  writeFileSync(join(L.guestCopy, 'app_kmp/app_kmp/maestro/signin.yaml'), 'decoy\n');
+  const r = await runQa(L, ['flow', 'ios', 'maestro/signin.yaml'], { cwd: join(L.repo, 'app_kmp') });
+  assert.equal(r.status, 0, outputOf(r));
+  const call = guestCall(L);
+  assert.deepEqual(call.argv, ['flow', 'ios', 'maestro/signin.yaml', '--out', call.argv[4]]);
+  assert.equal(realpathSync(call.flowFile.path), realpathSync(join(L.guestCopy, 'app_kmp/maestro/signin.yaml')));
+  assert.equal(call.flowFile.exists, true);
+  const before = L.calls('ssh').length;
+  const outside = join(L.root, 'outside.yaml');
+  writeFileSync(outside, 'appId: x\n');
+  const out = await runQa(L, ['flow', 'ios', outside], { cwd: join(L.repo, 'app_kmp') });
+  assert.equal(out.status, 2, outputOf(out));
+  assert.match(outputOf(out), /outside the worktree/);
+  assert.equal(L.calls('ssh').length, before);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: flowsub - a flow named from a sibling folder through .. reaches the guest relative to the working directory and the same file opens', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'app_kmp/maestro/signin.yaml': 'host\n', 'app_kmp/other/keep': 'x' });
+  const r = await runQa(L, ['flow', 'ios', '../maestro/signin.yaml'], { cwd: join(L.repo, 'app_kmp/other') });
+  assert.equal(r.status, 0, outputOf(r));
+  const call = guestCall(L);
+  assert.equal(call.argv[2], '../maestro/signin.yaml');
+  assert.equal(realpathSync(call.flowFile.path), realpathSync(join(L.guestCopy, 'app_kmp/maestro/signin.yaml')));
+  const fromRoot = await runQa(L, ['flow', 'ios', 'app_kmp/maestro/signin.yaml']);
+  assert.equal(fromRoot.status, 0, outputOf(fromRoot));
+  assert.equal(guestCall(L).argv[2], 'app_kmp/maestro/signin.yaml');
+});
+
+test('route: config - --config exits 2 naming --host with no ssh call', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const r = await runQa(L, ['preflight', 'ios', '--config', join(L.repo, '.omp', 'app-qa.json')]);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /--config.*--host/);
+  assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0);
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: config-override - a --config file without vm in a lane repository exits 2 naming --host, with no host check and no ssh', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const alt = join(L.root, 'alt-qa.json');
+  writeFileSync(alt, JSON.stringify(CONFIGS.onara, null, 2) + '\n');
+  const before = L.calls().length;
+  const r = await runQa(L, ['preflight', 'ios', '--config', alt]);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /--config.*--host/);
+  assert.equal(L.calls().length, before, JSON.stringify(L.calls().slice(before)));
+  assert.deepEqual(busyLeft(L), []);
+});
+
+test('route: credentials - --credentials exits 2 naming --host with no ssh call', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const r = await runQa(L, ['flow', 'ios', repoFlow(L), '--credentials', join(L.repo, '.dev-credentials.env')]);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /--credentials.*--host/);
+  assert.equal(L.calls('ssh').filter((c) => !c.forward).length, 0);
+});
+
+// ---------- route: output return (task 4.3) ----------
+
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]).toString('base64');
+const VALUES = [USER1, PW1];
+/** Host files below `dirs` that hold a credential value of account 1 (the worktree's own credentials file excluded). */
+const hostLeaks = (L, extra = []) => filesHolding([L.tmp, L.home, ...extra], VALUES);
+/** The names of every entry below `dirs`, folders included. */
+const entryNames = (dirs) => dirs.flatMap((d) => (existsSync(d) ? readdirSync(d, { recursive: true }).map(String) : []));
+
+test('route: redact - a guest line holding account 1\'s password is printed [redacted] and no output holds a value', async () => {
+  const L = laneLayout();
+  routedLease(L, { lines: [{ s: 'out', t: `typed ${PW1} for ${USER1}` }, { s: 'err', t: `err ${PW1}` }] });
+  const r = await runQa(L, ['preflight', 'ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.ok(r.lines.includes('typed [redacted] for [redacted]'), r.stdout);
+  assert.deepEqual(leaks(outputOf(r), VALUES), []);
+});
+
+test('route: sweep - a guest flow root and a guest capture JSON holding values return redacted, with host paths and the vm up line', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' }, {
+    lines: [{ s: 'out', t: 'out: $OUT' }, { s: 'out', t: 'root kept: $TMP/app-qa-flow-abc' }, { s: 'out', t: 'guest copy $CWD' }],
+    exit: 1,
+  });
+  L.driverCfg({
+    started: '$HOME/started',
+    lines: [{ s: 'out', t: 'out: $OUT' }, { s: 'out', t: 'root kept: $TMP/app-qa-flow-abc' }],
+    files: [
+      { dir: '$TMP', path: 'app-qa-flow-abc/note.log', content: `typed ${PW1}\n` },
+      { dir: '$OUT', path: 'shot.json', content: JSON.stringify({ field: USER1 }) },
+    ],
+    exit: 1,
+  });
+  const r = await runQa(L, ['flow', 'ios', 'flows/x.yaml']);
+  assert.equal(r.status, 1, outputOf(r));
+  const root = valueAfter(r, 'root kept: ');
+  const out = valueAfter(r, 'out: ');
+  assert.equal(dirname(root), L.tmp);
+  assert.equal(statSync(root).mode & 0o777, 0o700);
+  assert.equal(readFileSync(join(root, 'note.log'), 'utf8'), 'typed [redacted]\n');
+  assert.equal(readFileSync(join(out, 'shot.json'), 'utf8'), '{"field":"[redacted]"}');
+  assert.ok(r.lines.some((l) => /^lane: .*vm up ios/.test(l)), r.stdout);
+  assert.ok(!outputOf(r).includes(L.guest.dir), outputOf(r));
+  assert.deepEqual(hostLeaks(L, [out, root]), []);
+});
+
+test('route: capture - a routed desktop capture lands its PNG and JSON in the host folder with host paths printed and the guest\'s exit code', async () => {
+  const L = laneLayout();
+  routedLease(L, { target: 'desktop' });
+  L.driverCfg({
+    started: '$HOME/started',
+    lines: [{ s: 'out', t: 'capture: $OUT/commands.png' }, { s: 'out', t: 'capture: $OUT/commands.json' }],
+    files: [
+      { dir: '$OUT', path: 'commands.png', content: PNG_BYTES, base64: true },
+      { dir: '$OUT', path: 'commands.json', content: '{"tree":"credential-free"}' },
+    ],
+  });
+  const out = join(L.root, 'evidence');
+  mkdirSync(out);
+  const r = await runQa(L, ['desktop', 'capture', 'commands', '--out', out]);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(readFileSync(join(out, 'commands.png')), Buffer.from(PNG_BYTES, 'base64'));
+  assert.equal(readFileSync(join(out, 'commands.json'), 'utf8'), '{"tree":"credential-free"}');
+  assert.deepEqual(r.lines.filter((l) => l.startsWith('capture: ')), [`capture: ${join(out, 'commands.png')}`, `capture: ${join(out, 'commands.json')}`]);
+  assert.ok(!outputOf(r).includes(L.guest.dir));
+});
+
+test('route: sweep - a capture named after account 1\'s username returns neither file, prints a sweep line with the name redacted and leaves no host path holding it', async () => {
+  const L = laneLayout();
+  routedLease(L, { target: 'desktop' });
+  L.driverCfg({
+    started: '$HOME/started',
+    files: [
+      { dir: '$OUT', path: `${USER1}.png`, content: PNG_BYTES, base64: true },
+      { dir: '$OUT', path: `${USER1}.json`, content: '{}' },
+      { dir: '$OUT', path: 'keep.json', content: '{"ok":1}' },
+    ],
+  });
+  const out = join(L.root, 'evidence');
+  mkdirSync(out);
+  const r = await runQa(L, ['desktop', 'capture', USER1, '--out', out]);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.deepEqual(readdirSync(out), ['keep.json']);
+  assert.ok(r.lines.some((l) => /^sweep: deleted .*\[redacted\]/.test(l)), r.stdout);
+  assert.deepEqual(leaks(outputOf(r), VALUES), []);
+  assert.deepEqual(entryNames([L.tmp, L.home, out]).filter((n) => n.includes(USER1)), []);
+});
+
+test('route: noout - a passing flow without --out returns its screenshot to a printed new host folder and prints no guest path', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' });
+  L.driverCfg({
+    started: '$HOME/started',
+    lines: [{ s: 'out', t: 'out: $OUT' }, { s: 'out', t: 'screenshot: $OUT/home.png' }, { s: 'out', t: 'PASS scenario 1s' }],
+    files: [{ dir: '$OUT', path: 'home.png', content: PNG_BYTES, base64: true }],
+  });
+  const r = await runQa(L, ['flow', 'ios', 'flows/x.yaml']);
+  assert.equal(r.status, 0, outputOf(r));
+  const out = valueAfter(r, 'out: ');
+  assert.equal(dirname(out), L.tmp);
+  assert.match(out, /app-qa-out-/);
+  assert.deepEqual(readFileSync(join(out, 'home.png')), Buffer.from(PNG_BYTES, 'base64'));
+  assert.ok(r.lines.includes(`screenshot: ${join(out, 'home.png')}`));
+  assert.ok(!outputOf(r).includes(L.guest.dir));
+});
+
+test('route: out - an existing flow --out and an existing capture file each exit 2 with no guest command, and a new --out receives the files', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' });
+  const existing = join(L.root, 'existing');
+  mkdirSync(existing);
+  const f = await runQa(L, ['flow', 'ios', 'flows/x.yaml', '--out', existing]);
+  assert.equal(f.status, 2, outputOf(f));
+  assert.match(outputOf(f), /exists/);
+  routedLease(L, { target: 'desktop' });
+  writeFileSync(join(existing, 'commands.png'), 'old');
+  const c = await runQa(L, ['desktop', 'capture', 'commands', '--out', existing]);
+  assert.equal(c.status, 2, outputOf(c));
+  assert.match(outputOf(c), /already exists/);
+  assert.equal(readFileSync(join(existing, 'commands.png'), 'utf8'), 'old');
+  assert.equal(L.gcalls('guest-driver').length, 0);
+  assert.deepEqual(busyLeft(L), []);
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' }, { files: undefined });
+  L.driverCfg({ started: '$HOME/started', files: [{ dir: '$OUT', path: 'home.png', content: PNG_BYTES, base64: true }] });
+  const fresh = join(L.root, 'fresh');
+  const ok = await runQa(L, ['flow', 'ios', 'flows/x.yaml', '--out', fresh]);
+  assert.equal(ok.status, 0, outputOf(ok));
+  assert.deepEqual(readdirSync(fresh), ['home.png']);
+});
+
+test('route: pack - vm pack sanitizes the whole folder before it writes the tar, so no member name holds a value', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const dir = join(L.guest.tmp, 'pack-me');
+  mkdirSync(dir);
+  writeFileSync(join(dir, `${USER1}.png`), 'x');
+  writeFileSync(join(dir, 'note.log'), `p ${PW1}\n`);
+  writeFileSync(join(dir, 'fine.txt'), 'fine');
+  const r = spawnSync(NODE, [join(L.guestDriver, 'qa-real.mjs'), 'vm', 'pack', dir], { cwd: L.guestCopy, env: L.guestEnv, encoding: 'buffer' });
+  assert.equal(r.status, 0, String(r.stderr));
+  const names = spawnSync('/usr/bin/tar', ['-tf', '-'], { input: r.stdout, encoding: 'utf8' }).stdout;
+  assert.ok(names.includes('fine.txt') && names.includes('note.log'));
+  assert.ok(!names.includes(USER1));
+  assert.match(String(r.stderr), /sweep: deleted \[redacted\]/);
+  assert.deepEqual(leaks(r.stdout.toString('latin1'), VALUES), []);
+});
+
+/** A routed capture whose guest files hold values and whose host return is held at an extraction point. */
+async function heldReturn(L, when) {
+  routedLease(L, { target: 'desktop' });
+  L.driverCfg({
+    started: '$HOME/started',
+    files: [
+      { dir: '$OUT', path: `${USER1}.png`, content: PNG_BYTES, base64: true },
+      { dir: '$OUT', path: 'note.txt', content: `typed ${PW1}\n` },
+    ],
+  });
+  const out = join(L.root, 'evidence');
+  mkdirSync(out);
+  const run = startQa(L, ['desktop', 'capture', 'c', '--out', out], { env: { FAKE_TAR_HOLD: when } });
+  await waitFor(join(L.holds, `tar-x-${when}.held`));
+  return { run, out };
+}
+
+for (const when of ['before', 'after']) {
+  test(`route: interrupt - a host killed ${when} the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID`, async () => {
+    const L = laneLayout();
+    const { run, out } = await heldReturn(L, when);
+    const returnDir = join(L.slotDir(1), `return-${run.child.pid}`);
+    assert.equal(existsSync(join(returnDir, 'archive.tar')), true);
+    assert.equal(statSync(join(returnDir, 'archive.tar')).mode & 0o777, 0o600);
+    const members = spawnSync('/usr/bin/tar', ['-tf', join(returnDir, 'archive.tar')], { encoding: 'utf8' }).stdout;
+    assert.ok(!members.includes(USER1), members);
+    assert.deepEqual(hostLeaks(L, [out]), []);
+    run.child.kill('SIGKILL');
+    await run.done;
+    assert.deepEqual(hostLeaks(L, [out]), []);
+    assert.deepEqual(entryNames([L.tmp, L.home, out]).filter((n) => n.includes(USER1)), []);
+    const status = await runQa(L, ['vm', 'status']);
+    assert.equal(status.status, 0, outputOf(status));
+    assert.equal(existsSync(returnDir), false);
+  });
+}
+
+/** Guest archives the host must refuse whole, each with the guest-side control that builds it. */
+const EVIL = [
+  ['a .. component', (L) => ({ env: { FAKE_PACK_EVIL: 'dotdot' }, escaped: () => join(L.slotDir(1), 'escape') })],
+  ['an absolute path', (L) => ({ env: { FAKE_PACK_EVIL: 'absolute', EVIL_ABS_DIR: join(L.root, 'evil-abs') }, escaped: () => join(L.root, 'evil-abs') })],
+  ['a symlink', () => ({ cfg: { links: [{ dir: '$OUT', path: 'link', target: '/etc/hosts' }] } })],
+  ['a FIFO', () => ({ cfg: { fifos: [{ dir: '$OUT', path: 'pipe' }] } })],
+];
+
+test('route: tar - a guest archive with .., an absolute path, a symlink or a FIFO is refused whole with nothing extracted', async () => {
+  for (const [label, make] of EVIL) {
+    const L = laneLayout();
+    routedLease(L, { target: 'desktop' });
+    const evil = make(L);
+    L.driverCfg({ started: '$HOME/started', files: [{ dir: '$OUT', path: 'ok.txt', content: 'fine' }], ...(evil.cfg ?? {}) });
+    if (evil.env) L.setSsh({ env: { ...L.guestEnv, ...evil.env } });
+    const out = join(L.root, 'evidence');
+    mkdirSync(out);
+    const r = await runQa(L, ['desktop', 'capture', 'c', '--out', out]);
+    assert.equal(r.status, 2, `${label}: ${outputOf(r)}`);
+    assert.match(outputOf(r), /not returned/, label);
+    assert.deepEqual(readdirSync(out), [], label);
+    if (evil.escaped) assert.equal(existsSync(evil.escaped()), false, label);
+    assert.equal(existsSync(join(L.slotDir(1), `return-${r.pid}`)), false, label);
+    assert.deepEqual(busyLeft(L), [], label);
+  }
+});
+
+test('route: root - a failing flow\'s kept root returns to a new 0700 host folder whose path replaces the guest path', async () => {
+  const L = laneLayout();
+  routedFiles(L, { 'flows/x.yaml': 'appId: x\n' });
+  L.driverCfg({
+    started: '$HOME/started',
+    lines: [{ s: 'out', t: 'root kept: $TMP/app-qa-flow-zzz' }, { s: 'out', t: 'FAIL scenario' }],
+    files: [{ dir: '$TMP', path: 'app-qa-flow-zzz/console.log', content: 'log\n' }],
+    exit: 1,
+  });
+  const r = await runQa(L, ['flow', 'ios', 'flows/x.yaml']);
+  assert.equal(r.status, 1, outputOf(r));
+  const root = valueAfter(r, 'root kept: ');
+  assert.equal(statSync(root).mode & 0o777, 0o700);
+  assert.equal(readFileSync(join(root, 'console.log'), 'utf8'), 'log\n');
+  assert.ok(!outputOf(r).includes('app-qa-flow-zzz'));
+  assert.ok(r.lines.some((l) => /^lane: .*app-qa-slot-1.*vm up ios/.test(l)));
+});
+
+test('route: flowlock - two routed flows started together in one lease take the guest\'s one flow lock: one Maestro run, the other exits 2 naming the holder', async () => {
+  const L = laneLayout();
+  L.stage({ fakeDriver: false });
+  mkdirSync(L.guestDriver, { recursive: true });
+  copyFileSync(QA_SOURCE, join(L.guestDriver, 'qa.mjs'));
+  cpSync(join(dirname(QA_SOURCE), 'vm'), join(L.guestDriver, 'vm'), { recursive: true });
+  L.gset({ iosDevices: DEFAULT_STATE.iosDevices, maestro: { ...DEFAULT_STATE.maestro, sleepMs: 1500 } });
+  for (const base of [L.repo, L.guestCopy]) {
+    mkdirSync(join(base, 'flows'), { recursive: true });
+    writeFileSync(join(base, 'flows', 'x.yaml'), 'appId: org.example.app\n---\n- assertVisible:\n    id: home\n');
+  }
+  const results = await Promise.all([0, 1].map(() => runQa(L, ['flow', 'ios', 'flows/x.yaml'])));
+  assert.deepEqual(results.map((r) => r.status).sort(), [0, 2], results.map(outputOf).join('\n----\n'));
+  assert.match(outputOf(results.find((r) => r.status === 2)), /another flow run holds the lock/);
+  assert.equal(L.gcalls('maestro').filter((c) => c.argv?.[0] === 'test').length, 1);
+});
+
+// ---------- target: guest-side target start (task 3.2) ----------
+
+test('target: ios - two vm up runs leave one simulator, created fresh the second time, with the app installed and WebKit warmed', async () => {
+  const L = laneLayout();
+  assert.equal((await L.up(['ios'])).status, 0);
+  const first = L.gstate().sims;
+  assert.equal(first.length, 1);
+  assert.equal(first[0].name, 'app-qa-lane');
+  assert.equal(first[0].deviceType, 'iPhone 17 Pro');
+  assert.equal(first[0].state, 'Booted');
+  assert.equal(first[0].installed.length, 1);
+  assert.equal(realpathSync(first[0].installed[0]), realpathSync(join(L.guestCopy, 'build/App.app')));
+  const second = await L.up(['ios']);
+  assert.equal(second.status, 0, outputOf(second));
+  const sims = L.gstate().sims;
+  assert.equal(sims.length, 1);
+  assert.notEqual(sims[0].udid, first[0].udid);
+  assert.equal(sims[0].udid, 'LANE-SIM-2');
+  const verbs = L.gcalls('xcrun').map((c) => c.argv.slice(1, 3));
+  assert.ok(verbs.some(([v]) => v === 'delete'), 'the earlier simulator is deleted');
+  const open = L.gcalls('xcrun').filter((c) => c.argv[1] === 'openurl');
+  assert.equal(open.length, 2);
+  assert.match(open[0].argv[3], new RegExp(`^http://127\\.0\\.0\\.1:${PORT}/`));
+  assert.ok(L.gcalls('xcrun').some((c) => c.argv[1] === 'terminate' && c.argv[3] === 'com.apple.mobilesafari'));
+});
+
+test('target: ios - the app is launched last with the artifact\'s bundle id, after the WebKit warm, and without a backend right after the install', async () => {
+  const L = laneLayout();
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  const calls = L.gcalls('xcrun').map((c) => c.argv.slice(1));
+  const verbs = calls.map((c) => c[0]);
+  const sim = L.gstate().sims[0].udid;
+  assert.deepEqual(calls.at(-1), ['launch', '--terminate-running-process', sim, 'eu.onara.app.test']);
+  assert.ok(verbs.lastIndexOf('terminate') < verbs.lastIndexOf('launch'));
+  const plutil = L.gcalls('plutil');
+  assert.equal(plutil.length, 1);
+  assert.ok(plutil[0].argv.at(-1).endsWith('build/App.app/Info.plist'), plutil[0].argv.join(' '));
+  const bare = laneLayout({ backend: false });
+  assert.equal((await bare.up(['ios'])).status, 0);
+  const seq = bare.gcalls('xcrun').map((c) => c.argv[1]);
+  assert.equal(seq.includes('openurl'), false);
+  assert.deepEqual(seq.slice(-2), ['install', 'launch']);
+});
+
+test('target: ios - a failing launch exits 2 naming the launch and stages no target', async () => {
+  const L = laneLayout();
+  L.gset({ launchFails: true });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /launch/);
+  assert.deepEqual(L.lease(1).targets, []);
+});
+
+test('target: settle - the WebKit warm and the desktop start wait until the guest load falls below its CPU count', async () => {
+  const L = laneLayout();
+  L.gset({ ncpu: 8, loads: [76.4, 12, 7.5] });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  const seq = L.gcalls().map((c) => (c.tool === 'xcrun' ? c.argv[1] : c.tool)).filter((t) => ['sysctl', 'install', 'openurl'].includes(t));
+  assert.deepEqual(seq, ['install', 'sysctl', 'sysctl', 'sysctl', 'openurl']);
+  assert.match(outputOf(r), /settle: load 7\.50 below 8 CPUs/);
+  L.gset({ loads: [9, 3] });
+  const d = await L.up(['desktop']);
+  assert.equal(d.status, 0, outputOf(d));
+  await waitUntil(() => L.gcalls('java').length === 1);
+  const after = L.gcalls().map((c) => c.tool).filter((t) => t === 'sysctl' || t === 'java');
+  assert.deepEqual(after.slice(-3), ['sysctl', 'sysctl', 'java']);
+});
+
+test('target: settle - a guest that never settles starts the target after the cap and says so', async () => {
+  const L = laneLayout();
+  L.setSsh({ env: { ...L.guestEnv, QA_TARGET_SETTLE_MS: '0' } });
+  L.gset({ ncpu: 8, loads: [40] });
+  const r = await L.up(['ios']);
+  assert.equal(r.status, 0, outputOf(r));
+  assert.match(outputOf(r), /settle: load 40\.00 still at or above 8 CPUs .*starting anyway/);
+  assert.equal(L.gcalls('xcrun').at(-1).argv[1], 'launch');
+});
+
+test('target: desktop - two vm up runs leave one app process and the first is killed', async () => {
+  const L = laneLayout();
+  const up1 = await L.up(['desktop']);
+  assert.equal(up1.status, 0, outputOf(up1));
+  await waitUntil(() => L.gcalls('java').length === 1);
+  const [first] = L.gcalls('java');
+  assert.ok(isAlive(first.pid));
+  const second = await L.up(['desktop']);
+  assert.equal(second.status, 0, outputOf(second));
+  await waitUntil(() => L.gcalls('java').length === 2);
+  const javas = L.gcalls('java');
+  assert.equal(javas.length, 2);
+  await waitUntil(() => !isAlive(javas[0].pid));
+  assert.ok(isAlive(javas[1].pid));
+});
+
+test('target: desktop-stop - a refresh starts the new app only after the old one has exited, and kills one that ignores SIGTERM', async () => {
+  const L = laneLayout();
+  L.gset({ javaTermMs: 3000 });
+  assert.equal((await L.up(['desktop'])).status, 0);
+  await waitUntil(() => L.gcalls('java').length === 1);
+  const [first] = L.gcalls('java');
+  const slow = await L.up(['desktop']);
+  assert.equal(slow.status, 0, outputOf(slow));
+  assert.equal(isAlive(first.pid), false, 'the slow predecessor is gone when vm up returns');
+  await waitUntil(() => L.gcalls('java').length === 2);
+  const order = L.gcalls().filter((c) => c.tool === 'java' || c.tool === 'java-exit').map((c) => `${c.tool}:${c.pid}`);
+  const second = L.gcalls('java')[1];
+  assert.ok(order.indexOf(`java-exit:${first.pid}`) !== -1 && order.indexOf(`java-exit:${first.pid}`) < order.indexOf(`java:${second.pid}`), order.join(' '));
+  L.gset({ javaTermMs: 'ignore' });
+  L.setSsh({ env: { ...L.guestEnv, QA_TARGET_STOP_MS: '300' } });
+  const stubborn = await L.up(['desktop']);
+  assert.equal(stubborn.status, 0, outputOf(stubborn));
+  assert.equal(isAlive(second.pid), false, 'a predecessor ignoring SIGTERM is killed before vm up returns');
+  await waitUntil(() => L.gcalls('java').length === 3);
+  assert.ok(isAlive(L.gcalls('java')[2].pid));
+});
+
+test('target: desktop - the command line holds the classpath, both options in order, the headless flag, the property and the launchctl prefix', async () => {
+  const L = laneLayout();
+  const r = await L.up(['desktop']);
+  assert.equal(r.status, 0, outputOf(r));
+  const appDir = join(realpathSync(L.guestCopy), 'build/Onara.app/Contents/app');
+  await waitUntil(() => L.gcalls('java').length === 1);
+  const [java] = L.gcalls('java');
+  assert.equal(java.argv.at(-1), 'eu.onara.app.MainKt');
+  assert.deepEqual(java.argv.slice(java.argv.indexOf('-cp')), ['-cp', `${appDir}/onara.jar:${appDir}/lib/compose.jar`, 'eu.onara.app.MainKt']);
+  const opts = java.argv.slice(0, java.argv.indexOf('-cp'));
+  assert.equal(opts[0], '-Djava.awt.headless=false');
+  assert.deepEqual(opts.filter((o) => ['-Dfirst=1', '-Xmx512m', `-Dapp.dir=${appDir}`].includes(o)), ['-Dfirst=1', '-Xmx512m', `-Dapp.dir=${appDir}`]);
+  assert.ok(opts.includes(`-Donara.devCredentialsFile=${realpathSync(L.guestCopy)}/.dev-credentials.env`), opts.join(' '));
+  assert.equal(realpathSync(java.cwd), realpathSync(L.guestCopy));
+  assert.match(java.argv[0], /^-D|^-X/);
+  const [launch] = L.gcalls('launchctl');
+  assert.deepEqual(launch.argv.slice(0, 5), ['asuser', String(process.getuid()), 'sudo', '-u', launch.argv[4]]);
+  assert.ok(L.gcalls('java_home').some((c) => c.argv.join(' ') === '-v 21'));
+});
+
+test('target: desktop - a launcher cfg without app.mainclass is refused by the host with exit 2 before any clone', async () => {
+  const L = laneLayout();
+  L.setControl({ artifacts: { ...BUILD_ARTIFACTS, desktop: { ...BUILD_ARTIFACTS.desktop, files: { 'Contents/app/Onara.cfg': '[Application]\napp.classpath=$APPDIR/onara.jar\n' } } } });
+  const r = await L.up(['desktop']);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(r.stdout, /app\.mainclass/);
+  for (const verb of ['clone', 'run', 'stop', 'delete']) assert.equal(L.lumeCalls(verb).length, 0, verb);
+  assert.deepEqual(L.slots(), []);
+});
+
+test('target: cfg - the reader ignores other sections and keys, expands $APPDIR and keeps repeated lines in order', async () => {
+  const { parseLauncherCfg } = await import(pathToFileURL(join(dirname(QA_SOURCE), 'vm', 'start-target.mjs')).href);
+  const cfg = parseLauncherCfg('[Other]\napp.mainclass=wrong\n\n[Application]\napp.version=1\napp.classpath=$APPDIR/a.jar\napp.classpath=$APPDIR/b.jar\napp.mainclass=x.Main\n\n[JavaOptions]\njava-options=-Da=1\njava-options=-Db=$APPDIR\n', '/d');
+  assert.deepEqual(cfg, { classpath: ['/d/a.jar', '/d/b.jar'], mainClass: 'x.Main', javaOptions: ['-Da=1', '-Db=/d'] });
 });
 
 /** Malformed configurations, each with the cause its refusal must name. */

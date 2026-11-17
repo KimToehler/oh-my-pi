@@ -1,0 +1,20 @@
+head 7a3687e8267cbbf3ef5ac275e1eff3e28bf362da
+ 14:31:34  up 6 days 14:29,  3 users,  load average: 42.38, 46.63, 42.20
+$ node --test --test-name-pattern='route: interrupt' team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs   (run 1)
+✔ route: interrupt - a host killed before the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID (8375.253417ms)
+✔ route: interrupt - a host killed after the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID (7294.883459ms)
+ℹ tests 2
+ℹ pass 2
+ℹ fail 0
+$ node --test --test-name-pattern='route: interrupt' team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs   (run 2)
+✔ route: interrupt - a host killed before the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID (8535.855917ms)
+✔ route: interrupt - a host killed after the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID (7220.891917ms)
+ℹ tests 2
+ℹ pass 2
+ℹ fail 0
+$ node --test --test-name-pattern='route: interrupt' team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs   (run 3)
+✔ route: interrupt - a host killed before the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID (10147.921791ms)
+✔ route: interrupt - a host killed after the extraction leaves no value anywhere on the host, and the next vm status deletes return-PID (9281.963333ms)
+ℹ tests 2
+ℹ pass 2
+ℹ fail 0

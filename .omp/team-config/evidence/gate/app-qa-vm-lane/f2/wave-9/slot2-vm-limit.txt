@@ -1,0 +1,19 @@
+$ grep -E 'Running VM additional|Error: ' ~/Library/Logs/lume/app-qa-slot-2.log  (entries of 2026-11-17)
+[2026-11-17T08:15:16Z] INFO: Running VM additional_disks=0 disk_path_override=none display_mode=none mount=none name=app-qa-slot-2 network_o
+[2026-11-17T13:29:20Z] INFO: Running VM additional_disks=0 disk_path_override=none display_mode=none mount=none name=app-qa-slot-2 network_o
+Error: The number of virtual machines exceeds the limit. The maximum supported number of active virtual machines has been reached.
+[2026-11-17T14:24:07Z] INFO: Running VM additional_disks=0 disk_path_override=none display_mode=none mount=none name=app-qa-slot-2 network_o
+Error: The number of virtual machines exceeds the limit. The maximum supported number of active virtual machines has been reached.
+[2026-11-17T14:34:16Z] INFO: Running VM additional_disks=0 disk_path_override=none display_mode=none mount=none name=app-qa-slot-2 network_o
+Error: The number of virtual machines exceeds the limit. The maximum supported number of active virtual machines has been reached.
+[2026-11-17T14:41:28Z] INFO: Running VM additional_disks=0 disk_path_override=none display_mode=none mount=none name=app-qa-slot-2 network_o
+Error: The number of virtual machines exceeds the limit. The maximum supported number of active virtual machines has been reached.
+[2026-11-17T14:51:41Z] INFO: Running VM additional_disks=0 disk_path_override=none display_mode=none mount=none name=app-qa-slot-2 network_o
+Error: The number of virtual machines exceeds the limit. The maximum supported number of active virtual machines has been reached.
+
+$ lume ls (name, status, os) at the time of writing
+app-qa-build stopped macOS
+app-qa-golden stopped macOS
+app-qa-slot-2 stopped macOS
+kmp-sc-f1 running macOS
+wv-f1-human stopped macOS

@@ -31,9 +31,10 @@ node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop tap TAG | type TA
 node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs desktop capture NAME --out DIR | detach
 node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios|android FLOW [--account ID] [--expect SCREEN] [--device ID] [--out DIR]
 node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan PATH
+node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up TARGET... [--port N] | vm down | vm status
 ```
 
-Exit 0 pass, 1 a check, action or flow failed (or the scan found a file), 2 usage, configuration, a refused start, or a scan that met an entry it did not scan. Every command also takes `--config FILE`.
+Exit 0 pass, 1 a check, action or flow failed (or the scan found a file), 2 usage, configuration, a refused start, or a scan that met an entry it did not scan. Every command also takes `--config FILE`, and with the VM lane ("VM lane" below) `--host`, which runs that one command on the host.
 
 - **Preflight**: one line per check with its fix: the driver version, screen-capture permission and screen lock (desktop); the driver version, platform tools and one usable device (ios, android), where a `--device` ID counts only when it is booted; backend health when the configuration has a backend.
 - **Desktop**: `attach` picks the one JVM of the configured main class started in this worktree; with none it prints the launch hint, with several their pids (`--pid N` picks one of them). The session belongs to this worktree and the configuration it was attached with; after a configuration change, attach again. `find` prints one line (count, enabled, focused, text length, `equals=` with `--equals`) and never the text. `type` replaces the field's text and fails, with both lengths, unless the field then holds exactly that text. `capture` writes `NAME.png` and `NAME.json` and refuses existing files.
@@ -42,7 +43,7 @@ Exit 0 pass, 1 a check, action or flow failed (or the scan found a file), 2 usag
 
 ### Configuration
 
-`.omp/app-qa.json`, tracked at the repository root, schema `app-qa/1`, validated strictly: an unknown key, a wrong type or a missing value stops every command with exit 2 naming the file and the cause. Required: `schema` and `name` (lowercase, digits, hyphens). Optional sections:
+`.omp/app-qa.json`, tracked at the repository root, schema `app-qa/1` or `app-qa/2` (`app-qa/2` adds the `vm` section; `vm` under `app-qa/1` is an unknown key), validated strictly: an unknown key, a wrong type or a missing value stops every command with exit 2 naming the file and the cause. Required: `schema` and `name` (lowercase, digits, hyphens). Optional sections:
 
 | Section | Fields |
 |---|---|
@@ -52,12 +53,36 @@ Exit 0 pass, 1 a check, action or flow failed (or the scan found a file), 2 usag
 | `expect` | `default`, `tags` (`SCREEN: TAG`) |
 | `android` | `sdkProperties` (holds `sdk.dir` for `adb`) |
 | `scan` | `sentinels` |
+| `vm` (`app-qa/2`) | per target `ios`, `desktop` (at least one): `artifact` (repository-relative), `build` (`argv`, `cwd`; `{port}` in an `argv` element needs a `backend` section); `desktop` also `systemProperties` (`{credentials}` stands for the credentials file in the VM) |
 
 List every account any flow uses under `credentials.accounts`: redaction, sweep and scan cover the values of the configured keys only. Healthy backend means HTTP 2xx and, when the body is a JSON object with `status`, exactly `UP`. A schema id the deployed driver does not know is refused with "redeploy team config": run `scripts/deploy-local.sh` in the team fork.
 
 ### Flow lock
 
 Flow runs of every repository share the host's simulator and emulator, so they take one host-wide lock: the directory `${TMPDIR}/app-qa/flow.lock`, created with one atomic `mkdir`. An app script that drives a device takes the same lock: `mkdir "${TMPDIR%/}/app-qa/flow.lock"`, then write its decimal pid, and nothing else, into `flow.lock/pid`; remove the directory on exit only while `pid` still holds its own pid. A run that finds the lock refuses with the holder's pid (and the repository name when the shared driver holds it): wait for it. A stale lock (dead or missing pid) is reported with its `rm -r` command, and the session stops there: it never removes a lock it did not create; a person removes it after checking that no Maestro `test` process is alive.
+
+## VM lane
+
+On a machine with a lane file (`~/.omp/agent/app-qa-vm.json`), in a repository whose `.omp/app-qa.json` has a `vm` section, `preflight`, `desktop` and `flow` for `ios` and `desktop` run inside a leased macOS VM of the current worktree, not on the host. The VM has its own unlocked console session, so QA works while the host screen is locked, and two worktrees do not share one simulator. Without the lane file or the `vm` section nothing changes: the commands above run on the host.
+
+**Rollout order.** A repository commits a `vm` section (schema `app-qa/2`) only after this driver is deployed for everyone who runs QA in that repository: a driver that knows only `app-qa/1` stops every QA command there with exit 2 ("schema app-qa/2 is not one of ... redeploy team config"), lane file or not. A machine without a lane file (any OS) keeps running on the host unchanged, and Android always runs on the host.
+
+```
+node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up TARGET... [--port N]
+node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm down
+node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm status
+```
+
+- **Start it before QA.** `vm up ios`, `vm up desktop` or `vm up ios desktop`, from inside the worktree. It builds each target on the host with the configuration's build command, takes one of at most two host-wide slots, clones the golden image, copies the worktree, the built artifacts, the driver and the dev credentials into the clone, and starts the targets. A failed build or a missing artifact exits 2 with the build's last lines and starts nothing.
+- **After every code change, run vm up again before the next QA command.** It rebuilds, refreshes the copy and brings the targets back to one known state. The driver does not notice a code change after `vm up`: QA without a new `vm up` tests the old build. A routed command in a lease that did not stage its target exits 2 naming the `vm up` command; without a lease it exits 2 too and never falls back to the host.
+- **Then use the commands above unchanged**: same arguments, same working directory in the worktree. Output comes back redacted, `--out` files return to the host path, and a flow without `--out` returns its screenshots to a new host folder whose path it prints. `--config` and `--credentials` are refused in the lane (exit 2), whatever the named file holds; the guest has its own copy of both. A non-zero exit adds one line naming the clone and the `vm up` command that restarts the target.
+- **Attach again after every `vm up desktop`.** It starts a new app process; run `desktop attach` before the next `desktop` command.
+- **The simulator's sign-in state is reset by every `vm up ios`** (a fresh simulator, the app installed on it), so the sign-in subflow starts from the sign-in entry.
+- **No login surface through the lane.** Take no capture, screenshot or hierarchy dump while a login, identity-provider or password-manager surface is visible, and no `takeScreenshot` before the sign-in subflow has returned: the returned files are swept for configured values by their bytes only, and a PNG still shows what was on screen. The team rule `ui-automation-credentials` holds in the lane as on the host.
+- **Android and `scan` stay on the host**: a macOS guest cannot run the emulator. `--host` runs one command on the host instead of the lane; use it only when the user asks for the host.
+- **Run `vm down` before your final report.** It stops the port forward, deletes the clone with everything copied into it (the credentials included) and frees the slot; with no lease it exits 0. `vm status` lists the slots and deletes lane clones no slot holds.
+- **A refused `vm up`** (both slots held, a start or teardown in progress, a busy routed command) prints the holders: report them and stop. Never answer with `--host` unless the user asked for it. A lease idle beyond the lane file's `idleMinutes` is reclaimed by the next `vm up`; a busy or starting one never is.
+- **Prerequisite**: omp's `power.sleepPrevention` at `idle` or higher (`omp config get power.sleepPrevention`); a sleeping host pauses the guest. The golden image, its provisioning and the lane file's fields are in `vm-image.md`, next to this file.
 
 ## Repository driver
 

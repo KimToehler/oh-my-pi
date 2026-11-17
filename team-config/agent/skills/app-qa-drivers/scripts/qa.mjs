@@ -9,6 +9,10 @@
 //   node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs flow ios|android FLOW [--account ID] [--expect SCREEN]
 //                                                          [--device ID] [--out DIR] [--credentials FILE]
 //   node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs scan PATH [--credentials FILE]
+//   node ~/.omp/agent/skills/app-qa-drivers/scripts/qa.mjs vm up ios|desktop... [--port N] | vm down | vm status
+// VM lane (openspec change app-qa-vm-lane): where ~/.omp/agent/app-qa-vm.json exists and the configuration (schema
+// app-qa/2) has a `vm` section, preflight, desktop and flow for ios and desktop run in the leased lume VM of the worktree
+// after `vm up`; --host runs one command on the host, android and scan always do. `vm pack DIR` is internal (guest).
 // Every command also takes --config FILE. Without it the configuration is .omp/app-qa.json at the root of the
 // repository holding the working directory; it is validated strictly (schema app-qa/1) before anything else runs.
 // Exit: 0 pass, 1 a check, action or flow failed or the scan found a file, 2 usage, configuration or refused start.
@@ -17,29 +21,34 @@
 // environment, and every line this script prints passes one redaction of the configured accounts' values and tokens.
 // Redaction, scan and sweep match a password anywhere and a username only as a whole word, never inside a longer word.
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   appendFileSync,
   chmodSync,
   constants,
+  closeSync,
   copyFileSync,
   existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
   rmSync,
+  rmdirSync,
   statSync,
   unlinkSync,
   writeFileSync,
+  writeSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const SCHEMA = 'app-qa/1';
+export const SCHEMAS = ['app-qa/1', 'app-qa/2'];
 export const SPECTRE_VERSION = '0.9.0';
 export const SPECTRE_SHA256 = '7bee663dbf4e7b8b089bd989cf93c327a2dbc4afa894c997f4407e18ad73371b';
 export const MAESTRO_VERSION = '2.12.1';
@@ -141,7 +150,7 @@ const named = (check) => (v, p, e) => {
   }
 };
 
-const CONFIG_SHAPE = section({
+const CONFIG_FIELDS = {
   schema: [true, () => {}],
   name: [true, matching(/^[a-z0-9-]+$/, 'lowercase letters, digits and hyphens')],
   desktop: [false, section({ mainClass: [true, nonEmpty], launchHint: [true, nonEmpty] })],
@@ -165,17 +174,48 @@ const CONFIG_SHAPE = section({
   expect: [false, section({ default: [true, nonEmpty], tags: [true, named(nonEmpty)] })],
   android: [false, section({ sdkProperties: [true, relPath] })],
   scan: [false, section({ sentinels: [true, stringList] })],
-});
+};
 
-/** The causes that make `config` not a valid app-qa/1 configuration; empty when it is valid. */
+/** A map of non-empty names to non-empty strings (the desktop app's system properties). */
+const stringMap = (v, p, e) => {
+  if (!isObject(v)) {
+    e.push(`${p}: expected an object`);
+    return;
+  }
+  for (const [key, value] of Object.entries(v)) {
+    if (key === '') e.push(`${p}: expected non-empty names`);
+    nonEmpty(value, sub(p, key), e);
+  }
+};
+
+/** One VM target: the artifact to stage and the build that makes it (design D8). */
+const vmTarget = (extra = {}) =>
+  section({
+    artifact: [true, relPath],
+    build: [true, section({ argv: [true, stringList], cwd: [true, relPath] })],
+    ...extra,
+  });
+
+/** The `vm` section of app-qa/2: at least one of ios and desktop. */
+const vmShape = (v, p, e) => {
+  section({ ios: [false, vmTarget()], desktop: [false, vmTarget({ systemProperties: [false, stringMap] })] })(v, p, e);
+  if (isObject(v) && !Object.hasOwn(v, 'ios') && !Object.hasOwn(v, 'desktop')) e.push(`${p}: expected at least one of ios, desktop`);
+};
+
+const CONFIG_SHAPES = {
+  'app-qa/1': section(CONFIG_FIELDS),
+  'app-qa/2': section({ ...CONFIG_FIELDS, vm: [false, vmShape] }),
+};
+
+/** The causes that make `config` not a valid app-qa/1 or app-qa/2 configuration; empty when it is valid. */
 export function configErrors(config) {
   if (!isObject(config)) return ['the configuration: expected an object'];
-  if (config.schema !== SCHEMA) {
+  if (!SCHEMAS.includes(config.schema)) {
     const id = typeof config.schema === 'string' ? config.schema : JSON.stringify(config.schema ?? null);
-    return [`schema ${id} is not ${SCHEMA}, the schema this driver supports; redeploy team config (scripts/deploy-local.sh) to get a driver for it`];
+    return [`schema ${id} is not one of ${SCHEMAS.join(', ')}, the schemas this driver supports; redeploy team config (scripts/deploy-local.sh) to get a driver for it`];
   }
   const errors = [];
-  CONFIG_SHAPE(config, '', errors);
+  CONFIG_SHAPES[config.schema](config, '', errors);
   if (errors.length) return errors;
   const { credentials, expect } = config;
   if (credentials && !Object.hasOwn(credentials.accounts, credentials.defaultAccount)) {
@@ -183,6 +223,11 @@ export function configErrors(config) {
   }
   if (expect && !Object.hasOwn(expect.tags, expect.default)) {
     errors.push(`expect.default: ${JSON.stringify(expect.default)} is not in expect.tags`);
+  }
+  for (const [target, { build }] of Object.entries(config.vm ?? {})) {
+    build.argv.forEach((arg, i) => {
+      if (arg.includes('{port}') && !config.backend) errors.push(`vm.${target}.build.argv.${i}: {port} needs a backend section`);
+    });
   }
   return errors;
 }
@@ -214,6 +259,73 @@ function loadConfig(flags) {
   if (errors.length) return { error: errors.map((cause) => `config: ${path}: ${cause}`).join('\n') };
   const real = realpathSync(path);
   return { path, real, config, worktree, root: worktree ?? dirname(dirname(real)) };
+}
+
+// ---------- the machine lane file ----------
+
+export const LANE_SCHEMA = 'app-qa-vm/1';
+/** The lane's clones are named `app-qa-slot-N`; no other VM is ever stopped, run or deleted. */
+const CLONE_PREFIX = 'app-qa-slot-';
+const laneFilePath = () => join(homedir(), '.omp', 'agent', 'app-qa-vm.json');
+
+const absolutePath = (v, p, e) => {
+  if (typeof v !== 'string' || !isAbsolute(v)) e.push(`${p}: expected an absolute path`);
+};
+
+const LANE_SHAPE = section({
+  schema: [true, () => {}],
+  image: [
+    true,
+    (v, p, e) => {
+      nonEmpty(v, p, e);
+      if (typeof v === 'string' && v.startsWith(CLONE_PREFIX)) e.push(`${p}: ${JSON.stringify(v)} lies in ${CLONE_PREFIX}, the namespace of the lane's clones`);
+    },
+  ],
+  user: [true, nonEmpty],
+  sshKey: [true, absolutePath],
+  knownHosts: [true, absolutePath],
+  slots: [
+    true,
+    (v, p, e) => {
+      if (v !== 1 && v !== 2) e.push(`${p}: expected 1 or 2`);
+    },
+  ],
+  idleMinutes: [
+    true,
+    (v, p, e) => {
+      if (!Number.isInteger(v) || v <= 0) e.push(`${p}: expected a positive integer`);
+    },
+  ],
+  ios: [true, section({ deviceType: [true, nonEmpty] })],
+});
+
+/**
+ * The machine lane file: `{ absent, path }` without the file, `{ error }` naming the file and the cause when it cannot
+ * be used, else `{ path, lane }`. The path is fixed under HOME; no environment variable overrides it.
+ */
+function loadLane() {
+  const path = laneFilePath();
+  let text;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') return { absent: true, path };
+    return { error: `lane: ${path}: unreadable (${e.code ?? 'error'})` };
+  }
+  let lane;
+  try {
+    lane = JSON.parse(text);
+  } catch {
+    return { error: `lane: ${path}: not valid JSON` };
+  }
+  const errors = [];
+  if (!isObject(lane)) errors.push('the lane file: expected an object');
+  else if (lane.schema !== LANE_SCHEMA) {
+    const id = typeof lane.schema === 'string' ? lane.schema : JSON.stringify(lane.schema ?? null);
+    errors.push(`schema ${id} is not ${LANE_SCHEMA}, the schema this driver supports`);
+  } else LANE_SHAPE(lane, '', errors);
+  if (errors.length) return { error: errors.map((cause) => `lane: ${path}: ${cause}`).join('\n') };
+  return { path, lane };
 }
 
 // ---------- credentials and redaction ----------
@@ -591,7 +703,6 @@ async function cmdPreflight(ctx, args) {
   if (!['desktop', 'ios', 'android'].includes(target) || args.positional.length !== 1) return usage(synopsis);
   const port = args.flags.port;
   if (port !== undefined && !(/^\d+$/.test(port) && Number(port) >= 1 && Number(port) <= 65535)) return usage(synopsis);
-  loadRedaction(ctx);
   const checks = [];
   if (target === 'desktop') {
     const spectreBin = which('spectre');
@@ -790,7 +901,6 @@ function cmdDesktop(ctx, args) {
     say(`desktop: ${process.cwd()} is not in a git worktree; run desktop commands inside the app's worktree`);
     return 2;
   }
-  loadRedaction(ctx);
   if (verb === 'attach') return rest.length ? usage('desktop attach [--pid N]') : desktopAttach(ctx, args.flags);
   const record = readSession(ctx.worktree);
   if (!record) {
@@ -955,6 +1065,24 @@ const RECORD = /^commands.*\.json$/;
  * every file and folder whose path below the root holds a credential, then redacts or deletes each file that still
  * holds a credential or token. Returns the printed sweep lines; `say` redacts a value in a printed path.
  */
+/**
+ * The credential half of `sweepRoot`: deletes every file and folder whose path below `root` holds a credential value,
+ * then redacts or deletes every file that still holds one. Returns the `sweep:` lines. A returned tree gets only this half.
+ */
+export function sweepCredentials(root, values) {
+  const lines = [];
+  const rel = (p) => relative(root, p);
+  // A flagged folder's contents are flagged too; only the topmost flagged path of each branch is removed and printed.
+  const names = credentialPattern(values);
+  for (const e of [...walkAll(root)]) {
+    if (!pathHit(rel(e.path), names) || pathHit(rel(dirname(e.path)), names)) continue;
+    rmSync(e.path, { recursive: true, force: true });
+    lines.push(`sweep: deleted ${rel(e.path)}`);
+  }
+  for (const file of scanPaths(root, values)) lines.push(`sweep: ${neutralize(file, values)} ${rel(file)}`);
+  return lines;
+}
+
 export function sweepRoot(root, values, failed) {
   const lines = [];
   const rel = (p) => relative(root, p);
@@ -968,14 +1096,7 @@ export function sweepRoot(root, values, failed) {
       lines.push(`sweep: deleted ${rel(e.path)}`);
     } else if (failed && IMAGE_EXT.has(extname(e.name).toLowerCase())) unlinkSync(e.path);
   }
-  // A flagged folder's contents are flagged too; only the topmost flagged path of each branch is removed and printed.
-  const names = credentialPattern(values);
-  for (const e of [...walkAll(root)]) {
-    if (!pathHit(rel(e.path), names) || pathHit(rel(dirname(e.path)), names)) continue;
-    rmSync(e.path, { recursive: true, force: true });
-    lines.push(`sweep: deleted ${rel(e.path)}`);
-  }
-  for (const file of scanPaths(root, values)) lines.push(`sweep: ${neutralize(file, values)} ${rel(file)}`);
+  lines.push(...sweepCredentials(root, values));
   return lines;
 }
 
@@ -1207,7 +1328,9 @@ async function cmdFlow(ctx, args) {
         return 2;
       }
     } else out = mkdtempSync(join(tmpdir(), 'app-qa-out-'));
-    root = mkdtempSync(join(tmpdir(), 'app-qa-flow-'));
+    // A routed flow names its lease-private run folder here (QA_FLOW_ROOT_DIR), so a kept root returns with the run;
+    // TMPDIR, and so the host-wide flow lock, stays the machine's own.
+    root = mkdtempSync(join(process.env.QA_FLOW_ROOT_DIR || tmpdir(), 'app-qa-flow-'));
     chmodSync(root, 0o700);
     say(`device: ${device.id}`);
     say(`root: ${root}`);
@@ -1284,10 +1407,1281 @@ function existsOrLink(path) {
   }
 }
 
+// ---------- vm lane ----------
+
+/**
+ * Whether the command is one the lane serves: preflight, desktop and flow for ios and desktop, in a repository whose
+ * own configuration (`repoConfig`, never a `--config` override) has a `vm` section, and without `--host`. Android and
+ * scan always run on the host.
+ */
+function laneRoutes(command, args, repoConfig) {
+  if (!repoConfig?.vm || args.flags.host) return false;
+  const [first] = args.positional;
+  if (command === 'desktop') return true;
+  if (command === 'preflight') return first === 'ios' || first === 'desktop';
+  return command === 'flow' && first === 'ios';
+}
+
+// ---------- vm lane: quoting, processes ----------
+
+/** POSIX single quoting of one argv element: the remote shell receives exactly these bytes. */
+const shq = (s) => `'${String(s).replaceAll("'", "'\\''")}'`;
+
+/** Runs a command without a shell; each stdout and stderr line goes to `onLine(line, 'out' | 'err')`. */
+function runStreaming(cmd, args, { cwd, env, input, onLine } = {}) {
+  return new Promise((done) => {
+    let child;
+    try {
+      child = spawn(cmd, args, { cwd, env: env ?? process.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    } catch (error) {
+      done({ status: -1, error });
+      return;
+    }
+    child.on('error', (error) => done({ status: -1, error }));
+    child.stdin.on('error', () => {});
+    child.stdin.end(input);
+    for (const [name, stream] of [['out', child.stdout], ['err', child.stderr]]) {
+      const sink = lineSink((line) => onLine?.(line, name));
+      stream.setEncoding('utf8');
+      stream.on('data', (c) => sink.push(c));
+      stream.on('end', () => sink.end());
+    }
+    child.on('close', (code) => done({ status: code ?? -1 }));
+  });
+}
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** SIGTERM, then SIGKILL after two seconds; the event loop keeps running so a child of this process is reaped. */
+async function killPid(pid) {
+  for (const signal of ['SIGTERM', 'SIGKILL']) {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      return;
+    }
+    for (let i = 0; i < 40; i++) {
+      await pause(50);
+      if (!alive(pid)) return;
+    }
+  }
+}
+
+// ---------- vm lane: lume and ssh ----------
+
+const LUME_VERSION = '0.7.2';
+const MAX_SLOTS = 2;
+const lumeBin = () => which('lume') ?? join(homedir(), '.local', 'bin', 'lume');
+const sshBin = () => which('ssh') ?? '/usr/bin/ssh';
+const cloneName = (n) => `${CLONE_PREFIX}${n}`;
+
+function lume(args) {
+  const r = run(lumeBin(), args);
+  if (r.error || r.status !== 0) for (const line of (r.stderr ?? '').split(/\r?\n/)) if (line) complain(`lume: ${line}`);
+  return r;
+}
+
+/** The VMs `lume ls` lists, or null when it cannot be read. */
+function lumeList() {
+  const r = run(lumeBin(), ['ls', '--format', 'json']);
+  if (r.error || r.status !== 0) return null;
+  try {
+    // lume 0.7.2 may print timestamped log lines (`[2026-11-15T11:35:40Z] INFO: ...`) to stdout before the JSON array,
+    // whose `[` starts a line and is followed by `{` or `]`.
+    const start = /^\[\s*[{\]]/m.exec(r.stdout);
+    if (!start) return null;
+    const list = JSON.parse(r.stdout.slice(start.index));
+    return Array.isArray(list) ? list : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The pids of `lume clone`, `stop` and `delete` processes naming `clone` (design D4 teardown). A teardown runs only when
+ * no live process owns the slot, so such a process was left by a killed driver.
+ */
+function lumeMutationPids(clone) {
+  const r = run('ps', ['-Ao', 'pid=,args=']);
+  if (r.error || r.status !== 0) return [];
+  const pids = [];
+  for (const line of r.stdout.split('\n')) {
+    const [pid, ...t] = line.trim().split(/\s+/);
+    const at = t.findIndex((a) => basename(a) === 'lume');
+    if (at >= 0 && ['clone', 'stop', 'delete'].includes(t[at + 1]) && t.slice(at + 2).includes(clone)) pids.push(Number(pid));
+  }
+  return pids.filter((pid) => pid > 0 && pid !== process.pid);
+}
+
+/**
+ * Ends the `lume` mutations a killed driver left on one slot clone, then stops and deletes the clone and checks that
+ * `lume ls` no longer lists it; an absent clone counts as deleted.
+ */
+async function destroyClone(clone) {
+  for (const pid of lumeMutationPids(clone)) await killPid(pid);
+  let list = lumeList();
+  if (list === null) return { ok: false, why: 'lume ls cannot be read' };
+  const vm = list.find((v) => v.name === clone);
+  if (!vm) return { ok: true, existed: false };
+  if (vm.status !== 'stopped' || cloneRunAlive(clone)) lume(['stop', clone]);
+  lume(['delete', clone, '--force']);
+  list = lumeList();
+  if (list === null || list.some((v) => v.name === clone)) return { ok: false, why: `${clone} is still listed after lume delete` };
+  return { ok: true, existed: true };
+}
+
+// ---------- vm lane: table lock, slots and leases (design D4) ----------
+
+const LEASE_STATES = ['starting', 'ready', 'closing'];
+const vmDir = () => join(qaDir(), 'vm');
+const tableLockDir = () => join(vmDir(), 'table.lock');
+const slotPath = (n) => join(vmDir(), `slot-${n}`);
+const leasePath = (n) => join(slotPath(n), 'lease.json');
+const busyDir = (n) => join(slotPath(n), 'busy');
+
+const LOCK_TOKEN = /^(\d+)-[0-9a-f]+$/;
+const GONE = new Set(['ENOENT', 'ENOTEMPTY', 'EEXIST']);
+
+/**
+ * The table lock as read: `{ names, pid }`, its entries and the holder's pid when its one entry is a token `PID-NONCE`
+ * (else null); null when there is no lock.
+ */
+function readTableLock(dir) {
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch (e) {
+    if (e.code === 'ENOENT') return null;
+    throw e;
+  }
+  const m = names.length === 1 ? LOCK_TOKEN.exec(names[0]) : null;
+  return { names, pid: m ? Number(m[1]) : null };
+}
+
+/** Removes the lock directory only while it is empty; a lock a contender meanwhile renamed into place stays. */
+function removeEmptyLock(dir) {
+  try {
+    rmdirSync(dir);
+  } catch (e) {
+    if (!GONE.has(e.code)) throw e;
+  }
+}
+
+/**
+ * Takes over a lock whose holder is dead, or that holds anything but one token: deletes exactly the entries read, then
+ * the directory only while empty. A live successor's lock holds another token, so a contender acting on an outdated read
+ * deletes nothing of it.
+ */
+function takeOverLock(dir, { names, pid }) {
+  let took = false;
+  for (const name of names) {
+    try {
+      rmSync(join(dir, name), { recursive: true });
+      took = true;
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+  }
+  removeEmptyLock(dir);
+  if (took) say(`lane: took over the table lock of ${pid === null ? 'a holder without a token' : `dead pid ${pid}`}`);
+}
+
+/**
+ * The host-wide table lock (design D4): a directory prepared with this holder's token beside the lock and renamed into
+ * place, which succeeds only while no lock is held (absent or empty), so a lock never exists without its holder.
+ * Returns its release.
+ */
+function lockTable() {
+  ensureDir(vmDir());
+  const dir = tableLockDir();
+  const token = `${process.pid}-${randomBytes(6).toString('hex')}`;
+  const prepared = `${dir}.new-${process.pid}`;
+  rmSync(prepared, { recursive: true, force: true });
+  mkdirSync(prepared, { mode: 0o700 });
+  writeFileSync(join(prepared, token), '');
+  const deadline = Date.now() + 60000;
+  try {
+    for (;;) {
+      try {
+        renameSync(prepared, dir);
+        return () => {
+          try {
+            unlinkSync(join(dir, token));
+          } catch (e) {
+            if (e.code === 'ENOENT') return;
+            throw e;
+          }
+          removeEmptyLock(dir);
+        };
+      } catch (e) {
+        if (!['ENOTEMPTY', 'EEXIST', 'ENOTDIR'].includes(e.code)) throw e;
+      }
+      const held = readTableLock(dir);
+      if (held === null || held.names.length === 0) continue;
+      if (held.pid === null || !alive(held.pid)) {
+        takeOverLock(dir, held);
+        continue;
+      }
+      if (Date.now() > deadline) throw new Error(`the table lock ${dir} stays held by pid ${held.pid}`);
+      sleepSync(10);
+    }
+  } catch (e) {
+    rmSync(prepared, { recursive: true, force: true });
+    throw e;
+  }
+}
+
+/** Runs `fn` under the table lock. Nothing slow runs inside: no build, clone, copy, stop or delete. */
+function withTable(fn) {
+  const release = lockTable();
+  try {
+    return fn();
+  } finally {
+    release();
+  }
+}
+
+function validLease(l) {
+  return (
+    isObject(l) &&
+    LEASE_STATES.includes(l.state) &&
+    typeof l.clone === 'string' &&
+    Array.isArray(l.targets) &&
+    l.targets.every((t) => typeof t === 'string') &&
+    Number.isFinite(l.lastUsed) &&
+    (l.worktree === null || typeof l.worktree === 'string') &&
+    (l.holder === null || Number.isInteger(l.holder)) &&
+    isObject(l.inputs) &&
+    (l.forward === null || (isObject(l.forward) && Number.isInteger(l.forward.pid) && Number.isInteger(l.forward.port)))
+  );
+}
+
+/** One slot: `{ free }` without its directory, `{ lease }` with a complete record, else `{ partial }` (missing or unreadable). */
+function readSlot(n) {
+  if (!existsSync(slotPath(n))) return { free: true };
+  try {
+    const lease = JSON.parse(readFileSync(leasePath(n), 'utf8'));
+    if (validLease(lease)) return { lease };
+  } catch {}
+  return { partial: true };
+}
+
+/** The record is written to a temporary file in the slot and renamed, so a reader never sees half of it. */
+function writeLease(n, lease) {
+  const tmp = join(slotPath(n), `lease.json.tmp-${process.pid}`);
+  writeFileSync(tmp, `${JSON.stringify(lease)}\n`, { mode: 0o600 });
+  renameSync(tmp, leasePath(n));
+}
+
+const newLease = (n, worktree, state, forward = null) => ({
+  worktree,
+  clone: cloneName(n),
+  slot: n,
+  state,
+  holder: process.pid,
+  targets: [],
+  inputs: {},
+  forward,
+  ip: null,
+  lastUsed: Date.now(),
+});
+
+const busyPids = (n) => {
+  try {
+    return readdirSync(busyDir(n)).map(Number).filter((p) => Number.isInteger(p) && p > 0);
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * The live pids of the slot's routed commands; markers of dead pids are removed. A dead marker means the routed command's
+ * host process ended without its `finally` (SIGKILL, or SIGTERM, which the routed path does not handle) while its ssh child
+ * and guest command may still run, so its `ready` lease is marked `orphaned` with the pid and is never refreshed in place
+ * (design D4). The mark is written before the markers are removed, so a sweeper killed in between leaves a marker the next
+ * sweep finds again. Under the table lock only.
+ */
+function liveBusy(n) {
+  const live = [];
+  const dead = [];
+  for (const pid of busyPids(n)) (alive(pid) ? live : dead).push(pid);
+  if (!dead.length) return live;
+  const lease = readSlot(n).lease;
+  if (lease?.state === 'ready') writeLease(n, { ...lease, orphaned: [...new Set([...(lease.orphaned ?? []), ...dead])] });
+  for (const pid of dead) rmSync(join(busyDir(n), String(pid)), { force: true });
+  return live;
+}
+
+const ago = (ms) => {
+  const min = Math.floor((Date.now() - ms) / 60000);
+  return min < 1 ? 'less than a minute ago' : `${min} min ago`;
+};
+
+const holderOf = (n, l) => `slot ${n}: ${l.worktree ?? 'no worktree'} (${l.state}${l.holder ? `, pid ${l.holder}` : ''}, last used ${ago(l.lastUsed)})`;
+
+/** Ends one slot's teardown: only the closer, with its clone gone from `lume ls`, removes the slot. */
+async function finishTeardown(n, { clone, forward }) {
+  if (forward) await killPid(forward.pid);
+  const r = await destroyClone(clone);
+  if (!r.ok) {
+    say(`lane: slot-${n}: ${r.why}; the slot stays until ${clone} is gone`);
+    return false;
+  }
+  withTable(() => {
+    const s = readSlot(n);
+    if (s.lease?.state === 'closing' && s.lease.holder === process.pid) rmSync(slotPath(n), { recursive: true, force: true });
+  });
+  return true;
+}
+
+/**
+ * The sweep of vm up, vm down and vm status (D4). Decisions run under the table lock, the teardown outside it. A lease
+ * with a live holder, or ready with a live busy pid, is never touched. Returns whether every teardown finished.
+ */
+/** Deletes the `return-PID/` folders of dead pids in slot N (a return interrupted by SIGKILL leaves only sanitized files). */
+function removeDeadReturns(n) {
+  let entries;
+  try {
+    entries = readdirSync(slotPath(n));
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const m = /^return-(\d+)$/.exec(e);
+    if (m && !alive(Number(m[1]))) rmSync(join(slotPath(n), e), { recursive: true, force: true });
+  }
+}
+
+async function sweep() {
+  const torn = [];
+  withTable(() => {
+    const listed = lumeList();
+    if (listed === null) throw new Error('lume ls cannot be read');
+    const names = new Set(listed.map((v) => v.name));
+    for (let n = 1; n <= MAX_SLOTS; n++) {
+      removeDeadReturns(n);
+      const slot = readSlot(n);
+      if (slot.free) {
+        if (!names.has(cloneName(n))) continue;
+        mkdirSync(slotPath(n), { mode: 0o700 });
+        writeLease(n, { ...newLease(n, null, 'closing'), lastUsed: Date.now() });
+        torn.push({ n, clone: cloneName(n), forward: null, why: 'a clone no slot holds' });
+        continue;
+      }
+      if (slot.partial) {
+        writeLease(n, newLease(n, null, 'closing'));
+        torn.push({ n, clone: cloneName(n), forward: null, why: 'a partial slot' });
+        continue;
+      }
+      const l = slot.lease;
+      if (l.state === 'ready') {
+        if (liveBusy(n).length > 0) continue;
+        if (!names.has(l.clone)) {
+          if (l.forward) torn.push({ n, clone: null, forward: l.forward, why: `ready, but ${l.clone} is gone`, remove: true });
+          else torn.push({ n, clone: null, forward: null, why: `ready, but ${l.clone} is gone`, remove: true });
+          writeLease(n, { ...l, state: 'closing', holder: process.pid });
+        }
+        continue;
+      }
+      if (l.holder !== null && alive(l.holder)) continue;
+      const why = `${l.state} lease of dead pid ${l.holder ?? 'unknown'}`;
+      writeLease(n, { ...l, state: 'closing', holder: process.pid });
+      torn.push({ n, clone: l.clone, forward: l.forward, why });
+    }
+  });
+  let ok = true;
+  for (const item of torn) {
+    if (item.clone === null) {
+      if (item.forward) await killPid(item.forward.pid);
+      withTable(() => rmSync(slotPath(item.n), { recursive: true, force: true }));
+      say(`lane: sweep: freed slot-${item.n} (${item.why})`);
+      continue;
+    }
+    if (!(await finishTeardown(item.n, item))) {
+      ok = false;
+      continue;
+    }
+    say(`lane: sweep: deleted ${item.clone} (${item.why})`);
+    say(`lane: sweep: freed slot-${item.n}`);
+  }
+  return ok;
+}
+
+// ---------- vm lane: vm up, vm down, vm status ----------
+
+/** The lease of this worktree among the complete records, as `{ n, lease }`, else null. Under the table lock. */
+function ownLease(worktree) {
+  for (let n = 1; n <= MAX_SLOTS; n++) {
+    const slot = readSlot(n);
+    if (slot.lease?.worktree === worktree) return { n, lease: slot.lease };
+  }
+  return null;
+}
+
+/**
+ * Admission of vm up in one critical section (D4 table): the own lease is refreshed, else a free slot is taken, else the
+ * ready lease idle longest beyond the limit is marked closing for reclaim. Returns `{ refuse }` or the mode.
+ */
+function admitUp(worktree, lane) {
+  return withTable(() => {
+    const own = ownLease(worktree);
+    if (own) {
+      const { n, lease } = own;
+      if (lease.state === 'ready') {
+        const busy = liveBusy(n);
+        if (busy.length) return { refuse: `vm up: a routed command of this worktree's lease runs (pid ${busy.join(', ')}); wait for it to finish` };
+        const orphaned = readSlot(n).lease?.orphaned ?? [];
+        if (orphaned.length) {
+          writeLease(n, { ...lease, orphaned, state: 'closing', holder: process.pid });
+          return { mode: 'recreate', n, old: { ...lease, orphaned } };
+        }
+        writeLease(n, { ...lease, state: 'starting', holder: process.pid, targets: [], inputs: {}, lastUsed: Date.now() });
+        return { mode: 'refresh', n, forward: lease.forward, ip: lease.ip ?? null };
+      }
+      if (lease.holder !== null && alive(lease.holder)) {
+        return { refuse: `vm up: this worktree's lease is ${lease.state} (pid ${lease.holder}); wait for it to finish` };
+      }
+      return { retry: true };
+    }
+    for (let n = 1; n <= lane.slots; n++) {
+      if (existsSync(slotPath(n))) continue;
+      const listed = lumeList();
+      if (listed === null) return { refuse: 'vm up: lume ls cannot be read' };
+      mkdirSync(slotPath(n), { mode: 0o700 });
+      if (listed.some((v) => v.name === cloneName(n))) {
+        writeLease(n, newLease(n, worktree, 'closing'));
+        return { mode: 'orphan', n };
+      }
+      writeLease(n, newLease(n, worktree, 'starting'));
+      return { mode: 'fresh', n };
+    }
+    let oldest = null;
+    const held = [];
+    for (let n = 1; n <= lane.slots; n++) {
+      const slot = readSlot(n);
+      if (!slot.lease) {
+        held.push(`slot ${n}: ${slot.partial ? 'partial' : 'free'}`);
+        continue;
+      }
+      const l = slot.lease;
+      held.push(holderOf(n, l));
+      const idle = Date.now() - l.lastUsed > lane.idleMinutes * 60000;
+      if (l.state === 'ready' && idle && liveBusy(n).length === 0 && (oldest === null || l.lastUsed < oldest.lease.lastUsed)) oldest = { n, lease: l };
+    }
+    if (!oldest) return { refuse: `vm up: no free slot; every slot is held or used within ${lane.idleMinutes} min:\n  ${held.join('\n  ')}` };
+    writeLease(oldest.n, { ...oldest.lease, state: 'closing', holder: process.pid });
+    return { mode: 'reclaim', n: oldest.n, old: oldest.lease };
+  });
+}
+
+/** vm up's failure transition (D4): a clone that exists keeps a ready lease with no staged target, else the slot goes. */
+function failStart(n, cloneExists) {
+  rmSync(join(slotPath(n), 'stage'), { recursive: true, force: true });
+  withTable(() => {
+    const slot = readSlot(n);
+    if (!slot.lease || slot.lease.state !== 'starting' || slot.lease.holder !== process.pid) return;
+    if (cloneExists) writeLease(n, { ...slot.lease, state: 'ready', holder: null, targets: [], inputs: {}, lastUsed: Date.now() });
+    else rmSync(slotPath(n), { recursive: true, force: true });
+  });
+}
+
+/**
+ * The options of every ssh the lane runs. The guest is authenticated by the host key pinned in the lane file's
+ * `knownHosts` under the image's name (`HostKeyAlias`: every clone of the image carries its key, and clone addresses
+ * change), and no other known-hosts file counts: a server presenting another key gets no command and no input, so
+ * neither the credentials upload nor a routed command reaches it. `ConnectTimeout` bounds the connect; the keepalive
+ * bounds an established connection whose guest vanished without closing it (a deleted or frozen clone sends nothing):
+ * ssh exits 255 after 4 unanswered probes 15 s apart, so a routed command reaches its loss checks, a forward dies with
+ * its clone, and an ssh orphaned by a killed driver ends too.
+ */
+const sshBase = (lane, ip) => [
+  '-i', lane.sshKey,
+  '-o', 'BatchMode=yes',
+  '-o', 'StrictHostKeyChecking=yes',
+  '-o', `UserKnownHostsFile=${lane.knownHosts}`,
+  '-o', 'GlobalKnownHostsFile=/dev/null',
+  '-o', `HostKeyAlias=${lane.image}`,
+  '-o', 'LogLevel=ERROR',
+  '-o', 'ConnectTimeout=10',
+  '-o', 'ServerAliveInterval=15',
+  '-o', 'ServerAliveCountMax=4',
+  `${lane.user}@${ip}`,
+];
+
+/**
+ * True while the detached `lume run ... --vnc disabled CLONE` process of a slot clone is alive. For a VNC-off run, lume 0.7.2
+ * decides liveness in `lume ls` by an `lsof` probe of the clone's config.json with a hard 2 s timeout and reports an
+ * inconclusive probe as `stopped` with no address (LumeController.swift:355-398, Utils/RunLockProbe.swift:52-115), so on a
+ * loaded host the `lume ls` status is not proof that a clone is down (design D5).
+ */
+function cloneRunAlive(clone) {
+  const r = run('ps', ['-Ao', 'pid=,args=']);
+  if (r.error || r.status !== 0) return false;
+  return r.stdout.split('\n').some((line) => {
+    const t = line.trim().split(/\s+/).slice(1);
+    const at = t.findIndex((a) => basename(a) === 'lume');
+    const vnc = t.indexOf('--vnc');
+    return at >= 0 && t[at + 1] === 'run' && vnc > at && t[vnc + 1] === 'disabled' && t.at(-1) === clone;
+  });
+}
+
+/** Whether a listed slot clone is running: `lume ls` says so, or its own run process is alive. A clone not listed is not running. */
+function cloneRunning(clone, listed) {
+  const vm = listed?.find((v) => v.name === clone);
+  return vm !== undefined && (vm.status === 'running' || cloneRunAlive(clone));
+}
+
+/** The lease file of macOS's NAT DHCP server (bootpd), which hands Virtualization.framework guests their 192.168.64.x addresses. */
+const DHCP_LEASES = '/var/db/dhcpd_leases';
+
+/** A MAC address as six numbers; bootpd writes octets without leading zeros (`1,6:5:...`), lume with them. */
+const macOctets = (mac) => {
+  const parts = String(mac ?? '').replace(/^\d+,/, '').split(':');
+  return parts.length === 6 && parts.every((p) => /^[0-9a-f]{1,2}$/i.test(p)) ? parts.map((p) => parseInt(p, 16)).join(':') : null;
+};
+
+/** The `ip_address` of the DHCP lease for `mac` in bootpd's lease file, or null. */
+function dhcpAddress(mac) {
+  const want = macOctets(mac);
+  if (!want) return null;
+  let text;
+  try {
+    text = readFileSync(DHCP_LEASES, 'utf8');
+  } catch {
+    return null;
+  }
+  for (const block of text.split('}')) {
+    const field = (key) => new RegExp(`^\\s*${key}=(\\S+)\\s*$`, 'm').exec(block)?.[1];
+    const ip = field('ip_address');
+    if (ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip) && macOctets(field('hw_address')) === want) return ip;
+  }
+  return null;
+}
+
+/**
+ * The address of a running clone: the one `lume ls` reports, else `known` (the address the lease recorded when `vm up` first
+ * reached the guest), else the DHCP lease of the clone's MAC address, which is all a fresh clone the listing reports stopped
+ * has (design D5); null when the clone is not running.
+ */
+function cloneIp(clone, known = null) {
+  const listed = lumeList();
+  if (!cloneRunning(clone, listed)) return null;
+  const vm = listed.find((v) => v.name === clone);
+  return (vm.status === 'running' && vm.ipAddress) || known || dhcpAddress(vm.macAddress);
+}
+
+/**
+ * Waits until the clone has an address and accepts an ssh connection: `{ ip }`, `{ hostKey: ip }` as soon as the guest
+ * at `ip` presents a host key other than the pinned one (ssh then sent it nothing), or `{}` after `seconds`.
+ */
+async function waitForSsh(lane, clone, known = null, seconds = 180) {
+  const end = Date.now() + seconds * 1000;
+  while (Date.now() < end) {
+    const ip = cloneIp(clone, known);
+    if (ip) {
+      const r = run(sshBin(), [...sshBase(lane, ip), 'true']);
+      if (r.status === 0) return { ip };
+      if (/Host key verification failed/.test(r.stderr ?? '')) return { hostKey: ip };
+    }
+    await pause(1000);
+  }
+  return {};
+}
+
+/** Runs each target's build on the host without a shell; the output is kept in memory as redacted last lines only. */
+async function runBuilds(ctx, targets, port) {
+  const tail = [];
+  const keep = (line) => {
+    tail.push(redact(line, redactValues));
+    if (tail.length > 40) tail.shift();
+  };
+  for (const target of targets) {
+    const { build, artifact } = ctx.config.vm[target];
+    const argv = build.argv.map((a) => a.replaceAll('{port}', String(port)));
+    const r = await runStreaming(argv[0], argv.slice(1), { cwd: join(ctx.root, build.cwd), onLine: keep });
+    const failure = r.error ? `cannot start ${argv[0]}` : r.status !== 0 ? `${target} build exited ${r.status}` : !existsSync(join(ctx.root, artifact)) ? `${target} build left no ${artifact}` : null;
+    if (failure) return { failure, tail };
+  }
+  return { tail };
+}
+
+/** The remote path of the guest copy: `"$HOME"/work/NAME`, ready for a remote shell. */
+const guestCopy = (ctx) => `"$HOME"/work/${shq(ctx.config.name)}`;
+const GUEST_DRIVER = '"$HOME"/.omp/agent/skills/app-qa-drivers/scripts';
+/** Copies the guest holds only for one lease: the driver state and the lease-private output folders below the guest's TMPDIR. */
+const GUEST_RESET = 'T="${TMPDIR:-/tmp}"; rm -rf "${T%/}"/app-qa "${T%/}"/app-qa-lease';
+
+/** One ssh call; every output line goes through the host redaction. */
+function sshRun(lane, ip, remote, input) {
+  return runStreaming(sshBin(), [...sshBase(lane, ip), remote], {
+    input,
+    onLine: (line, stream) => (stream === 'err' ? complain(`ssh: ${line}`) : say(`ssh: ${line}`)),
+  });
+}
+
+/** Streams `tar -c` of a local directory (names from `names` when given) into a remote command's stdin. */
+function tarOver(lane, ip, { cwd, names, paths, excludes = [] }, remote) {
+  return new Promise((done) => {
+    const out = names
+      ? ['-c', '-f', '-', '--null', '-T', '-', ...excludes.flatMap((e) => ['--exclude', e])]
+      : ['-c', '-f', '-', ...excludes.flatMap((e) => ['--exclude', e]), ...paths];
+    const local = spawn('tar', out, { cwd, env: { ...process.env, COPYFILE_DISABLE: '1' }, stdio: [names ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
+    const remoteChild = spawn(sshBin(), [...sshBase(lane, ip), remote], { stdio: [local.stdout ?? 'ignore', 'pipe', 'pipe'] });
+    if (names) {
+      local.stdin.on('error', () => {});
+      local.stdin.end(names.join('\0'));
+    }
+    let codes = 0;
+    const result = { status: 0 };
+    const finish = (code, who, error) => {
+      if (code !== 0 && result.status === 0) result.status = code ?? -1;
+      if (error) result.error = error;
+      if (++codes === 2) done(result);
+    };
+    for (const [child, name] of [[local, 'tar'], [remoteChild, 'ssh']]) {
+      for (const stream of child === local ? [child.stderr] : [child.stderr, child.stdout]) {
+        const sink = lineSink((line) => complain(`${name}: ${line}`));
+        stream.setEncoding('utf8');
+        stream.on('data', (c) => sink.push(c));
+        stream.on('end', () => sink.end());
+      }
+      child.on('error', (error) => finish(-1, name, error));
+      // A stdout handed to the next process never closes in this one, so the local tar is awaited by its exit.
+      child.on(child === local ? 'exit' : 'close', (code) => finish(code, name));
+    }
+  });
+}
+
+/** The worktree's tracked and untracked unignored files (existing, not folders), relative to the root. */
+function worktreeFiles(root) {
+  const r = run('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard']);
+  if (r.error || r.status !== 0) return null;
+  return r.stdout.split('\0').filter((f) => {
+    if (!f) return false;
+    try {
+      return !lstatSync(join(root, f)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Copies each target's artifact by `cp -c -R` into the slot's private `stage/TARGET/ARTIFACT`; returns an error line or null. */
+async function snapshotArtifacts(ctx, n, targets) {
+  const stage = join(slotPath(n), 'stage');
+  rmSync(stage, { recursive: true, force: true });
+  mkdirSync(stage, { recursive: true, mode: 0o700 });
+  for (const target of targets) {
+    const { artifact } = ctx.config.vm[target];
+    const dest = join(stage, target, artifact);
+    mkdirSync(dirname(dest), { recursive: true });
+    const r = run('cp', ['-c', '-R', join(ctx.root, artifact), dest]);
+    if (r.error || r.status !== 0) return `cannot snapshot ${artifact}`;
+    if (!existsSync(dest)) return `${target} snapshot of ${artifact} is missing`;
+    if (target === 'desktop') {
+      try {
+        (await import('./vm/start-target.mjs')).readLauncherCfg(dest);
+      } catch (e) {
+        return `desktop artifact ${artifact}: ${e.message}`;
+      }
+    }
+  }
+  return null;
+}
+
+/** Deletes and fills the guest copy: worktree files, artifacts from the snapshot, the driver, the credentials over stdin. Returns an error line or null. */
+async function copyToGuest(ctx, lane, ip, n, targets) {
+  const root = ctx.root;
+  const reset = await sshRun(lane, ip, `rm -rf ${guestCopy(ctx)} ${GUEST_DRIVER}; ${GUEST_RESET}`);
+  if (reset.status !== 0) return 'cannot clear the guest copy';
+  const credsRel = ctx.config.credentials?.file ?? null;
+  const names = worktreeFiles(root);
+  if (names === null) return 'cannot list the worktree files with git';
+  const into = `mkdir -p ${guestCopy(ctx)} && tar -x -f - -C ${guestCopy(ctx)}`;
+  const files = await tarOver(lane, ip, { cwd: root, names: names.filter((f) => f !== credsRel) }, into);
+  if (files.status !== 0) return 'copying the worktree files failed';
+  for (const target of targets) {
+    const art = await tarOver(lane, ip, { cwd: join(slotPath(n), 'stage', target), paths: [ctx.config.vm[target].artifact] }, into);
+    if (art.status !== 0) return `copying the ${target} artifact failed`;
+  }
+  const driverDir = dirname(fileURLToPath(import.meta.url));
+  const driver = await tarOver(
+    lane,
+    ip,
+    { cwd: driverDir, paths: ['.'], excludes: ['qa-fixtures', '*.test.mjs', 'qa-test-preload*'] },
+    `mkdir -p ${GUEST_DRIVER} && tar -x -f - -C ${GUEST_DRIVER}`,
+  );
+  if (driver.status !== 0) return 'copying the driver failed';
+  if (credsRel) {
+    const file = credentialsPath(ctx);
+    let bytes;
+    try {
+      bytes = readFileSync(file);
+    } catch {
+      return `cannot read the credentials file ${file}`;
+    }
+    const rel = credsRel.split('/').map(shq).join('/');
+    const put = await sshRun(lane, ip, `umask 077 && mkdir -p "$(dirname ${guestCopy(ctx)}/${rel})" && cat > ${guestCopy(ctx)}/${rel}`, bytes);
+    if (put.status !== 0) return 'copying the credentials failed';
+  }
+  const init = await sshRun(lane, ip, `cd ${guestCopy(ctx)} && git init -q`);
+  if (init.status !== 0) return 'git init in the guest copy failed';
+  return null;
+}
+
+/**
+ * Starts the reverse forward of the backend port into the guest (design D5 step 7) and records it in the lease. It counts
+ * as established only when the guest accepts a connection on 127.0.0.1:PORT within 10 s. Returns an error line or null.
+ */
+async function startForward(lane, ip, n, port, old) {
+  if (old) await killPid(old.pid);
+  const child = spawn(sshBin(), ['-N', '-R', `${port}:127.0.0.1:${port}`, '-o', 'ExitOnForwardFailure=yes', ...sshBase(lane, ip)], { detached: true, stdio: 'ignore' });
+  child.unref();
+  const record = (forward) =>
+    withTable(() => {
+      const slot = readSlot(n);
+      if (slot.lease?.state === 'starting' && slot.lease.holder === process.pid) writeLease(n, { ...slot.lease, forward });
+    });
+  record({ pid: child.pid, port });
+  const end = Date.now() + 10000;
+  while (Date.now() < end) {
+    if (!alive(child.pid)) break;
+    if (run(sshBin(), [...sshBase(lane, ip), `nc -z 127.0.0.1 ${port}`]).status === 0) return null;
+    await pause(500);
+  }
+  await killPid(child.pid);
+  record(null);
+  return `the port forward of ${port} is not established: the guest accepts no connection on 127.0.0.1:${port}`;
+}
+
+/** Runs the guest-side start of one target (design D6); returns an error line or null. */
+async function startGuestTarget(ctx, lane, ip, target, port) {
+  const { artifact } = ctx.config.vm[target];
+  const flags = ['--artifact', artifact];
+  if (target === 'ios') flags.push('--device-type', lane.ios.deviceType);
+  if (target === 'ios' && port !== null) flags.push('--port', String(port));
+  const r = await sshRun(lane, ip, `cd ${guestCopy(ctx)} && node ${GUEST_DRIVER}/vm/start-target.mjs ${target} ${flags.map(shq).join(' ')}`);
+  return r.status === 0 ? null : `starting ${target} in the guest failed`;
+}
+
+async function vmUp(ctx, args, lane) {
+  const targets = args.positional.slice(1);
+  const synopsis = 'vm up TARGET... [--port N]';
+  if (targets.length === 0 || targets.some((t) => !['ios', 'desktop'].includes(t)) || new Set(targets).size !== targets.length) return usage(synopsis);
+  for (const t of targets) {
+    if (!ctx.config.vm[t]) {
+      say(`vm up: ${ctx.path} has no vm.${t} section`);
+      return 2;
+    }
+  }
+  const flag = args.flags.port;
+  if (flag !== undefined && !ctx.config.backend) {
+    say(`vm up: --port needs a backend section in ${ctx.path}`);
+    return 2;
+  }
+  if (flag !== undefined && !(/^\d+$/.test(flag) && Number(flag) >= 1 && Number(flag) <= 65535)) return usage(synopsis);
+  const version = (run(lumeBin(), ['--version']).stdout ?? '').trim().split(/\s+/).at(-1);
+  if (version !== LUME_VERSION) {
+    say(`vm up: lume ${version || 'not found'}, this lane is pinned to lume ${LUME_VERSION}; install it from https://github.com/trycua/cua/releases (lume-v${LUME_VERSION})`);
+    return 2;
+  }
+  const port = ctx.config.backend ? backendPort(ctx, flag) : null;
+
+  let admission;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (!(await sweep())) return 2;
+    admission = admitUp(ctx.worktree, lane);
+    if (!admission.retry) break;
+  }
+  if (admission.refuse || admission.retry) {
+    say(admission.refuse ?? 'vm up: the worktree lease is in a state vm status could not resolve');
+    return 2;
+  }
+  const { n } = admission;
+  let cloneExists = admission.mode === 'refresh';
+  const clone = cloneName(n);
+  try {
+    if (admission.mode === 'orphan' || admission.mode === 'reclaim' || admission.mode === 'recreate') {
+      const old = admission.old;
+      if (old?.forward) await killPid(old.forward.pid);
+      const r = await destroyClone(admission.mode === 'orphan' ? clone : old.clone);
+      if (!r.ok) {
+        say(`vm up: slot-${n}: ${r.why}`);
+        return 2;
+      }
+      withTable(() => writeLease(n, newLease(n, ctx.worktree, 'starting')));
+      if (admission.mode === 'reclaim') say(`lane: reclaimed slot ${n}: ${old.worktree} (idle since ${new Date(old.lastUsed).toISOString()}); deleted ${old.clone}`);
+      else if (admission.mode === 'recreate') say(`lane: a routed command of this lease ended on the host without finishing (pid ${old.orphaned.join(', ')}) and may still run in ${old.clone}; deleted ${old.clone} to recreate it`);
+      else say(`lane: deleted the orphan clone ${clone} before taking slot ${n}`);
+    }
+    const built = await runBuilds(ctx, targets, port);
+    if (built.failure) {
+      for (const line of built.tail) say(line);
+      say(`vm up: ${built.failure}`);
+      failStart(n, cloneExists);
+      return 2;
+    }
+    const snapError = await snapshotArtifacts(ctx, n, targets);
+    if (snapError) {
+      say(`vm up: ${snapError}`);
+      failStart(n, cloneExists);
+      return 2;
+    }
+    const listed = lumeList();
+    const vm = listed?.find((v) => v.name === clone);
+    if (!vm) {
+      const r = lume(['clone', lane.image, clone]);
+      if (r.error || r.status !== 0) {
+        say(`vm up: lume clone ${lane.image} ${clone} failed`);
+        failStart(n, false);
+        return 2;
+      }
+    }
+    cloneExists = true;
+    if (!cloneRunning(clone, listed)) {
+      const r = lume(['run', '--detach', '--display', 'none', '--vnc', 'disabled', clone]);
+      if (r.error || r.status !== 0) {
+        say(`vm up: lume run ${clone} failed`);
+        failStart(n, true);
+        return 2;
+      }
+    }
+    const reach = await waitForSsh(lane, clone, admission.ip ?? null);
+    if (reach.hostKey) {
+      say(`vm up: ${clone} at ${reach.hostKey} does not present the host key pinned for ${lane.image} in ${lane.knownHosts}; nothing was copied (vm-image.md, step "Pin the host key")`);
+      failStart(n, true);
+      return 2;
+    }
+    const ip = reach.ip;
+    if (!ip) {
+      say(`vm up: ${clone} did not accept an ssh connection`);
+      failStart(n, true);
+      return 2;
+    }
+    const copyError = await copyToGuest(ctx, lane, ip, n, targets);
+    if (copyError) {
+      say(`vm up: ${copyError}`);
+      failStart(n, true);
+      return 2;
+    }
+    rmSync(join(slotPath(n), 'stage'), { recursive: true, force: true });
+    if (port !== null) {
+      const forwardError = await startForward(lane, ip, n, port, admission.forward);
+      if (forwardError) {
+        say(`vm up: ${forwardError}`);
+        failStart(n, true);
+        return 2;
+      }
+    }
+    for (const target of targets) {
+      const started = await startGuestTarget(ctx, lane, ip, target, port);
+      if (started) {
+        say(`vm up: ${started}`);
+        failStart(n, true);
+        return 2;
+      }
+    }
+    withTable(() => {
+      const slot = readSlot(n);
+      if (!slot.lease || slot.lease.state !== 'starting' || slot.lease.holder !== process.pid) return;
+      const inputs = Object.fromEntries(targets.map((t) => [t, { port, argv: ctx.config.vm[t].build.argv }]));
+      writeLease(n, { ...slot.lease, state: 'ready', holder: null, targets, inputs, ip, lastUsed: Date.now() });
+    });
+    say(`vm up: ${clone} holds ${targets.join(', ')}`);
+    return 0;
+  } catch (e) {
+    failStart(n, cloneExists);
+    say(`vm up: ${e.message}`);
+    return 2;
+  }
+}
+
+async function vmDown(ctx) {
+  if (!(await sweep())) return 2;
+  const plan = withTable(() => {
+    const own = ownLease(ctx.worktree);
+    if (!own) return { none: true };
+    const { n, lease } = own;
+    if (lease.state === 'ready') {
+      const busy = liveBusy(n);
+      if (busy.length) return { refuse: `vm down: a routed command of this worktree's lease runs (pid ${busy.join(', ')}); wait for it to finish` };
+      writeLease(n, { ...lease, state: 'closing', holder: process.pid });
+      return { n, lease };
+    }
+    return { refuse: `vm down: this worktree's lease is ${lease.state} (pid ${lease.holder}); wait for it to finish` };
+  });
+  if (plan.none) {
+    say('vm down: this worktree holds no lease');
+    return 0;
+  }
+  if (plan.refuse) {
+    say(plan.refuse);
+    return 2;
+  }
+  if (!(await finishTeardown(plan.n, plan.lease))) return 2;
+  say(`vm down: deleted ${plan.lease.clone}, slot ${plan.n} is free`);
+  return 0;
+}
+
+async function vmStatus(lane) {
+  const ok = await sweep();
+  const lines = withTable(() => {
+    const out = [];
+    for (let n = 1; n <= lane.slots; n++) {
+      const slot = readSlot(n);
+      if (slot.free) out.push(`slot ${n}: free`);
+      else if (slot.partial) out.push(`slot ${n}: partial`);
+      else {
+        const l = slot.lease;
+        const busy = busyPids(n).filter(alive);
+        out.push(
+          `slot ${n}: ${l.state} worktree=${l.worktree ?? 'none'} clone=${l.clone} targets=${l.targets.join(',') || 'none'} forward=${l.forward ? l.forward.pid : 'none'} holder=${l.holder ?? 'none'} busy=${busy.join(',') || 'none'} last used ${ago(l.lastUsed)}`,
+        );
+      }
+    }
+    return out;
+  });
+  for (const line of lines) say(line);
+  return ok ? 0 : 2;
+}
+
+/**
+ * The internal `vm pack DIR` (design D7), run in the guest: sanitizes the lease-private folder DIR with
+ * `sweepCredentials` and writes it as tar to stdout, so no unsanitized byte leaves the clone. Sweep lines go to stderr.
+ */
+function vmPack(ctx, args) {
+  const dir = args.positional[1];
+  if (!dir || args.positional.length !== 2 || !isAbsolute(dir)) return usage('vm pack DIR');
+  if (!existsSync(dir)) return 0;
+  for (const line of sweepCredentials(dir, redactValues)) complain(line);
+  const r = spawnSync('tar', ['-c', '-f', '-', '-C', dir, '.'], { stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, COPYFILE_DISABLE: '1' } });
+  return r.status === 0 ? 0 : 1;
+}
+
+async function cmdVm(ctx, args) {
+  const [verb] = args.positional;
+  if (verb === 'pack') return vmPack(ctx, args);
+  if (!['up', 'down', 'status'].includes(verb)) return usage('vm up TARGET... [--port N] | vm down | vm status');
+  const loaded = loadLane();
+  if (loaded.error) {
+    complain(loaded.error);
+    return 2;
+  }
+  if (loaded.absent) {
+    complain(`vm: the machine lane file ${loaded.path} is missing; the lane is not set up on this machine`);
+    return 2;
+  }
+  if (!ctx.config.vm) {
+    complain(`vm: ${ctx.path} has no vm section`);
+    return 2;
+  }
+  if (verb !== 'status' && !ctx.worktree) {
+    say(`vm ${verb}: ${process.cwd()} is not in a git worktree`);
+    return 2;
+  }
+  try {
+    if (verb === 'up') return await vmUp(ctx, args, loaded.lane);
+    if (verb === 'down') return await vmDown(ctx);
+    return await vmStatus(loaded.lane);
+  } catch (e) {
+    complain(`vm ${verb}: ${e.message}`);
+    return 2;
+  }
+}
+
+// ---------- vm lane: routed commands ----------
+
+/** The target a routed command needs staged: desktop commands and `preflight|flow ios|desktop` name it. */
+const routeTarget = (command, args) => (command === 'desktop' ? 'desktop' : args.positional[0]);
+
+/**
+ * Admission of a routed command in one critical section (D2, D4): the lease of this worktree is complete, ready and has
+ * staged the target, and `busy/PID` is registered. A lease that is missing, partial or unreadable counts as not ready.
+ */
+function admitRouted(worktree, target) {
+  return withTable(() => {
+    const own = ownLease(worktree);
+    if (!own) return { refuse: 'this worktree holds no ready lease' };
+    const { n, lease } = own;
+    if (lease.state !== 'ready') return { refuse: `this worktree's lease is ${lease.state}` };
+    if (!lease.targets.includes(target)) return { refuse: `this worktree's lease did not stage ${target}` };
+    mkdirSync(busyDir(n), { recursive: true });
+    writeFileSync(join(busyDir(n), String(process.pid)), '');
+    writeLease(n, { ...lease, lastUsed: Date.now() });
+    return { n, lease };
+  });
+}
+
+/** Removes this process's busy marker and sets `lastUsed`, under the table lock. */
+function releaseBusy(n) {
+  withTable(() => {
+    rmSync(join(busyDir(n), String(process.pid)), { force: true });
+    const slot = readSlot(n);
+    if (slot.lease) writeLease(n, { ...slot.lease, lastUsed: Date.now() });
+  });
+}
+
+const ENV_MARK = '@@app-qa-lane-env@@';
+const FORWARD_MARK = '@@app-qa-lane-forward-down@@';
+const LEASE_DIR = 'app-qa-lease';
+
+/**
+ * The routed form of the command line (design D7): `--config` and `--credentials` are refused, the flow file is sent
+ * relative to the working directory, `--out` becomes a lease-private guest folder, every other argument is byte-identical.
+ * Returns `{ tokens, kind, out }` (tokens are `{ lit }` for quoted bytes and `{ raw }` for the guest's own folder) or `{ error }`.
+ */
+function translateRouted(ctx, args, command) {
+  const raw = process.argv.slice(3);
+  const tokens = [{ lit: command }];
+  const capture = command === 'desktop' && args.positional[0] === 'capture';
+  const kind = command === 'flow' ? 'flow' : capture ? 'capture' : null;
+  let positional = 0;
+  for (const a of raw) {
+    if (a === '--config' || a === '--credentials') return { error: `lane: ${a} names a host file; run the command with --host to use it on the host` };
+  }
+  for (let i = 0; i < raw.length; i++) {
+    const a = raw[i];
+    if (!a.startsWith('--')) {
+      if (command === 'flow' && positional === 1) {
+        const abs = resolve(a);
+        if (!existsSync(abs)) return { error: `flow: ${a} not found` };
+        const real = realpathSync(abs);
+        const inside = relative(ctx.worktree, real);
+        if (inside.startsWith('..') || isAbsolute(inside)) return { error: `flow: ${a} is outside the worktree ${ctx.worktree}; the guest holds only the worktree` };
+        tokens.push({ lit: relative(process.cwd(), real) });
+      } else tokens.push({ lit: a });
+      positional++;
+      continue;
+    }
+    const name = a.slice(2);
+    if (name === 'config' || name === 'credentials') return { error: `lane: --${name} names a host file; run the command with --host to use it on the host` };
+    tokens.push({ lit: a });
+    if (VALUE_FLAGS.has(name)) tokens.push(name === 'out' && kind ? { raw: kind === 'flow' ? '"$R"/out/flow' : '"$R"/out' } : { lit: raw[++i] });
+    if (name === 'out' && kind) i++;
+  }
+  if (kind === 'flow' && args.flags.out === undefined) tokens.push({ lit: '--out' }, { raw: '"$R"/out/flow' });
+  const out = args.flags.out === undefined ? null : resolve(args.flags.out);
+  if (kind === 'flow' && out && existsOrLink(out)) return { error: `flow: --out ${out} exists; name a directory that does not exist yet` };
+  if (kind === 'capture' && out) {
+    const [, name] = args.positional;
+    if (name && (existsSync(join(out, `${name}.png`)) || existsSync(join(out, `${name}.json`)))) return { error: `capture: ${name}.png or ${name}.json already exists in ${args.flags.out}` };
+  }
+  return { tokens, kind, out };
+}
+
+/** The guest side of a routed run: environment lines, forward probe, the run folder, the working directory, the driver. */
+function remoteScript(ctx, lease, command, tokens) {
+  const rel = relative(ctx.worktree, process.cwd());
+  const cwd = [guestCopy(ctx), ...(rel && !rel.startsWith('..') ? rel.split('/').map(shq) : [])].join('/');
+  const env = command === 'flow' ? 'QA_FLOW_ROOT_DIR="$R"/tmp MAESTRO_DRIVER_STARTUP_TIMEOUT=180000 ' : '';
+  const args = tokens.map((t) => t.raw ?? shq(t.lit)).join(' ');
+  return [
+    `printf '%s\\n' ${shq(ENV_MARK)} "$HOME" "\${TMPDIR:-/tmp}"`,
+    ...(lease.forward ? [`nc -z 127.0.0.1 ${lease.forward.port} >/dev/null 2>&1 || { printf '%s\\n' ${shq(FORWARD_MARK)}; exit 97; }`] : []),
+    runFolder(),
+    'rm -rf "$R" && mkdir -p "$R"/out "$R"/tmp',
+    `cd ${cwd} || exit 98`,
+    `${env}node ${GUEST_DRIVER}/qa.mjs ${args}`,
+  ].join('\n');
+}
+const runFolder = () => `R="\${TMPDIR:-/tmp}"; R="\${R%/}"/${LEASE_DIR}/run-${process.pid}`;
+
+/** Runs the guest command; every line is redacted with the host's values and held, none is printed. */
+function runHeld(lane, ip, script) {
+  return new Promise((done) => {
+    const held = [];
+    const head = [];
+    let forwardDown = false;
+    const child = spawn(sshBin(), [...sshBase(lane, ip), script], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const sinks = [['out', child.stdout], ['err', child.stderr]].map(([name, stream]) => {
+      const sink = lineSink((line) => {
+        if (name === 'out' && head.length < 3 && (head.length > 0 || line === ENV_MARK)) head.push(line);
+        else if (line === FORWARD_MARK) forwardDown = true;
+        else held.push({ stream: name, text: redact(line, redactValues) });
+      });
+      stream.setEncoding('utf8');
+      stream.on('data', (c) => sink.push(c));
+      return [sink, stream];
+    });
+    child.on('error', () => done({ status: -1, held, head, forwardDown }));
+    child.on('close', (code) => {
+      for (const [sink] of sinks) sink.end();
+      done({ status: code ?? -1, held, head, forwardDown });
+    });
+  });
+}
+
+/** Copies a returned folder's entries into `dest` (created when absent) without overwriting any file. */
+function copyInto(src, dest) {
+  mkdirSync(dest, { recursive: true });
+  for (const e of readdirSync(src, { withFileTypes: true })) {
+    if (e.isDirectory()) copyInto(join(src, e.name), join(dest, e.name));
+    else if (e.isFile()) copyFileSync(join(src, e.name), join(dest, e.name), constants.COPYFILE_EXCL);
+  }
+}
+
+/**
+ * Returns the files of the run (design D7): `vm pack` runs in the guest and streams the sanitized run folder as tar into
+ * a 0600 archive in the slot's `return-PID/`; the host lists it, refuses an absolute path, a `..` component or any type
+ * but file and folder, extracts, sweeps with its own values, copies without overwriting and deletes the folder.
+ * Returns `{ lines, rewrites, failed }`.
+ */
+async function returnFiles(ctx, lane, ip, n, info, { kind, out }) {
+  const lines = [];
+  const rewrites = [];
+  const dir = join(slotPath(n), `return-${process.pid}`);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const fail = (why) => {
+    lines.push(`lane: the files of the run were not returned: ${why}`);
+    return { lines, rewrites, failed: true };
+  };
+  try {
+    const archive = join(dir, 'archive.tar');
+    const fd = openSync(archive, 'w', 0o600);
+    const packLines = [];
+    const status = await new Promise((done) => {
+      const child = spawn(sshBin(), [...sshBase(lane, ip), `${runFolder()}; cd ${guestCopy(ctx)} && node ${GUEST_DRIVER}/qa.mjs vm pack "$R"`], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const sink = lineSink((line) => packLines.push(redact(line, redactValues)));
+      child.stdout.on('data', (c) => writeSync(fd, c));
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (c) => sink.push(c));
+      child.on('error', () => done(-1));
+      child.on('close', (code) => {
+        sink.end();
+        done(code ?? -1);
+      });
+    });
+    closeSync(fd);
+    lines.push(...packLines);
+    if (status !== 0) return fail(`vm pack exited ${status}`);
+    const names = run('tar', ['-tf', archive]);
+    const types = run('tar', ['-tvf', archive]);
+    if (names.status !== 0 || types.status !== 0) return fail('the archive cannot be listed');
+    const nameList = names.stdout.split('\n').filter(Boolean);
+    const typeList = types.stdout.split('\n').filter(Boolean);
+    if (nameList.length !== typeList.length) return fail('the archive listing is inconsistent');
+    for (let i = 0; i < nameList.length; i++) {
+      const name = nameList[i];
+      if (name.startsWith('/') || name.split('/').includes('..')) return fail('the archive holds an absolute path or a .. component; nothing was extracted');
+      if (!['-', 'd'].includes(typeList[i][0])) return fail('the archive holds an entry that is neither a file nor a folder; nothing was extracted');
+    }
+    const root = join(dir, 'x');
+    mkdirSync(root, { mode: 0o700 });
+    if (run('tar', ['-xf', archive, '-C', root]).status !== 0) return fail('extraction failed');
+    lines.push(...sweepCredentials(root, redactValues).map((l) => redact(l, redactValues)));
+    const exists = (p) => existsSync(join(root, p));
+    if (kind === 'flow') {
+      const dest = out ?? mkdtempSync(join(tmpdir(), 'app-qa-out-'));
+      if (exists('out/flow')) copyInto(join(root, 'out/flow'), dest);
+      else mkdirSync(dest, { recursive: true });
+      rewrites.push([`${info.runDir}/out/flow`, dest]);
+      for (const e of existsSync(join(root, 'tmp')) ? readdirSync(join(root, 'tmp')) : []) {
+        if (!e.startsWith('app-qa-flow-')) continue;
+        const kept = mkdtempSync(join(tmpdir(), 'app-qa-root-'));
+        copyInto(join(root, 'tmp', e), kept);
+        rewrites.push([`${info.runDir}/tmp/${e}`, kept]);
+      }
+    } else if (kind === 'capture' && out) {
+      if (exists('out')) copyInto(join(root, 'out'), out);
+      rewrites.push([`${info.runDir}/out`, out]);
+    }
+    return { lines, rewrites, failed: false };
+  } catch (e) {
+    return fail(e.message);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function cmdRouted(ctx, args, command, lane) {
+  const target = routeTarget(command, args);
+  const restart = `run ${INVOKE} vm up ${target}`;
+  const translated = translateRouted(ctx, args, command);
+  if (translated.error) {
+    say(translated.error);
+    return 2;
+  }
+  const admitted = admitRouted(ctx.worktree, target);
+  if (admitted.refuse) {
+    say(`lane: ${admitted.refuse}; ${restart}`);
+    return 2;
+  }
+  const { n, lease } = admitted;
+  try {
+    const ip = cloneIp(lease.clone, lease.ip);
+    if (!ip) {
+      say(`lane: ${lease.clone} is not running; ${restart}`);
+      return 2;
+    }
+    if (lease.forward && !alive(lease.forward.pid)) {
+      say(`lane: the port forward of ${lease.clone} is not running; ${restart}`);
+      return 2;
+    }
+    // A routed preflight checks the backend port the lease forwards (D7): the guest copy cannot resolve it, since `vm up
+    // --port` and an ignored port property file never reach the guest. Another --port is refused rather than checked.
+    let tokens = translated.tokens;
+    if (command === 'preflight' && lease.forward) {
+      const asked = args.flags.port;
+      if (asked !== undefined && Number(asked) !== lease.forward.port) {
+        say(`lane: ${lease.clone} forwards the backend port ${lease.forward.port}, not ${asked}; run ${INVOKE} vm up ${target} --port ${asked}`);
+        return 2;
+      }
+      if (asked === undefined) tokens = [...tokens, { lit: '--port' }, { lit: String(lease.forward.port) }];
+    }
+    say(`lane: ${command} ${target} runs in ${lease.clone} (slot ${n})`);
+    const result = await runHeld(lane, ip, remoteScript(ctx, lease, command, tokens));
+    if (result.head.length < 3) {
+      say(`lane: ${lease.clone} cannot be reached over ssh; ${restart}`);
+      return 2;
+    }
+    if (result.forwardDown) {
+      say(`lane: the port forward of ${lease.clone} accepts no connection; ${restart}`);
+      return 2;
+    }
+    const guestHome = result.head[1];
+    const guestTmp = result.head[2].replace(/\/+$/, '');
+    const runDir = `${guestTmp}/${LEASE_DIR}/run-${process.pid}`;
+    // Dependency checks after the run (D7): the clone, the connection and the forward.
+    const ipAfter = cloneIp(lease.clone, ip);
+    let lost = null;
+    if (!ipAfter) lost = 'clone';
+    else if (result.status === 255) lost = 'connection';
+    else if (lease.forward) {
+      if (!alive(lease.forward.pid)) lost = 'forward';
+      else {
+        const probe = run(sshBin(), [...sshBase(lane, ipAfter), `nc -z 127.0.0.1 ${lease.forward.port}`]);
+        lost = probe.status === 255 ? 'connection' : probe.status !== 0 ? 'forward' : null;
+      }
+    }
+    const returned = ipAfter ? await returnFiles(ctx, lane, ipAfter, n, { runDir }, translated) : { lines: [], rewrites: [], failed: false };
+    const rewrites = [...returned.rewrites, [`${guestHome}/work/${ctx.config.name}`, ctx.worktree]]
+      .sort((a, b) => b[0].length - a[0].length);
+    const keptGone = new RegExp(`${runDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/tmp/app-qa-flow-[^\\s/]+`, 'g');
+    const toHost = (text) => {
+      let t = text;
+      for (const [from, to] of rewrites) t = t.split(from).join(to);
+      return t.replace(keptGone, '(not kept)');
+    };
+    const emit = (line, stream) => (stream === 'err' ? complain(line) : say(line));
+    if (lost) {
+      say(`lane: infrastructure lost during the run (${lost}); this is not an app result, ${restart}`);
+      for (const h of result.held) emit(`guest (not an app result): ${toHost(h.text)}`, h.stream);
+    } else for (const h of result.held) emit(toHost(h.text), h.stream);
+    for (const line of returned.lines) say(toHost(line));
+    if (lost || returned.failed) return 2;
+    if (result.status !== 0) say(`lane: ${lease.clone}: the guest command exited ${result.status}; to restart the app, simulator or forward ${restart}`);
+    return result.status;
+  } finally {
+    releaseBusy(n);
+  }
+}
+
 // ---------- CLI ----------
 
 const VALUE_FLAGS = new Set(['port', 'device', 'timeout', 'equals', 'out', 'account', 'expect', 'credentials', 'config', 'pid']);
-const COMMANDS = { preflight: cmdPreflight, desktop: cmdDesktop, flow: cmdFlow, scan: cmdScan };
+const SWITCH_FLAGS = new Set(['host']);
+const COMMANDS = { preflight: cmdPreflight, desktop: cmdDesktop, flow: cmdFlow, scan: cmdScan, vm: cmdVm };
 
 export function parseArgs(argv) {
   const positional = [];
@@ -1296,8 +2690,9 @@ export function parseArgs(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const name = a.slice(2);
-      if (!VALUE_FLAGS.has(name) || i + 1 >= argv.length) return null;
-      flags[name] = argv[++i];
+      if (SWITCH_FLAGS.has(name)) flags[name] = true;
+      else if (!VALUE_FLAGS.has(name) || i + 1 >= argv.length) return null;
+      else flags[name] = argv[++i];
     } else positional.push(a);
   }
   return { positional, flags };
@@ -1318,6 +2713,20 @@ async function main() {
   if (ctx.error) {
     complain(ctx.error);
     return 2;
+  }
+  // Every line after this point is redacted with the configured accounts' values: routing, the lane file and every command.
+  loadRedaction(ctx);
+  // The repository's own configuration decides whether the lane is active, so a --config file without a vm section never
+  // takes a lane command to the host: the routed command refuses --config naming --host. A repository without a valid
+  // configuration of its own has no lane.
+  const repo = args.flags.config === undefined ? ctx : loadConfig({});
+  if (laneRoutes(command, args, repo.config)) {
+    const lane = loadLane();
+    if (lane.error) {
+      complain(lane.error);
+      return 2;
+    }
+    if (!lane.absent) return cmdRouted(ctx, args, command, lane.lane);
   }
   return COMMANDS[command](ctx, args);
 }

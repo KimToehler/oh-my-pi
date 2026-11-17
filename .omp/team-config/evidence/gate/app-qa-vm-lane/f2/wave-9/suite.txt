@@ -1,0 +1,11 @@
+$ bun run test:team-config   (head 7a3687e826, after the main merge; fix round 7.12)
+$ bun test --timeout 120000 team-config/tests team-config/agent/skills/review-work/scripts/validate-gate-record.test.mjs team-config/agent/skills/review-work/scripts/gate-convergence.test.mjs scripts/install-team-config.test.ts team-config/agent/skills/review-work/scripts/validate-openspec-change.test.ts team-config/agent/skills/review-work/scripts/install-openspec-workflow.test.ts scripts/ensure-openspec-cli.test.ts team-config/agent/skills/context-review/scripts/measure-context.test.ts team-config/agent/skills/app-qa-drivers/scripts/qa.test.mjs
+bun test v1.4.4 (5d9cc0f4f)
+[pi-natives] ~/git/oh-my-pi/packages/natives/native/pi_natives.darwin-arm64.node is @oh-my-pi/pi-natives@18.18.2, but this checkout is @18.20.2. Symbols this checkout expects may be missing and shared ones may behave differently; run `bun run build:native` before trusting results from this tree.
+warning: in the working copy of 'evidence/merge-gate.json', LF will be replaced by CRLF the next time Git touches it
+
+ 991 pass
+ 0 fail
+ 1210 expect() calls
+Ran 991 tests across 10 files. [1175.31s]
+[exit 0]
