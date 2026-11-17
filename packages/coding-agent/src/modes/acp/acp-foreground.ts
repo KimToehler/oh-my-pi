@@ -11,7 +11,11 @@ import type { AgentSession, AgentSessionEvent } from "../../session/agent-sessio
 import type { SubmissionOutcome } from "../../session/agent-session-types";
 import type { UsageStatistics } from "../../session/session-entries";
 
-export type AgentEndEvent = Extract<AgentSessionEvent, { type: "agent_end" }>;
+/**
+ * A stopped model loop: `agent_pause` while the run goes on, `agent_end` when it ends. The run's
+ * `agent_end` repeats the last loop's messages (the same array) when no loop ran after its pause.
+ */
+export type LoopEndEvent = Extract<AgentSessionEvent, { type: "agent_end" | "agent_pause" }>;
 
 export type ForegroundOrigin = "prompt" | "agent";
 
@@ -36,12 +40,12 @@ export type ForegroundWork = {
 	 */
 	cleanup: Promise<void> | undefined;
 	usageBaseline: UsageStatistics;
-	/** Latest `agent_end` of this work; a wake turn's end supersedes the first one for the stop reason. */
-	lastAgentEnd: AgentEndEvent | undefined;
+	/** Latest loop end of this work; a wake turn's end supersedes the first one for the stop reason. */
+	lastAgentEnd: LoopEndEvent | undefined;
 	/**
-	 * The single wait for session quiescence, owned by the first `agent_end`
-	 * handler. Later `agent_end`s (background-job wake turns) see it set and
-	 * leave finishing the work to that handler.
+	 * The single wait for session quiescence, owned by the first loop-end
+	 * handler. Later loop ends (background-job wake turns, the run's end) see
+	 * it set and leave finishing the work to that handler.
 	 */
 	quiescenceWait: Promise<void> | undefined;
 	/**
@@ -148,7 +152,7 @@ export function isAcpSessionQuiescent(
 		!session.isStreaming &&
 		!session.hasAdmittedSubmission &&
 		!session.hasPostPromptWork &&
-		(!includeBackgroundWork || !session.hasPendingAsyncWork())
+		(!includeBackgroundWork || !session.isRunActive)
 	);
 }
 

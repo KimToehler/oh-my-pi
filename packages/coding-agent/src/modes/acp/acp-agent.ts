@@ -98,10 +98,10 @@ import { refreshAgentDiscovery } from "../../task";
 import { sumSubagentTreeCost } from "../agent-hub-runtime";
 import { AUTO_THINKING, parseConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
 import {
-	blockText,
 	choiceValue,
 	defaultFormData,
 	fieldQuestions,
+	formContext,
 	type HtmlFormData,
 	type HtmlFormValue,
 	isArrayChoice,
@@ -130,6 +130,7 @@ import {
 	type ForegroundWork,
 	isAcpSessionQuiescent,
 	isPromptTurnInFlight,
+	type LoopEndEvent,
 	type PromptTurnState,
 	resolveStopReason,
 	singleShotOutcome,
@@ -165,6 +166,7 @@ import { buildToolCallStartUpdate, extractAssistantMessageText } from "./acp-eve
 
 import { cfgDisabledExtensions, cfgExtensions } from "../../extensibility/settings";
 import { cfgGoalEnabled } from "../../goals/settings";
+import { cfgMcpStartupTimeoutMs } from "../../mcp/settings";
 import { cfgPlanEnabled } from "../../plan-mode/settings";
 
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
@@ -628,24 +630,6 @@ async function elicitFromAcpClient(
 }
 
 /**
- * The elicitation message for an HTML form: its section titles and context
- * blocks (paragraphs, lists, preformatted text, tables) as plain text, the
- * fields themselves being schema properties.
- */
-function formElicitationMessage(form: HtmlForm): string {
-	const parts: string[] = [];
-	for (const section of form.sections) {
-		const title = spansText(section.title).trim();
-		if (title) parts.push(title);
-		for (const block of section.blocks) {
-			const text = blockText(block);
-			if (text) parts.push(text);
-		}
-	}
-	return parts.filter(part => part.trim()).join("\n\n") || "Fill in the form";
-}
-
-/**
  * Property holding each "Other" choice field's free-text answer:
  * `<name>__other` ({@link OTHER_SUFFIX}), with more underscores while another
  * control already uses it.
@@ -977,7 +961,8 @@ export function createAcpExtensionUiContext(
 					sendFormElicitation,
 					getSessionId(),
 					"formDialog",
-					formElicitationMessage(form),
+					// Section titles and captions already title the field properties ({@link formContext}).
+					formContext(form).join("\n\n") || "Fill in the form",
 					properties,
 					required.length > 0 ? required : undefined,
 					{
@@ -2593,17 +2578,22 @@ export class AcpAgent implements Agent {
 		}
 		this.#clearLiveAssistantMessageAfterEvent(record, event);
 
-		if (event.type === "agent_end") {
+		if (event.type === "agent_end" || event.type === "agent_pause") {
+			// Every stopped loop ends this reply. The run's `agent_end` after a pause with no
+			// later loop repeats that pause's messages, which were already flushed.
+			const repeat = work.lastAgentEnd?.messages === event.messages;
 			work.lastAgentEnd = event;
-			await this.#flushMissedFinalAssistantText(record, work, event);
-			await this.#flushUnreportedTurnError(record, work, event);
-			await this.#emitEndOfTurnUpdates(record);
+			if (!repeat) {
+				await this.#flushMissedFinalAssistantText(record, work, event);
+				await this.#flushUnreportedTurnError(record, work, event);
+				await this.#emitEndOfTurnUpdates(record);
+			}
 			// Live-message tracking is per assistant reply: reset after this reply's
 			// own fallback so a background-job wake reply gets a fresh message id.
 			record.liveMessageId = undefined;
 			record.liveMessageProgress = undefined;
-			// A wake turn's agent_end: the first handler is already waiting and will
-			// finish the prompt once the session is quiet.
+			// A wake turn's loop end: the first handler is already waiting and will
+			// finish the prompt once the session is quiet. v1 holds it to the run's end.
 			await this.#finishPromptWhenQuiescent(record, work, token);
 		}
 	}
@@ -2650,7 +2640,7 @@ export class AcpAgent implements Agent {
 	async #flushMissedFinalAssistantText(
 		record: ManagedSessionRecord,
 		work: ForegroundWork,
-		event: Extract<AgentSessionEvent, { type: "agent_end" }>,
+		event: LoopEndEvent,
 	): Promise<void> {
 		const progress = record.liveMessageProgress;
 		if (!progress || progress.textEmitted) {
@@ -2691,7 +2681,7 @@ export class AcpAgent implements Agent {
 	async #flushUnreportedTurnError(
 		record: ManagedSessionRecord,
 		work: ForegroundWork,
-		event: Extract<AgentSessionEvent, { type: "agent_end" }>,
+		event: LoopEndEvent,
 	): Promise<void> {
 		const streamedDelivery = work.errorTextDelivery;
 		if (streamedDelivery && (await streamedDelivery)) {
@@ -2736,10 +2726,10 @@ export class AcpAgent implements Agent {
 				this.#surface.holdsForegroundForBackgroundWork &&
 				!session.isStreaming &&
 				!session.hasAdmittedSubmission &&
-				session.hasPendingAsyncWork()
+				session.isRunActive
 			) {
 				try {
-					await untilAborted(signal, () => session.settleAsyncWork());
+					await untilAborted(signal, () => session.waitForRunEnd());
 				} catch (error) {
 					if (signal.aborted) return;
 					throw error;
@@ -3427,7 +3417,7 @@ export class AcpAgent implements Agent {
 
 	/**
 	 * Reload plugin/registry state for an ACP session. Mirrors the interactive
-	 * `/reload-plugins` and `/move` flows: invalidates the plugin-roots cache,
+	 * `/reload-plugins` flow: invalidates the plugin-roots cache,
 	 * refreshes task agents, resets the capability cache, refreshes the
 	 * session's slash-command state, then re-advertises commands so the client
 	 * sees newly installed/disabled plugins.
@@ -3801,7 +3791,14 @@ export class AcpAgent implements Agent {
 			};
 		}
 
-		const result = await manager.connectServers(configs, sources);
+		// Honor the user's startup window like the interactive path does
+		// (`sdk.ts`); `OMP_MCP_STARTUP_TIMEOUT_MS` still takes precedence.
+		const result = await manager.connectServers(
+			configs,
+			sources,
+			undefined,
+			cfgMcpStartupTimeoutMs.get(record.session.settings),
+		);
 		// A client-declared server whose initial connect fails (e.g. an expired
 		// client-owned bearer answering 401 inside the startup window) must not
 		// abort session creation: the record keeps the manager with the failed

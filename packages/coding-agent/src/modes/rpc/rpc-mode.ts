@@ -1914,7 +1914,6 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 					sessionManager: session.sessionManager,
 					session,
 					refreshCommands: emitAvailableCommandsUpdate,
-					reloadPlugins: reloadPluginState,
 					notifyTitleChanged: async () => {
 						output({ type: "session_info_update", title: session.sessionName, sessionId: session.sessionId });
 					},
@@ -2204,7 +2203,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 					inputGate.commitSessionChange(command);
 					// `branch` leaves a live run streaming to its normal yield; new/switch detach it.
 					if (command.type !== "branch" && command.type !== "fork") promptResults.abortOpen();
-					// The detached run publishes no terminal agent_end to settle on.
+					// The detached run publishes no agent_end to settle on.
 					void settleWatcher.check();
 					await emitAvailableCommandsUpdate();
 				}
@@ -2322,7 +2321,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 					cwd: session.sessionManager.getCwd(),
 					autoCompactionEnabled: session.autoCompactionEnabled,
 					queuedMessageCount: session.queuedMessageCount,
-					hasPendingAsyncWork: session.hasPendingAsyncWork(),
+					hasPendingAsyncWork: session.wakeSources !== undefined,
 					// A scheduled goal continuation will start a turn: not settled.
 					isSettled: isSessionSettled(session, goalTurnScheduled),
 					queuedMessages: {

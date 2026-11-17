@@ -485,15 +485,19 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 			let approved: boolean;
 			let deniedForSession = false;
 			try {
-				const answer = await requestApproval(uiContext, this.tool, resolvedArgs, {
-					reason: approvalCheck.reason,
-					appendix: safetyAppendix,
-					sessionSubject: sessionScope?.subject,
-					grants: cacheTargets,
-					call: { toolCallId, toolName: this.tool.name, args: resolvedArgs, tier: resolved.tier },
-					signal,
-					steeringSignal: context?.toolCall?.steeringSignal,
-				});
+				// The call's signal closes the prompt: aborting the turn (Esc, a session switch) must not
+				// wait on an approval the user can no longer see or answer.
+				const answer = await untilAborted(signal, () =>
+					requestApproval(uiContext, this.tool, resolvedArgs, {
+						reason: approvalCheck.reason,
+						appendix: safetyAppendix,
+						sessionSubject: sessionScope?.subject,
+						grants: cacheTargets,
+						call: { toolCallId, toolName: this.tool.name, args: resolvedArgs, tier: resolved.tier },
+						signal,
+						steeringSignal: context?.toolCall?.steeringSignal,
+					}),
+				);
 				approved = answer !== "deny" && answer !== "deny-session";
 				if (answer === "session" && sessionScope) this.runner.grantSessionApproval(sessionScope.key);
 				if (answer === "deny-session" && sessionScope) {

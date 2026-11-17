@@ -885,9 +885,10 @@ function approvalGrantChoices(
  * subject for the rest of the session, and a dialog may answer `deny-session` to reject it for
  * the rest of the session; with `grants`, both offer the `always-ask-cached` grants the call can
  * record, and the prompt lists the folder a directory grant would cover. `call` names the tool
- * call for hosts that render it (ACP); `signal` (the turn's) reaches the dialog so an aborted turn
- * closes it, and `steeringSignal` (the call's loop steer signal) lets a host's dialog yield to a
- * user steer. Anything but an explicit approval is `deny`.
+ * call for hosts that render it (ACP); `signal` (the call's abort signal) closes the prompt, so
+ * aborting the turn never waits on a prompt nobody can see or answer, and `steeringSignal` (the
+ * call's loop steer signal) lets a host's dialog yield to a user steer. Anything but an explicit
+ * approval is `deny`.
  */
 export async function requestApproval(
 	ui: Pick<ExtensionUIContext, "select" | "approve">,
@@ -913,6 +914,7 @@ export async function requestApproval(
 	const listing = folder ? await approvalFolderListing(folder.key, APPROVAL_FOLDER_FULL_LISTING) : undefined;
 	const folderBlock = approvalFolderPromptBlock(folder?.label, listing, APPROVAL_FOLDER_FULL_LISTING);
 	const full = [...header, ...details, ...(folderBlock ? [folderBlock] : []), ...appendix].join("\n");
+	const dialogOptions = signal ? { signal } : undefined;
 	if (ui.approve) {
 		const summary = approvalSummary(details);
 		const compactBlock = approvalFolderPromptBlock(folder?.label, listing, APPROVAL_FOLDER_COMPACT_LISTING);
@@ -940,7 +942,7 @@ export async function requestApproval(
 		return "deny";
 	}
 	const choices = { ...(session ? { session } : {}), ...(grants.length > 0 ? { grants } : {}) };
-	return approvalAnswerForChoice(choices, await ui.select(full, approvalChoiceLabels(choices)));
+	return approvalAnswerForChoice(choices, await ui.select(full, approvalChoiceLabels(choices), dialogOptions));
 }
 
 /** The approve-this-call-only label: "Approve", or "Approve Once" beside grants that remember more. */

@@ -177,6 +177,7 @@ describe("plan-yolo approval autosave", () => {
 			},
 			setModelTemporary: async (...args: unknown[]) => {
 				modelTemporaryCalls.push(args);
+				return true;
 			},
 			setActiveToolsByName: async () => {},
 			restoreNonMCPToolPresentation: async () => {},

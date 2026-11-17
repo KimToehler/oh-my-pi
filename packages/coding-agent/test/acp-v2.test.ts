@@ -47,6 +47,7 @@ import {
 	v2SuiteSchemaIssues,
 	type V2WireHarness,
 } from "./acp-test-harness";
+import { settleOwnedJobs } from "./helpers/settle-owned-jobs";
 
 setDefaultTimeout(20_000);
 
@@ -769,7 +770,7 @@ describe("agent-initiated work (plan 4)", () => {
 		const callsBefore = rig.modelCalls;
 
 		manager.register("bash", "owned job", async () => "WAKE RESULT", { id: "wake-job", ownerId: "AcpOwner" });
-		await session.settleAsyncWork();
+		await settleOwnedJobs(session, manager);
 		await waitForIdle(client, sessionId, base - 1);
 
 		expect(rig.modelCalls).toBe(callsBefore + 1);
@@ -810,7 +811,7 @@ describe("agent-initiated work (plan 4)", () => {
 		await teardownEntered.promise;
 		const framesAtClose = client.frames.length;
 		jobGate.resolve("LATE RESULT");
-		const settled = session.settleAsyncWork();
+		const settled = settleOwnedJobs(session, manager);
 		await Promise.race([settled, Bun.sleep(1500)]);
 		expect(rig.modelCalls).toBe(callsBefore);
 		expect(client.frames.slice(framesAtClose).filter(frame => JSON.stringify(frame).includes(sessionId))).toEqual([]);
@@ -1134,7 +1135,7 @@ describe("cancel and errors (plan 5)", () => {
 		const calls = rig.modelCalls;
 
 		jobGate.resolve("LATE RESULT");
-		await session.settleAsyncWork();
+		await settleOwnedJobs(session, manager);
 		await eventLoopTurns(30);
 		expect(rig.modelCalls).toBe(calls);
 		expect(client.frames.length).toBe(frames);
@@ -1271,13 +1272,12 @@ describe("submission lifecycle at the adapter boundary (plan 2)", () => {
 		releaseHeld.resolve();
 		await expect(switching).rejects.toThrow("forced switch failure");
 		removeGate();
-		await eventLoopTurns(20);
-		expect(rig.outcomes.filter(outcome => outcome.kind === "dropped")).toHaveLength(0);
 
-		// Stop ends the foreground; only the closure there settles a steer that sits in no queue.
-		await client.notify("session/cancel", { sessionId });
-		expect(errorCode(await steer)).toBe(-32800);
+		// Once nothing can resume the run it ends on its own, and the foreground's closure settles
+		// the steer that sits in no queue: dropped without a cancel.
+		expect(errorCode(await steer)).toBe(-32603);
 		await waitForIdle(client, sessionId);
+		expect(client.states(sessionId).at(-1)).toMatchObject({ state: "idle", stopReason: "end_turn" });
 		expect(rig.outcomes.filter(outcome => outcome.kind === "dropped")).toHaveLength(1);
 		expect(rig.outcomes.filter(outcome => outcome.kind === "inserted")).toHaveLength(1);
 		await eventLoopTurns(20);

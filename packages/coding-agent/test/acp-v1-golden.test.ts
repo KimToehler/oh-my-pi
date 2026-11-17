@@ -459,8 +459,8 @@ describe("ACP v1 golden transcripts", () => {
 		const emit = emitter(session);
 		const settleEntered = Promise.withResolvers<void>();
 		const jobDone = Promise.withResolvers<void>();
-		session.pendingAsyncWork = true;
-		session.settleAsyncWork = async () => {
+		session.isRunActive = true;
+		session.waitForRunEnd = async () => {
 			settleEntered.resolve();
 			await jobDone.promise;
 			const wake = makeAssistantMessage("job wake");
@@ -470,7 +470,7 @@ describe("ACP v1 golden transcripts", () => {
 				assistantMessageEvent: { type: "text_delta", delta: "job wake" },
 			} as AgentSessionEvent);
 			emit({ type: "agent_end", messages: [wake] } as AgentSessionEvent);
-			session.pendingAsyncWork = false;
+			session.isRunActive = false;
 		};
 		const response = harness.client.prompt({ sessionId, prompt: [{ type: "text", text: "start a background job" }] });
 		await settleEntered.promise;

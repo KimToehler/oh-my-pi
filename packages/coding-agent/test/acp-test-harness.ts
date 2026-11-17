@@ -186,11 +186,11 @@ export class FakeAgentSession {
 	waitForIdleBlocker: (() => Promise<void>) | undefined;
 	hasAdmittedSubmission = false;
 	hasPostPromptWork = false;
-	/** Owner-scoped background work that can still wake the session; see `settleAsyncWork`. */
-	pendingAsyncWork = false;
-	/** Settles one generation of background work; tests override it to gate or emit a wake turn. */
-	settleAsyncWork: () => Promise<void> = async () => {
-		this.pendingAsyncWork = false;
+	/** A run kept open by owner-scoped background work that can still wake it; see `waitForRunEnd`. */
+	isRunActive = false;
+	/** Ends the open run; tests override it to gate or emit a wake turn. */
+	waitForRunEnd: () => Promise<void> = async () => {
+		this.isRunActive = false;
 	};
 	abortCalls = 0;
 	/** Goal state the real `GoalRuntime` below reads and writes, as on `AgentSession`. */
@@ -367,10 +367,6 @@ export class FakeAgentSession {
 
 	/** The v2 surface settles submissions still waiting for an outcome when a foreground ends; the fake has none. */
 	settlePendingSubmissions(): void {}
-
-	hasPendingAsyncWork(): boolean {
-		return this.pendingAsyncWork;
-	}
 
 	/** The v1 open-prompt gate as the real session reads it: through the client bridge callback. */
 	get acpPromptOpen(): boolean {

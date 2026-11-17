@@ -534,7 +534,7 @@ export class GoalHostController {
 			}
 			return;
 		}
-		if (event.type !== "agent_end" || event.isTerminal === false) return;
+		if (event.type !== "agent_end") return;
 		if (this.#pendingContinuationTurns > 0) {
 			this.#pendingContinuationTurns--;
 			const activity = goalContinuationActivity(event.messages);

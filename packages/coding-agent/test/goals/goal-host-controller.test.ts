@@ -17,7 +17,7 @@ function nextMacrotask(): Promise<void> {
 }
 
 describe("GoalHostController continuation gate", () => {
-	const agentEnd = { type: "agent_end", messages: [], isTerminal: true } as unknown as AgentSessionEvent;
+	const agentEnd = { type: "agent_end", messages: [] } as unknown as AgentSessionEvent;
 	const hostInput = { type: "message_start", message: { role: "user", content: [] } } as unknown as AgentSessionEvent;
 
 	function fakeSession(
@@ -79,8 +79,6 @@ describe("GoalHostController continuation gate", () => {
 			isStreaming: false,
 			hasAdmittedSubmission: false,
 			queuedMessageCount: 0,
-			hasPendingAsyncWork: () => false,
-			settleAsyncWork: async () => {},
 			getPlanModeState: () => undefined,
 			getGoalModeState: () => goalState,
 			setGoalModeState: (state: GoalModeState | undefined) => {
@@ -201,7 +199,6 @@ describe("GoalHostController continuation gate", () => {
 		});
 		const toolTurnEnd = {
 			type: "agent_end",
-			isTerminal: true,
 			messages: [
 				{ role: "assistant", content: [{ type: "toolCall", id: "t1", name: "read", arguments: { path: "a" } }] },
 				{ role: "toolResult", toolName: "read", content: [{ type: "text", text: "x" }], isError: false },

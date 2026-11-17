@@ -608,8 +608,8 @@ export class AcpGoalActor {
 			}
 			return;
 		}
-		// A completed goal is journaled at its terminal agent_end, which leaves no goal state.
-		if (event.type === "agent_end" && event.isTerminal !== false) {
+		// A completed goal is journaled at its run's agent_end, which leaves no goal state.
+		if (event.type === "agent_end") {
 			if (!this.#session.getGoalModeState() && !this.#objectivePending) this.#selected = false;
 		}
 	}

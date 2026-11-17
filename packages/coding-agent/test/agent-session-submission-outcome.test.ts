@@ -25,6 +25,7 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import { TurnRecovery } from "@oh-my-pi/pi-coding-agent/session/turn-recovery";
 import * as imageLoading from "@oh-my-pi/pi-coding-agent/utils/image-loading";
 import { EventBus } from "@oh-my-pi/pi-coding-agent/utils/event-bus";
+import { settleOwnedJobs } from "./helpers/settle-owned-jobs";
 
 interface CallGate {
 	reached: PromiseWithResolvers<void>;
@@ -458,12 +459,12 @@ describe("AgentSession submission outcome", () => {
 		const callsAfterFirst = gates.size;
 
 		manager.register("bash", "parked job", async () => "PARKED", { id: "parked-job", ownerId: "GateOwner" });
-		await session.settleAsyncWork();
+		await settleOwnedJobs(session, manager);
 		expect(gates.size).toBe(callsAfterFirst);
 
 		allow = true;
 		manager.register("bash", "owned job", async () => "WAKE", { id: "wake-job", ownerId: "GateOwner" });
-		await session.settleAsyncWork();
+		await settleOwnedJobs(session, manager);
 		expect(gates.size).toBeGreaterThan(callsAfterFirst);
 	});
 });

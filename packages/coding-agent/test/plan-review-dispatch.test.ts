@@ -336,6 +336,7 @@ describe("plan review through the real agent loop, per approval installer", () =
 				emitNotice: (level, message, source) => live.emitNotice(level, message, source),
 				setModelTemporary: async model => {
 					switches.push(model.id);
+					return true;
 				},
 				setActiveToolsByName: names => live.setActiveToolsByName(names),
 				restoreNonMCPToolPresentation: (enabled, mounted, registered) =>
