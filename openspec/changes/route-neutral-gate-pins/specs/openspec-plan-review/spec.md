@@ -2,25 +2,6 @@
 
 ## MODIFIED Requirements
 
-### Requirement: Fixed reviewer briefs on a pinned model
-
-Every full-round plan-reviewer task SHALL carry the brief fixed in the schema verbatim with only the repository and change paths filled in, followed by its depth's fixed scope paragraph and nothing else; a delta check SHALL carry the schema's fixed delta brief with only the paths, the fix entries and the patch path filled in. The team seed SHALL pin `plan-reviewer` to `gpt-6.1-sol:high` through `task.agentModelOverrides`, naming no provider, so that the runtime resolves it to whichever provider of that model the installation can reach.
-
-#### Scenario: Standard dispatch
-
-- **WHEN** a `standard` change starts round 1 in an agent directory seeded from the team config whose only provider of `gpt-6.1-sol` is the team router
-- **THEN** the one `plan-reviewer` task carries the fixed brief and the all-scopes paragraph, and its run resolves to `onara/cx/gpt-6.1-sol` at effort `high`
-
-#### Scenario: Direct subscription
-
-- **WHEN** the same dispatch runs in an agent directory seeded from the team config that is signed in to `openai-codex`
-- **THEN** its run resolves to `gpt-6.1-sol` at effort `high` on a provider the installation can reach, and its session file records that provider
-
-#### Scenario: Negative control
-
-- **WHEN** an instruction adds its own focus, a file list or a summary of the change to a brief, or the seed leaves `plan-reviewer` on the `advisor` role or pins it to a selector with a provider
-- **THEN** review of that instruction or seed MUST fail
-
 ### Requirement: A dispatch counts only on its pinned model
 
 After every dispatch the instruction SHALL read the `provider/model` of every turn the dispatch's session file records and record them per dispatch under `- **Models**:` in `review.md`. It SHALL compare each turn's model name, the last `/` segment of its `provider/model`, with the pin's model name, the last `/` segment of the pin without its effort suffix; the provider SHALL NOT take part in the comparison. A dispatch any of whose turns ran on another model name SHALL count as one without a structured result. Without a pin for a dispatched agent, from the overrides or an agent definition, the instruction SHALL stop, name the missing override and write no record.
@@ -37,8 +18,8 @@ After every dispatch the instruction SHALL read the `provider/model` of every tu
 
 #### Scenario: Pinned model through another provider
 
-- **WHEN** the configuration pins `plan-reviewer` to `onara/cx/gpt-6.1-sol:high` and the dispatch's session records every turn on `openai-codex/gpt-6.1-sol`, or the pin is `gpt-6.1-sol:high` and every turn ran on `onara/cx/gpt-6.1-sol`
-- **THEN** the dispatch counts, and `- **Models**:` records the provider and model its turns ran on
+- **WHEN** the configuration pins `plan-reviewer` to `gpt-6.1-sol:high` and every turn of the dispatch ran on `openai-codex/gpt-6.1-sol`, or the pin is `onara/cx/gpt-6.1-sol:high` and every turn ran on `openai-codex/gpt-6.1-sol`
+- **THEN** the dispatch counts, and `- **Models**:` records `openai-codex/gpt-6.1-sol` for it
 
 #### Scenario: Substituted verifier
 

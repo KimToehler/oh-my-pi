@@ -2,15 +2,15 @@
 
 ## Why
 
-The gate and plan-review agents are pinned to router selectors (`onara/cx/gpt-6.1-sol:high`, `onara/cc/claude-fable-5-2:high`), and every pin check compares the provider prefix too. A team member who reaches the same model through a direct subscription (`openai-codex/gpt-6.1-sol`, `anthropic/claude-fable-5-2`) can therefore never get a counted plan review, consultation or F2 verdict: every dispatch is refused as "another model", although the weights are the same.
+The pin checks of the plan review, the architecture consultation and the F2 merge gate compare the full `provider/model` a dispatch ran on with the pin. A team member who reaches the pinned model through a direct subscription (`openai-codex/gpt-6.1-sol`, `anthropic/claude-fable-5-2`) instead of the team router cannot get a counted consultation or F2 verdict at all: the consultation check accepts only the definition's `onara/cc/claude-fable-5-2`, and the gate refuses any `auditor` override that differs from `onara/cx/gpt-6.1-sol:high`, although the weights are the same.
 
 ## What Changes
 
-- The pins name only the model and effort: `auditor` and `plan-reviewer` `gpt-6.1-sol:high`, `blocker-verifier` `gpt-6.1-sol:medium`, `architecture-oracle` `claude-fable-5-2:high`. omp resolves a bare pin to whichever provider the installation can reach (a direct subscription when present, the router otherwise).
-- Every pin check compares the model name: the last `/` segment of `provider/model`, without the effort suffix. A turn on `openai-codex/gpt-6.1-sol` and one on `onara/cx/gpt-6.1-sol` both match the pin `gpt-6.1-sol`; a turn on `onara/cc/claude-opus-5` still does not. The effort check on `auditor` dispatches is unchanged.
-- The checks that change: `validate-openspec-change.mjs --consultation-report` (code), the plan-review pin instruction in the `omp-gated` schema, and the `review-work` Phase 3 model check (instruction text).
-- Records keep the full `provider/model` each dispatch ran on (`- **Models**:` in `review.md` and `consultation.md`, `model_id` in trailers), so evidence still shows which route served a verdict.
-- Existing installations keep working: a provider-prefixed override such as `task.agentModelOverrides.plan-reviewer: onara/cx/gpt-6.1-sol:high` still resolves to the router and still matches the pin by model name.
+- Every pin check compares the model name: the last `/` segment of `provider/model`, without the effort suffix. A turn on `openai-codex/gpt-6.1-sol` and one on `onara/cx/gpt-6.1-sol` both match a `gpt-6.1-sol` pin; a turn on `onara/cc/claude-opus-5` still does not. The effort check on `auditor` dispatches is unchanged.
+- The checks that change: `validate-openspec-change.mjs --consultation-report` (code), the plan-review pin instruction in the `omp-gated` schema, and the `review-work` Phase 3 model check (instruction text), including its pre-dispatch override conflict check, which now compares model name and effort.
+- An F2 trailer's `model_id` must equal the exact `provider/model` its session ran on, so the committed gate record names the route that actually served the verdict.
+- The pins stay as they are (`onara/cx/gpt-6.1-sol:high` and `:medium`, `onara/cc/claude-fable-5-2:high`): no member's route or billing changes. A member without the router sets `task.agentModelOverrides` entries for the four agents on their own provider; the README lists them.
+- Records keep the full `provider/model` each dispatch ran on (`- **Models**:` in `review.md` and `consultation.md`, `model_id` in trailers).
 
 ## Capabilities
 
@@ -20,13 +20,12 @@ None.
 
 ### Modified Capabilities
 
-- `openspec-plan-review`: the seed pins `plan-reviewer` to a model without a provider, and a dispatch counts when its turns ran on the pinned model through any provider.
-- `plan-architecture-consultation`: the `architecture-oracle` definition names its model without a provider, and the report check accepts any provider serving that model.
-- `post-implementation-review`: an `auditor` dispatch counts when its turns ran on the pinned model at the pinned effort through any provider, and its trailer names that model.
+- `openspec-plan-review`: a dispatch counts when its turns ran on the pinned model name through any provider.
+- `plan-architecture-consultation`: the report check accepts any provider serving the definition's model name.
+- `post-implementation-review`: an `auditor` dispatch counts when its turns ran on the pinned model name at the pinned effort through any provider, an override with the same model name and effort no longer stops the gate, and the trailer's `model_id` equals the session's `provider/model`.
 
 ## Impact
 
-- `team-config/agent/agents/{auditor,blocker-verifier,architecture-oracle}.md` (model lines), `team-config/seed/config.yml` (`task.agentModelOverrides.plan-reviewer`).
 - `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs` and its test; one shared model-name helper with `validate-gate-record.mjs`.
-- `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` (review instruction), `team-config/agent/skills/review-work/SKILL.md` (Phase 3 model check, independence note), `team-config/README.md` (pin paragraphs).
-- Billing: a member with a direct subscription now runs these agents on it instead of the router.
+- `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` (review instruction), `team-config/agent/skills/review-work/SKILL.md` (Phase 3 model check), `team-config/README.md` (route-neutral checks, overrides for members without the router).
+- No change to agent definitions, `seed/config.yml` or `seed/models.yml`.
