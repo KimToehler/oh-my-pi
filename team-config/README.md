@@ -6,9 +6,9 @@ directory into the omp agent dir (`~/.omp/agent`) from the same commit as the bi
 
 ## New machine
 
-Prerequisites: [bun](https://bun.sh), Node.js 20.19+, a Rust toolchain ([rustup](https://rustup.rs)),
+Prerequisites: [bun](https://bun.sh), Node.js 22.20+, a Rust toolchain ([rustup](https://rustup.rs)),
 `git`, and the OpenSpec CLI at the version pinned in `team-config/openspec-version`
-(`npm install -g @fission-ai/openspec@1.15.0`). On NixOS, `nix` replaces bun/rust; the deploy script re-enters the
+(`npm install -g @fission-ai/openspec@2.1.0`). On NixOS, `nix` replaces bun/rust; the deploy script re-enters the
 flake dev shell.
 
 ```sh
@@ -321,26 +321,37 @@ telemetry setting.
 ### Bumping OpenSpec
 
 `team-config/openspec-version` is the single pin; the deploy check reads it.
-`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are the output of that version,
+`team-config/agent/commands/opsx-{propose,explore,apply,update,sync,archive}.md` are the output of OpenSpec 1.15.0,
 with four team additions: step 4 of `opsx-apply.md` ("Run in the change's worktree"), step 5 of `opsx-archive.md`
 ("Route the change's follow-ups"), the `Take matching follow-ups (proposal only)` bullet of step 6a in
 `opsx-propose.md`, plus its Guardrails and Output lines, and the `**Goal-mode continuation**` paragraph after the
 planning boundary of `opsx-propose.md` with its four one-sentence additions (to the boundary paragraph, the line
 "start the apply workflow explicitly", the Output and the first Guardrail); the later steps of the first two are
 renumbered, and `opsx-archive.md` also carries the `Follow-ups` summary bullet and output lines. They stay standalone
-so each deploys on its own. To bump, set the new version in `team-config/openspec-version`, then regenerate the
-commands with it and compare:
+so each deploys on its own. OpenSpec 2.0 stopped generating command files and writes the same workflows only as
+skills (`openspec-propose`, `openspec-apply-change`, …), so a bump no longer regenerates the commands.
+
+To bump, set the new version in `team-config/openspec-version`. Run the CLI calls the workflow makes (`list`,
+`context`, `status`, `show`, `instructions <artifact>`, `validate --strict`) with the old and the new version on a
+copy of each project's `openspec/` and compare the output, then `archive` and `new change` on copies the same way.
+Update the version in the New machine install line, and the Node.js minimum from the package's `engines` field,
+install the new CLI, run `bun run test:team-config` and redeploy.
+
+To take upstream changes to the workflow text, compare the skills of 1.15.0 with those of the pinned version and
+port what applies to the commands by hand. Skip edits that only replace `/opsx-*` references, since the team keeps
+the commands:
 
 ```sh
 v=$(cat team-config/openspec-version)
-tmp=$(mktemp -d) && git -C "$tmp" init -q
-DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0 bunx --bun "@fission-ai/openspec@$v" init "$tmp" --tools oh-my-pi --profile core --no-animation
-diff -r "$tmp/.omp/commands" team-config/agent/commands   # only the four team additions and their renumbering = no drift
+old=$(mktemp -d) new=$(mktemp -d) && git -C "$old" init -q && git -C "$new" init -q
+export DO_NOT_TRACK=1 OPENSPEC_TELEMETRY=0
+bunx --bun @fission-ai/openspec@1.15.0 init "$old" --tools oh-my-pi --profile core --no-animation
+bunx --bun "@fission-ai/openspec@$v" init "$new" --tools oh-my-pi --profile core --scope project --no-animation
+diff -r "$old/.omp/skills" "$new/.agents/skills"
 ```
 
-Copy `$tmp/.omp/commands/opsx-*.md` over `team-config/agent/commands/`, re-apply the four team additions from the
-previous version (`git diff` shows them as removed), and rerun the diff. Update the version in the New machine install line
-and in Provenance, install the new CLI, and redeploy. Hand-edit the command files only for these team additions.
+No upstream change has been ported since 1.15.0; name any you port here, so the next comparison starts from the
+right base. Hand-edit the command files only for the team additions and ported upstream changes.
 
 ## Changing the team config
 
