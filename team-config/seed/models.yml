@@ -7,6 +7,10 @@
 # onara has no `auth:` key on purpose: custom anthropic-messages models then get omp's native
 # Claude Code request shaping.
 # cost = Anthropic/OpenAI list price, only so `omp stats` can compare runs ($/task).
+# promptCache lets omp's cache warmer (providers.cacheWarming) keep a cc/* session's prompt cache
+# alive across idle gaps. Only the 5 min tier: for Claude Code clients the router re-anchors every
+# message breakpoint at 5 min (9router anchorClaudeCache), so a 1 h `long` entry would never exist.
+# cx/* gets none, like the catalog's OpenAI models: OpenAI caches automatically.
 providers:
   onara:
     baseUrl: https://router.onara.eu/v1
@@ -22,6 +26,7 @@ providers:
         tokenizer: claude-v5
         thinking: { mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max], supportsDisplay: true }
         cost: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 }
+        promptCache: { short: 300 }
       - id: cc/claude-fable-5-2
         name: Fable 5.2 (onara)
         api: anthropic-messages
@@ -32,6 +37,7 @@ providers:
         tokenizer: claude-v5
         thinking: { mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max], supportsDisplay: true }
         cost: { input: 8, output: 40, cacheRead: 0.2, cacheWrite: 10 }
+        promptCache: { short: 300 }
       - id: cc/claude-opus-5
         name: Opus 5 (onara)
         api: anthropic-messages
@@ -42,6 +48,7 @@ providers:
         tokenizer: claude-v5
         thinking: { mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max], supportsDisplay: true }
         cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 }
+        promptCache: { short: 300 }
       - id: cc/claude-sonnet-5-5
         name: Sonnet 5.5 (onara)
         api: anthropic-messages
@@ -52,6 +59,7 @@ providers:
         tokenizer: claude-v5-sonnet
         thinking: { mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max], supportsDisplay: true }
         cost: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 }
+        promptCache: { short: 300 }
       - id: cc/claude-sonnet-5
         name: Sonnet 5 (onara)
         api: anthropic-messages
@@ -62,6 +70,7 @@ providers:
         tokenizer: claude-v5-sonnet
         thinking: { mode: anthropic-adaptive, efforts: [low, medium, high, xhigh, max], supportsDisplay: true }
         cost: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 }
+        promptCache: { short: 300 }
       - id: cc/claude-haiku-5-5
         name: Haiku 5.5 (onara)
         api: anthropic-messages
@@ -71,7 +80,8 @@ providers:
         maxTokens: 64000
         tokenizer: claude-v3
         thinking: { mode: budget, efforts: [minimal, low, medium, high, xhigh] }
-        cost: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 }
+        cost: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 }
+        promptCache: { short: 300 }
       - id: cx/gpt-6.1-sol
         name: GPT-6.1 Sol (onara)
         api: openai-responses
