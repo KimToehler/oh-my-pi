@@ -268,6 +268,10 @@ export const LANE_SCHEMA = 'app-qa-vm/1';
 const CLONE_PREFIX = 'app-qa-slot-';
 const laneFilePath = () => join(homedir(), '.omp', 'agent', 'app-qa-vm.json');
 
+const absolutePath = (v, p, e) => {
+  if (typeof v !== 'string' || !isAbsolute(v)) e.push(`${p}: expected an absolute path`);
+};
+
 const LANE_SHAPE = section({
   schema: [true, () => {}],
   image: [
@@ -278,12 +282,8 @@ const LANE_SHAPE = section({
     },
   ],
   user: [true, nonEmpty],
-  sshKey: [
-    true,
-    (v, p, e) => {
-      if (typeof v !== 'string' || !isAbsolute(v)) e.push(`${p}: expected an absolute path`);
-    },
-  ],
+  sshKey: [true, absolutePath],
+  knownHosts: [true, absolutePath],
   slots: [
     true,
     (v, p, e) => {
@@ -1886,16 +1886,21 @@ function failStart(n, cloneExists) {
 }
 
 /**
- * The options of every ssh the lane runs. `ConnectTimeout` bounds the connect; the keepalive bounds an established
- * connection whose guest vanished without closing it (a deleted or frozen clone sends nothing): ssh exits 255 after
- * 4 unanswered probes 15 s apart, so a routed command reaches its loss checks, a forward dies with its clone, and an
- * ssh orphaned by a killed driver ends too.
+ * The options of every ssh the lane runs. The guest is authenticated by the host key pinned in the lane file's
+ * `knownHosts` under the image's name (`HostKeyAlias`: every clone of the image carries its key, and clone addresses
+ * change), and no other known-hosts file counts: a server presenting another key gets no command and no input, so
+ * neither the credentials upload nor a routed command reaches it. `ConnectTimeout` bounds the connect; the keepalive
+ * bounds an established connection whose guest vanished without closing it (a deleted or frozen clone sends nothing):
+ * ssh exits 255 after 4 unanswered probes 15 s apart, so a routed command reaches its loss checks, a forward dies with
+ * its clone, and an ssh orphaned by a killed driver ends too.
  */
 const sshBase = (lane, ip) => [
   '-i', lane.sshKey,
   '-o', 'BatchMode=yes',
-  '-o', 'StrictHostKeyChecking=no',
-  '-o', 'UserKnownHostsFile=/dev/null',
+  '-o', 'StrictHostKeyChecking=yes',
+  '-o', `UserKnownHostsFile=${lane.knownHosts}`,
+  '-o', 'GlobalKnownHostsFile=/dev/null',
+  '-o', `HostKeyAlias=${lane.image}`,
   '-o', 'LogLevel=ERROR',
   '-o', 'ConnectTimeout=10',
   '-o', 'ServerAliveInterval=15',
@@ -1965,18 +1970,22 @@ function cloneIp(clone, known = null) {
   return (vm.status === 'running' && vm.ipAddress) || known || dhcpAddress(vm.macAddress);
 }
 
-/** Waits until the clone has an address and accepts an ssh connection; returns the address or null after `seconds`. */
+/**
+ * Waits until the clone has an address and accepts an ssh connection: `{ ip }`, `{ hostKey: ip }` as soon as the guest
+ * at `ip` presents a host key other than the pinned one (ssh then sent it nothing), or `{}` after `seconds`.
+ */
 async function waitForSsh(lane, clone, known = null, seconds = 180) {
   const end = Date.now() + seconds * 1000;
   while (Date.now() < end) {
     const ip = cloneIp(clone, known);
     if (ip) {
       const r = run(sshBin(), [...sshBase(lane, ip), 'true']);
-      if (r.status === 0) return ip;
+      if (r.status === 0) return { ip };
+      if (/Host key verification failed/.test(r.stderr ?? '')) return { hostKey: ip };
     }
     await pause(1000);
   }
-  return null;
+  return {};
 }
 
 /** Runs each target's build on the host without a shell; the output is kept in memory as redacted last lines only. */
@@ -2237,7 +2246,13 @@ async function vmUp(ctx, args, lane) {
         return 2;
       }
     }
-    const ip = await waitForSsh(lane, clone, admission.ip ?? null);
+    const reach = await waitForSsh(lane, clone, admission.ip ?? null);
+    if (reach.hostKey) {
+      say(`vm up: ${clone} at ${reach.hostKey} does not present the host key pinned for ${lane.image} in ${lane.knownHosts}; nothing was copied (vm-image.md, step "Pin the host key")`);
+      failStart(n, true);
+      return 2;
+    }
+    const ip = reach.ip;
     if (!ip) {
       say(`vm up: ${clone} did not accept an ssh connection`);
       failStart(n, true);

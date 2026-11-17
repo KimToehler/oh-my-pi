@@ -40,15 +40,22 @@ Use one VM name for the build, `app-qa-build`, and the golden name `app-qa-golde
 8. **Turn SIP off, by hand** (below). Then boot normally and check `csrutil status` prints `disabled`.
 9. **Grant Screen Recording.** Run `spectre permissions check` once in the guest's console session so Spectre unpacks its capture helper (`sudo launchctl asuser $(id -u) sudo -u lume spectre permissions check`; it prints `Screen Recording: DENIED`, and `spectre --help` unpacks nothing), then `ssh -i KEY lume@ADDRESS 'zsh /tmp/app-qa-vm/grant-screen-capture.sh'`. It writes two `kTCCServiceScreenCapture` rows with their code requirements: Spectre's capture helper and `sshd-keygen-wrapper`. TCC attributes a capture started over SSH to `sshd-keygen-wrapper`, so the helper's row alone is not enough. `ssh ... 'spectre permissions check'` then prints `Screen Recording: granted`.
 10. **Check the guest's console session**: the guest must show its desktop, not the login window or a Setup Assistant "MiniBuddy" window. Killing that window logs the session out and the VM then stays on the login window; `lume stop` and `lume run` bring autologin back, so leave the window alone and let provisioning's Setup Assistant settings prevent it.
-11. **Remove build leftovers**: `ssh ... 'rm -rf /tmp/app-qa-vm /tmp/ios-runtime.dmg ~/.vnc.env'`. A boot with VNC on makes lume write `~/.vnc.env` (port and VNC password) into the guest over SSH, so the SIP step leaves one. Put no repository, credentials file or token into the VM. Then shut the guest down cleanly (`ssh ... 'sudo shutdown -h now'`) and wait until `lume ls` shows it stopped.
-12. **Clone to the golden name**: `lume clone app-qa-build app-qa-golden`. Keep `app-qa-build` for the next image update, or delete it.
-13. **Write the lane file** `~/.omp/agent/app-qa-vm.json`:
+11. **Pin the host key**, while `app-qa-build` still runs and before any credential has entered a guest. Every clone of the image presents this key, and the driver accepts no other:
+   ```
+   ssh-keyscan -t ed25519 ADDRESS 2>/dev/null | awk '{print "app-qa-golden", $2, $3}' > ~/.omp/agent/app-qa-vm_known_hosts
+   ssh -i KEY -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.omp/agent/app-qa-vm_known_hosts -o HostKeyAlias=app-qa-golden lume@ADDRESS true
+   ```
+   The first field is the golden image's name, the lane file's `image`: the driver looks the key up under that name (`HostKeyAlias`), since clone addresses change. The scan trusts the key the build VM presents now, on this Mac's NAT network, at a time no guest holds a credential.
+12. **Remove build leftovers**: `ssh ... 'rm -rf /tmp/app-qa-vm /tmp/ios-runtime.dmg ~/.vnc.env'`. A boot with VNC on makes lume write `~/.vnc.env` (port and VNC password) into the guest over SSH, so the SIP step leaves one. Put no repository, credentials file or token into the VM. Then shut the guest down cleanly (`ssh ... 'sudo shutdown -h now'`) and wait until `lume ls` shows it stopped.
+13. **Clone to the golden name**: `lume clone app-qa-build app-qa-golden`. Keep `app-qa-build` for the next image update, or delete it.
+14. **Write the lane file** `~/.omp/agent/app-qa-vm.json`:
    ```
    {
      "schema": "app-qa-vm/1",
      "image": "app-qa-golden",
      "user": "lume",
      "sshKey": "/Users/YOU/.omp/agent/app-qa-vm_ed25519",
+     "knownHosts": "/Users/YOU/.omp/agent/app-qa-vm_known_hosts",
      "slots": 2,
      "idleMinutes": 30,
      "ios": { "deviceType": "iPhone 17 Pro" }
@@ -73,7 +80,7 @@ The step is manual because it depends on Recovery's screen geometry.
 - **SIP is off** in the golden image and every clone. A clone is a test box: use dev accounts only, never a real account.
 - **Every SSH session may record the guest's screen.** `sshd-keygen-wrapper` holds Screen Recording, so anything running in the guest can capture it.
 - **NAT only.** The guest has an address in 192.168.64.x, reachable from this Mac only. Never bridge it.
-- **Key-only SSH.** Password login is off. The login password stays the unattended preset's, because autologin needs it; SSH never accepts it.
+- **Key-only SSH, pinned host key.** Password login is off. The login password stays the unattended preset's, because autologin needs it; SSH never accepts it. The driver authenticates every guest by the host key pinned in step 11 and sends nothing to a server presenting another one (`vm up` exits 2 naming the pin).
 - **VNC off.** Boot with `--vnc disabled`. Only the SIP step enables VNC, briefly and on a throwaway password.
 - **Credentials live only in leased clones**, copied at `vm up` and deleted with the clone at `vm down`. The golden image never holds one; do not copy a credentials file or a repository into `app-qa-build`.
 
@@ -92,4 +99,4 @@ The step is manual because it depends on Recovery's screen geometry.
 
 ## Updating the image
 
-Boot `app-qa-build` again (`lume run app-qa-build --detach --display none --vnc disabled`), change it, check steps 7 and 10, stop it, then `lume delete app-qa-golden` and `lume clone app-qa-build app-qa-golden`. Do it with no lease held: a clone is a copy, so running leases keep the old image.
+Boot `app-qa-build` again (`lume run app-qa-build --detach --display none --vnc disabled`), change it, check steps 7 and 10, stop it, then `lume delete app-qa-golden` and `lume clone app-qa-build app-qa-golden`. Do it with no lease held: a clone is a copy, so running leases keep the old image. The clone keeps the build VM's host key, so the pin stays valid; an image built anew with `lume create` has a new key and needs step 11 again.

@@ -652,6 +652,8 @@ function background() {
 }
 
 const LANE_DEFAULTS = { schema: 'app-qa-vm/1', image: 'app-qa-golden', user: 'lume', slots: 2, idleMinutes: 30, ios: { deviceType: 'iPhone 17 Pro' } };
+/** The host key the fake guest presents by default (the fake ssh's default too). */
+const GUEST_HOST_KEY = 'ssh-ed25519 AAAAfakeguestkey';
 
 function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = [] } = {}) {
   const make = (root) => {
@@ -744,9 +746,12 @@ function laneLayout({ backend = true, lane = {}, noLane = false, extraFakes = []
   L.laneFile = join(L.home, '.omp', 'agent', 'app-qa-vm.json');
   L.sshKey = join(L.root, 'id_test');
   writeFileSync(L.sshKey, 'test key\n');
+  // The fake guest presents GUEST_HOST_KEY (ssh-state `hostKey` overrides it); the lane pins it under the image name.
+  L.knownHosts = join(L.root, 'known_hosts');
+  writeFileSync(L.knownHosts, `${LANE_DEFAULTS.image} ${GUEST_HOST_KEY}\n`);
   L.writeLane = (patch = {}, raw) => {
     mkdirSync(dirname(L.laneFile), { recursive: true });
-    writeFileSync(L.laneFile, raw ?? JSON.stringify({ ...LANE_DEFAULTS, sshKey: L.sshKey, ...lane, ...patch }, null, 2));
+    writeFileSync(L.laneFile, raw ?? JSON.stringify({ ...validLane(L), ...lane, ...patch }, null, 2));
   };
   if (!noLane) L.writeLane();
   // leases
@@ -915,17 +920,20 @@ test('lane: without a vm section every command runs on the host', async () => {
   assert.match(up.stderr, /vm: .*no vm section|no vm section/);
 });
 
+/** A valid lane file of layout `L`. */
+const validLane = (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, knownHosts: L.knownHosts });
 /** Invalid lane files, each with the cause its refusal must name. */
 const BROKEN_LANES = [
-  ['a misspelled key', (L) => ({ ...LANE_DEFAULTS, sshkey: L.sshKey }), /sshkey: unknown key/],
-  ['a missing image', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, image: undefined }), /image: missing/],
-  ['slots 3', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, slots: 3 }), /slots: expected 1 or 2/],
-  ['another schema id', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, schema: 'app-qa-vm/2' }), /schema "?app-qa-vm\/2"?.*app-qa-vm\/1/],
-  ['an image named like a slot clone', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, image: 'app-qa-slot-golden' }), /image: .*app-qa-slot-/],
-  ['a relative ssh key', () => ({ ...LANE_DEFAULTS, sshKey: 'id_test' }), /sshKey: expected an absolute path/],
-  ['idleMinutes 0', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, idleMinutes: 0 }), /idleMinutes: expected a positive integer/],
-  ['a missing ios section', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, ios: undefined }), /ios: missing/],
-  ['an empty device type', (L) => ({ ...LANE_DEFAULTS, sshKey: L.sshKey, ios: { deviceType: '' } }), /ios\.deviceType: expected a non-empty string/],
+  ['a misspelled key', (L) => ({ ...LANE_DEFAULTS, sshkey: L.sshKey, knownHosts: L.knownHosts }), /sshkey: unknown key/],
+  ['a missing image', (L) => ({ ...validLane(L), image: undefined }), /image: missing/],
+  ['slots 3', (L) => ({ ...validLane(L), slots: 3 }), /slots: expected 1 or 2/],
+  ['another schema id', (L) => ({ ...validLane(L), schema: 'app-qa-vm/2' }), /schema "?app-qa-vm\/2"?.*app-qa-vm\/1/],
+  ['an image named like a slot clone', (L) => ({ ...validLane(L), image: 'app-qa-slot-golden' }), /image: .*app-qa-slot-/],
+  ['a relative ssh key', (L) => ({ ...validLane(L), sshKey: 'id_test' }), /sshKey: expected an absolute path/],
+  ['no pinned host key', (L) => ({ ...validLane(L), knownHosts: undefined }), /knownHosts: missing/],
+  ['idleMinutes 0', (L) => ({ ...validLane(L), idleMinutes: 0 }), /idleMinutes: expected a positive integer/],
+  ['a missing ios section', (L) => ({ ...validLane(L), ios: undefined }), /ios: missing/],
+  ['an empty device type', (L) => ({ ...validLane(L), ios: { deviceType: '' } }), /ios\.deviceType: expected a non-empty string/],
 ];
 
 test('lane: an invalid lane file exits 2 naming the file and the cause before any host check or lume call', async () => {
@@ -954,7 +962,7 @@ test('lane: an invalid lane file exits 2 naming the file and the cause before an
 test('lane: the lane file path is fixed under HOME and the file may not be an environment override', async () => {
   const L = laneLayout({ noLane: true });
   const elsewhere = join(L.root, 'elsewhere.json');
-  writeFileSync(elsewhere, JSON.stringify({ ...LANE_DEFAULTS, sshKey: L.sshKey }));
+  writeFileSync(elsewhere, JSON.stringify(validLane(L)));
   const r = await L.up(['ios'], { env: { APP_QA_VM_FILE: elsewhere, APP_QA_VM: elsewhere } });
   assert.equal(r.status, 2);
   assert.ok(r.stderr.includes(L.laneFile), r.stderr);
@@ -1787,6 +1795,21 @@ test('stage: credentials - no credential value reaches an argument vector of the
   assert.deepEqual(leaks(logs, [USER1, PW1, USER2, PW2]), []);
   assert.ok(L.calls('ssh').some((c) => c.argv.join(' ').includes('umask 077')), 'the credentials upload sets umask 077');
   assert.deepEqual(leaks(outputOf(r), [USER1, PW1, USER2, PW2]), []);
+});
+
+test('stage: hostkey - a guest presenting a host key other than the pinned one gets no input: vm up exits 2 naming the pin, the guest holds no credentials and the lease stages no target; the pinned key stages', async () => {
+  const L = laneLayout();
+  L.setSsh({ hostKey: 'ssh-ed25519 AAAAimpostorkey' });
+  const refused = await L.up(['ios']);
+  assert.equal(refused.status, 2, outputOf(refused));
+  assert.match(outputOf(refused), /does not present the host key pinned for app-qa-golden in .*known_hosts; nothing was copied/);
+  assert.equal(existsSync(join(L.guestCopy, '.dev-credentials.env')), false, 'no credentials reached the impostor');
+  assert.deepEqual(L.gcalls(), [], 'the impostor ran no command');
+  assert.deepEqual([L.lease(1).state, L.lease(1).targets], ['ready', []], 'the failed start stages no target (D4)');
+  L.setSsh({ hostKey: GUEST_HOST_KEY });
+  const staged = await L.up(['ios']);
+  assert.equal(staged.status, 0, outputOf(staged));
+  assert.equal(existsSync(join(L.guestCopy, '.dev-credentials.env')), true);
 });
 
 test('stage: refresh - a rerun after a file change builds again and holds the new content in the same clone', async () => {

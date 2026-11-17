@@ -55,6 +55,7 @@ Alternative: route only when the host screen is locked. Rejected by the user: th
 - `image` (golden VM name; a name starting with `app-qa-slot-` is refused, because that namespace belongs to the lane's clones)
 - `user`
 - `sshKey` (absolute path)
+- `knownHosts` (absolute path): a known-hosts file holding the golden image's SSH host key under the image's name. Every clone carries the image's host key, and every ssh of the lane runs with `StrictHostKeyChecking=yes`, that file alone (`GlobalKnownHostsFile=/dev/null`) and `HostKeyAlias` set to the image name, since clone addresses change. A guest presenting another key gets no command and no input: `vm up` exits 2 naming the pin before anything is copied, and a routed command's ssh exits 255 like any lost connection. The key is pinned once, when the image is built and before any credential exists in a guest (`vm-image.md`).
 - `slots` (1 or 2)
 - `idleMinutes`
 - `ios.deviceType` (simulator device type name)
@@ -160,6 +161,7 @@ A failure in steps 4 to 8 applies the failure transition too, so the lease never
 | guest output folders (flow roots, captures, kept roots) | may hold values: a capture's JSON is copied unswept by `desktop capture` (`qa.mjs:759-773`) | sanitized inside the guest by `vm pack` before any byte leaves the clone (D7) |
 | return archive and its extraction | sanitized files only | in the slot's private `return-PID/` folder (0700); swept again on the host, then copied to the destination and deleted; a leftover of a dead pid is deleted by the next sweep and removed with the slot |
 | SSH private key (lane file `sshKey`) | the lane's key, not a dev credential | user-owned file on the host, passed to `ssh` by path (`-i`), never read or copied by the driver; the guest holds only its public key |
+| SSH host key pin (lane file `knownHosts`) | the golden image's public host key | user-owned file on the host, read by `ssh` only; the guest's identity check before the credentials upload of step 6.4 and every other ssh |
 | `ssh`, `lume` and build process stderr | may hold values | relayed through the host redaction, never stored |
 | lease record, slot `stage/` folder, host return folders | paths, pids, artifacts, returned evidence | never a value; the sentinel test scans them |
 

@@ -145,6 +145,17 @@ The lane SHALL delete, stop or run only VMs named as its slot clones, and never 
 - **WHEN** the build exits non-zero, or exits 0 without the configured artifact, on a worktree without a lease or on one whose lease staged an earlier build
 - **THEN** a slot left held or a VM booted for a worktree without a lease, or a later routed command reaching the older artifact, MUST fail this requirement
 
+### Requirement: The lane sends nothing to a guest it has not authenticated
+Every SSH connection of the lane SHALL authenticate the guest by the host key the lane file's `knownHosts` pins under the image's name, and SHALL consult no other known-hosts file. A server presenting another key SHALL receive no command and no input; `vm up` SHALL then exit 2 naming the pinned file before anything is copied.
+
+#### Scenario: Pinned key
+- **WHEN** the clone presents the image's host key that `knownHosts` pins
+- **THEN** `vm up ios` stages as before and routed commands run in the guest
+
+#### Scenario: Negative control
+- **WHEN** the server at the clone's address presents a host key other than the pinned one
+- **THEN** a credentials file, a routed command or any other input reaching that server, or a target staged, MUST fail this requirement
+
 ### Requirement: Staging stages exactly the checked artifact and stores no credential outside the clone
 The artifact `vm up` copies SHALL be the bytes it checked, including git-ignored build output, whatever happens to the worktree's artifact path meanwhile. Build output SHALL be redacted before it is kept or printed and SHALL NOT be written to disk. A configuration without a backend SHALL stage without a port forward.
 
