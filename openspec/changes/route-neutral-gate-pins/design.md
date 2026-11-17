@@ -34,9 +34,11 @@ The record validator already reduces model IDs to a name for independence: `bare
 
 Alternatives: (a) exact `provider/model` equality, today's rule, which is the defect; (b) vendor-level equality (`modelVendor`), too loose: it would accept `claude-opus-5-5` for a `claude-fable-5-2` pin; (c) catalog identity from `@oh-my-pi/pi-catalog` `classifyModel`, which knows aliases, but the review-work scripts run on Node builtins only and are installed without the workspace packages, and the two instruction-only checks cannot call it.
 
-### D2: One shared helper module for both scripts
+### D2: One shared helper module for the scripts and the instructions
 
 `bareModelName` moves from `validate-gate-record.mjs` into a new `scripts/model-name.mjs`; both validators import it. `validate-gate-record.mjs` already imports `validate-openspec-change.mjs`, so importing the other way would be circular, and a second copy would be a duplicate contract. The consultation check becomes `bareModelName(\`${turn.provider}/${turn.model}\`) === bareModelName(definitionModel)`; its error keeps the full `provider/model` that ran.
+
+The two instruction checks (plan review, F2 Phase 3) consume the same function instead of restating it: run as a script, `node ~/.omp/agent/skills/review-work/scripts/model-name.mjs <selector>...` prints `bareModelName` of each argument, one per line, and exits 2 without arguments. The instructions pipe the session file's `provider/model` list through it and compare the distinct names with its output for the pin. Both instructions already run the review-work scripts from the installed skill (`schema.yaml:357`, `SKILL.md:6`), so the installed copy is the one rule everywhere. The entry check reuses `validate-openspec-change.mjs`'s realpath comparison (`:869-870`), so a symlinked agent directory still runs it.
 
 ### D3: The pins keep their router prefix (user decision)
 

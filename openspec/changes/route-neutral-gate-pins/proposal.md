@@ -26,6 +26,6 @@ None.
 
 ## Impact
 
-- `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs` and its test; one shared model-name helper with `validate-gate-record.mjs`.
+- `team-config/agent/skills/review-work/scripts/validate-openspec-change.mjs` and its test; a new `scripts/model-name.mjs` (shared by both validators and run by the two instruction checks) with its test, added to `test:team-config` in `package.json`.
 - `team-config/agent/skills/review-work/openspec/schemas/omp-gated/schema.yaml` (review instruction), `team-config/agent/skills/review-work/SKILL.md` (Phase 3 model check), `team-config/README.md` (route-neutral checks, overrides for members without the router).
 - No change to agent definitions, `seed/config.yml` or `seed/models.yml`.
