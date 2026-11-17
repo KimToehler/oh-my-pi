@@ -1411,10 +1411,11 @@ function existsOrLink(path) {
 
 /**
  * Whether the command is one the lane serves: preflight, desktop and flow for ios and desktop, in a repository whose
- * configuration has a `vm` section and without `--host`. Android and scan always run on the host.
+ * own configuration (`repoConfig`, never a `--config` override) has a `vm` section, and without `--host`. Android and
+ * scan always run on the host.
  */
-function laneRoutes(command, args, ctx) {
-  if (!ctx.config.vm || args.flags.host) return false;
+function laneRoutes(command, args, repoConfig) {
+  if (!repoConfig?.vm || args.flags.host) return false;
   const [first] = args.positional;
   if (command === 'desktop') return true;
   if (command === 'preflight') return first === 'ios' || first === 'desktop';
@@ -2700,7 +2701,11 @@ async function main() {
   }
   // Every line after this point is redacted with the configured accounts' values: routing, the lane file and every command.
   loadRedaction(ctx);
-  if (laneRoutes(command, args, ctx)) {
+  // The repository's own configuration decides whether the lane is active, so a --config file without a vm section never
+  // takes a lane command to the host: the routed command refuses --config naming --host. A repository without a valid
+  // configuration of its own has no lane.
+  const repo = args.flags.config === undefined ? ctx : loadConfig({});
+  if (laneRoutes(command, args, repo.config)) {
     const lane = loadLane();
     if (lane.error) {
       complain(lane.error);

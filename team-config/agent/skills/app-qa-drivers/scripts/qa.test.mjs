@@ -2251,6 +2251,19 @@ test('route: config - --config exits 2 naming --host with no ssh call', async ()
   assert.deepEqual(busyLeft(L), []);
 });
 
+test('route: config-override - a --config file without vm in a lane repository exits 2 naming --host, with no host check and no ssh', async () => {
+  const L = laneLayout();
+  routedLease(L);
+  const alt = join(L.root, 'alt-qa.json');
+  writeFileSync(alt, JSON.stringify(CONFIGS.onara, null, 2) + '\n');
+  const before = L.calls().length;
+  const r = await runQa(L, ['preflight', 'ios', '--config', alt]);
+  assert.equal(r.status, 2, outputOf(r));
+  assert.match(outputOf(r), /--config.*--host/);
+  assert.equal(L.calls().length, before, JSON.stringify(L.calls().slice(before)));
+  assert.deepEqual(busyLeft(L), []);
+});
+
 test('route: credentials - --credentials exits 2 naming --host with no ssh call', async () => {
   const L = laneLayout();
   routedLease(L);

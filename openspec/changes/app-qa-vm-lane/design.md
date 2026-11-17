@@ -36,7 +36,7 @@ See proposal.md - Why. The facts this design builds on come from the feasibility
 Alternatives: run the whole agent session in the guest (needs omp, model credentials and team config in the guest, and the session no longer edits the host worktree); host-side remote primitives (reimplements Spectre and Maestro handling). Both rejected.
 
 ### D2. Activation and fail-closed routing
-The lane is active when the machine lane file exists and the repository configuration has `vm` (schema `app-qa/2`). The user decided on 2026-11-14: VM by default wherever set up.
+The lane is active when the machine lane file exists and the repository configuration has `vm` (schema `app-qa/2`). The repository configuration is `.omp/app-qa.json` at the root of the worktree even when `--config` names another file, so an override without `vm` cannot take a lane command to the host; the routed command refuses it (D7). The user decided on 2026-11-14: VM by default wherever set up.
 
 A routed command is admitted in one critical section of the table lock (D4): the worktree's lease record exists, is complete and readable, is in state `ready`, and lists the target as staged. In that same critical section it registers `busy/PID`. After the lock is released it checks that the clone runs (`lume ls --format json`) and, when the lease has a forward, that the forward pid lives and the guest accepts a connection on `127.0.0.1:P` (D5 step 7); a failed check removes the busy marker under the lock. A routed command exits 2 naming `vm up TARGET` in any of these cases:
 - no lease, or a lease record that is missing, partial or unreadable

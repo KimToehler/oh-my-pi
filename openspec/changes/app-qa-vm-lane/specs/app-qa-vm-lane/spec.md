@@ -7,7 +7,7 @@ Lets the shared app QA driver run a worktree's iOS simulator and Compose desktop
 ## ADDED Requirements
 
 ### Requirement: The lane is active only where the machine and the repository both configure it
-The lane SHALL be active when the machine lane file exists and the repository configuration has a `vm` section. A machine lane file that is unreadable, not JSON, of another schema id, holds an unknown key or lacks a required value SHALL stop every command that would use it with exit 2, naming the file and the cause. Without the file or the section every command SHALL behave as before this change.
+The lane SHALL be active when the machine lane file exists and the repository configuration (`.omp/app-qa.json` at the root of the worktree, whatever file `--config` names) has a `vm` section. A machine lane file that is unreadable, not JSON, of another schema id, holds an unknown key or lacks a required value SHALL stop every command that would use it with exit 2, naming the file and the cause. Without the file or the section every command SHALL behave as before this change.
 
 #### Scenario: Machine without a lane file
 - **WHEN** a repository configuration has a `vm` section and the machine has no lane file
@@ -56,8 +56,8 @@ A routed command SHALL run the guest driver in the guest copy's directory matchi
 - **THEN** the guest preflight checks the backend on P and passes while the host backend answers on P
 
 #### Scenario: Negative control
-- **WHEN** a routed command's text holds `$(id)` or `;`, a flow file outside the worktree is named, `--credentials` names a host file, or a routed preflight names a `--port` other than the forwarded one
-- **THEN** the text being split or evaluated by a guest shell, the guest driver running for the outside flow or the foreign credentials, a routed preflight checking any port but the forwarded one, or an exit 0 MUST fail this requirement
+- **WHEN** a routed command's text holds `$(id)` or `;`, a flow file outside the worktree is named, `--credentials` names a host file, `--config` names a file without a `vm` section, or a routed preflight names a `--port` other than the forwarded one
+- **THEN** the text being split or evaluated by a guest shell, the guest driver running for the outside flow or the foreign credentials, the command running on the host without `--host`, a routed preflight checking any port but the forwarded one, or an exit 0 MUST fail this requirement
 
 ### Requirement: Leases take one of a fixed number of host-wide slots, one lease per worktree
 `vm up` SHALL take one host-wide slot atomically, at most the lane file's slot count and never more than two, and record its owner process and state (starting, ready, closing) when it takes it. Lease lookup, slot taking, reclaim, sweep and teardown SHALL be serialised host-wide, so a worktree holds at most one lease. With every slot held, busy or used within the idle limit, `vm up` SHALL exit 2 naming each holder's worktree and last use. `vm up` SHALL reach a running clone over SSH even while `lume ls` reports it stopped without an address, taking the address from the DHCP lease of the clone's MAC address.
