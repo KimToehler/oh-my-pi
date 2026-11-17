@@ -4,6 +4,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildBundle, bundleDigest, FolderPlanError, snapshotFolder } from "./folder-plan.mjs";
+import { bareModelName } from "./model-name.mjs";
 import {
 	abortRuleDefects,
 	planContent,
@@ -614,9 +615,11 @@ async function consultationReport(sessionFile, changeDir) {
 		return { error: `the brief does not name the change directory ${path.resolve(changeDir)} (it names ${named.join(", ") || "none"})` };
 	const turns = messages.filter(message => message.role === "assistant");
 	if (turns.length === 0) return { error: "the session file has no assistant turn" };
+	// The pin names a model, not a route: the same model through another provider counts (design D1).
+	const pinned = bareModelName(contract.model);
 	for (const [index, turn] of turns.entries()) {
 		const ran = `${turn.provider}/${turn.model}`;
-		if (ran !== contract.model) return { error: `assistant turn ${index + 1} ran on ${ran}, expected ${contract.model} from ${ORACLE_DEFINITION}` };
+		if (bareModelName(ran) !== pinned) return { error: `assistant turn ${index + 1} ran on ${ran}, expected ${contract.model} from ${ORACLE_DEFINITION}` };
 	}
 	const last = turns
 		.flatMap(turn => (Array.isArray(turn.content) ? turn.content : []))

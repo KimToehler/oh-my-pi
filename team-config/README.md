@@ -49,6 +49,15 @@ skip-or-stop ask below. Open `risky` OpenSpec changes need a `consultation.md` b
 `--reviewed` passes again: re-run their review, which records the consultation, or a skip you
 approve, without a round unless an adopted finding edits the plan.
 
+The pin checks of the plan review, the architecture consultation and the F2 gate compare model names, not providers:
+`onara/cx/gpt-6.1-sol` and `openai-codex/gpt-6.1-sol` are the same model. The pins themselves name the router. A
+member without the router sets `task.agentModelOverrides` in `~/.omp/agent/config.yml` to their own provider with the
+pinned model and effort: `plan-reviewer: openai-codex/gpt-6.1-sol:high`, `blocker-verifier:
+openai-codex/gpt-6.1-sol:medium`, `auditor: openai-codex/gpt-6.1-sol:high` and `architecture-oracle:
+anthropic/claude-fable-5-2:high`. Prefer this provider-prefixed form: a bare override such as `gpt-6.1-sol:high`
+resolves to any authenticated provider carrying that exact id, API-key providers from the environment included, at
+that provider's price and without a configured fallback chain.
+
 ## What lands where
 
 | Repo path | Target | On every deploy |
@@ -251,8 +260,8 @@ change folder and a `pending` `consultation.md` naming the attempt, then dispatc
 item with a fixed brief: a read-only agent (`read, grep, glob`) pinned in its definition to
 `onara/cc/claude-fable-5-2:high`, a second model family next to the Sol reviewers, at about $4-8 per consultation at
 list price. An attempt counts only when `validate-openspec-change.mjs --consultation-report <session file> <change dir>`
-accepts its session file: the brief names this change, every turn ran on the definition's model (never on a
-`task.agentModelOverrides` entry), and the final `yield` delivered a report matching the agent's output schema. A failed
+accepts its session file: the brief names this change, every turn ran on the definition's model through any provider (an
+override naming another model never counts), and the final `yield` delivered a report matching the agent's output schema. A failed
 attempt gets one retry; after two, you choose between skipping with your reason and stopping. After a Stop you can ask
 the agent to consult again, for example once the model entry is fixed, which allows two more attempts. The counted report is
 copied into `consultation.md` by the report command, never retyped, and the planner marks every finding
