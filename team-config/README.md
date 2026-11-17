@@ -350,8 +350,12 @@ bunx --bun "@fission-ai/openspec@$v" init "$new" --tools oh-my-pi --profile core
 diff -r "$old/.omp/skills" "$new/.agents/skills"
 ```
 
-No upstream change has been ported since 1.15.0; name any you port here, so the next comparison starts from the
-right base. Hand-edit the command files only for the team additions and ported upstream changes.
+Ported from 2.1.0: `opsx-apply.md` step 3 shows the CLI's recovery `instruction` for missing artifacts, and
+`opsx-update.md` names the implementation tasks or code changes a revised plan calls for (step 6 and the first
+Guardrail). Not ported: update's `openspec archive` suggestion, which would skip the team step 5 of `opsx-archive.md`,
+and archive's inline merge for a missing sync skill, since `/opsx-sync` always deploys with it. Name any later port
+here, so the next comparison starts from the right base. Hand-edit the command files only for the team additions and
+ported upstream changes.
 
 ## Changing the team config
 
