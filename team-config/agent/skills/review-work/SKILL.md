@@ -373,7 +373,7 @@ A re-review after fixes is a new `task` call (never `write agent://<id>` to a re
 
 ## Phase 4: Deliver Verdict
 
-Gate passes only when QA matrix has no failing row and every invocation actually run returned `PASS`. The one other outcome that permits merge is an override: QA passed, every invocation returned `PASS` or `FAIL` with a stored trailer, the user agreed in this session, and the record names them in `override.by` and carries one `downgrades` entry per blocker of every FAIL trailer. An override is reported as overridden, never as PASS. Without that, one `FAIL` or `INCONCLUSIVE` blocks.
+Gate passes only when QA matrix has no failing row and every invocation actually run returned `PASS` from a dispatch that counted under the Phase 3 model check. The one other outcome that permits merge is an override: QA passed, every invocation returned `PASS` or `FAIL` with a stored trailer, the user agreed in this session, and the record names them in `override.by` and carries one `downgrades` entry per blocker of every FAIL trailer. An override is reported as overridden, never as PASS. Without that, one `FAIL` or `INCONCLUSIVE` blocks.
 
 Used as the final gate before a merge, a PR handoff, or a plan's completion, this skill is **blocking**. A timeout, ack-only reply, missing deliverable, explicit `BLOCKED:`, or `INCONCLUSIVE` lane is not a pass. Treat it as failed: investigate the underlying uncertainty with the `debugging` skill when runtime behaviour may be wrong, fix with evidence through Fix waves, and re-run the affected invocation before claiming completion or merging.
 

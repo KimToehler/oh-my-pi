@@ -581,7 +581,7 @@ artifacts:
          model here; read the pin from the configuration every time.
 
          A reviewer without a structured verdict (the task failed, its output does not parse, you
-         stopped it because it made no progress, or it ran on another model) gets one fresh retry
+         stopped it because it made no progress, or it ran on another model name) gets one fresh retry
          with the same brief, in a new task call; the other result stands. If the retry also has
          none, the round is incomplete and no verifier runs on it, because an all-refuted triage
          would turn a half-reviewed round into OKAY:
@@ -629,12 +629,13 @@ artifacts:
 
          The result counts only when it holds exactly one entry per index 1 to N and no duplicate
          or other index. Any other result, any task without a structured result, and any task
-         that ran on another model gets one fresh retry with the same brief. Never read a missing
+         that ran on another model name gets one fresh retry with the same brief. Never read a missing
          entry as a refutation. If the retry
          is also missing or incomplete, the round is not incomplete as in step 3: its reviewers
          delivered their verdicts and those verdicts reject. Rewrite the record committed before
-         the dispatch so every untriaged blocker carries `not triaged: the verifier failed twice`
-         instead, keeping Verdict REJECT and Awaiting `triage`, and commit it, so no earlier OKAY
+         the dispatch (step 7) so every untriaged blocker carries
+         `not triaged: the verifier failed twice` instead and `- **Models**:` adds both verifier
+         attempts, keeping Verdict REJECT and Awaiting `triage`, and commit it, so no earlier OKAY
          stays current and `--reviewed` fails. Then tell the user which triage failed and stop:
          dispatch nothing further, ask nothing and edit no artifact. A session resuming a record
          with Awaiting `triage` on the unchanged digest, whichever marker its findings carry,
@@ -746,8 +747,9 @@ artifacts:
          full round and once per delta check, never per reviewer item of one round and never for a
          retry; a resume continues the recorded round rather
          than opening a new one, so neither it nor a repeated triage dispatch changes the number),
-         `- **Models**:` with one entry per dispatch of this round, retries and attempts that
-         counted as having no result included, as `<subagent id> <provider/model>` with every
+         `- **Models**:` with one entry per dispatch of this round, retries, attempts that counted
+         as having no result and every entry of an earlier record of this round that this one
+         replaces included, as `<subagent id> <provider/model>` with every
          further model that dispatch ran on appended and `(no verdict)` after an attempt whose
          result did not count, and `- **Awaiting**:` naming what is open when you write it
          (`none`, `exception`, `exhaustion`, `incomplete`, `scope` or `triage`). Verdict is OKAY
