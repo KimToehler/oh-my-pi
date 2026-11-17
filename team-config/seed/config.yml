@@ -25,11 +25,13 @@ retry:
   fallbackOn: usage-limit
   fallbackChains:
     onara/cc/claude-opus-5-5:
-      - onara/cc/claude-opus-5
       - onara/cx/gpt-6.1-sol
     onara/cc/claude-sonnet-5-5:
-      - onara/cc/claude-sonnet-5
       - onara/cx/gpt-6.1-terra
+    onara/cc/claude-fable-5-2:
+      - onara/cc/claude-opus-5-5
+    onara/cc/claude-haiku-5-5:
+      - onara/cx/gpt-6-luna
     onara/cx/gpt-6.1-sol:
       - onara/cc/claude-opus-5
     onara/cx/gpt-6.1-terra:
@@ -143,11 +145,11 @@ compaction:
   thresholdPercent: 80
   # Token saving: every request resends the whole context, so a session that
   # grows to 800k on a 1M-window model pays for 800k input tokens per turn.
-  # A token base per provider makes the 80% policy scale min(window, 375k):
-  # every model compacts at min(80% of its window, 300k).
+  # A token base per provider makes the 80% policy scale min(window, 256k):
+  # every model compacts at min(80% of its window, ~205k).
   modelThresholds:
-    "onara/*": 375000
-    "onara-bifrost/*": 375000
+    "onara/*": 256000
+    "onara-bifrost/*": 256000
 extensionHandlers:
   toolCallTimeoutMs: 420000
 plan:
