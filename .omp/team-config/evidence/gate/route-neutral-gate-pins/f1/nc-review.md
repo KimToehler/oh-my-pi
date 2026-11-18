@@ -29,4 +29,6 @@ Listed six sentences. Disposition:
 
 ## Result
 
-The delivered plan-review instruction: none for all three controls. SKILL.md: one listed route, Fix waves step 5b-5e (the F2 fix-delta `plan-reviewer` dispatch has no model check, so `GC delta` records a verdict from a substituted model). That step is unchanged from `main`, lies outside the three controls' subject and outside this change's spec deltas; disposition pending the user's decision (see the report).
+The delivered plan-review instruction: none for all three controls. SKILL.md: one listed route, Fix waves step 5b-5e (the F2 fix-delta `plan-reviewer` dispatch has no model check, so `GC delta` records a verdict from a substituted model). That step is unchanged from `main` and no spec delta of this change covers it.
+
+Disposition (user decision, 2026-11-18): recorded as a follow-up in `team-config/README.md` `## Follow-ups`, not fixed in this change; the row is ticked with this one listed route carried as that follow-up.
