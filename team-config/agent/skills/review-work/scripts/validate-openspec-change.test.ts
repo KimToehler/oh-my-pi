@@ -1087,9 +1087,17 @@ The system SHALL export records in batches.
 			const file = await attempt(root, root, [{ yield: { id: "y1", data: JSON.stringify(ACCEPTED) } }]);
 			expect(run("--consultation-report", file, root)).toEqual({ exitCode: 0, stdout: `${JSON.stringify(ACCEPTED)}\n`, stderr: "" });
 		});
+		for (const route of ["onara/cc/claude-fable-5-2", "anthropic/claude-fable-5-2"]) {
+			it(`counts an attempt whose every turn ran on the pinned model through ${route}`, async () => {
+				const root = await changeFixture();
+				const file = await attempt(root, root, [{ model: route }, { model: route, yield: { id: "y1", data: ACCEPTED } }]);
+				expect(run("--consultation-report", file, root)).toEqual({ exitCode: 0, stdout: `${JSON.stringify(ACCEPTED)}\n`, stderr: "" });
+			});
+		}
 		for (const [name, turns, other, reason] of [
 			["a brief naming another change directory", [{ yield: { id: "y1", data: ACCEPTED } }], true, "change directory"],
-			["a turn on onara/cx/gpt-6.1-sol", [{ model: "onara/cx/gpt-6.1-sol" }, { yield: { id: "y1", data: ACCEPTED } }], false, "onara/cx/gpt-6.1-sol"],
+			["one turn on another model among pinned turns", [{}, { model: "onara/cc/claude-opus-5-5" }, { yield: { id: "y1", data: ACCEPTED } }], false, "assistant turn 2 ran on onara/cc/claude-opus-5-5"],
+			["every turn on another model through a direct provider", [{ model: "openai-codex/gpt-6.1-sol" }, { model: "openai-codex/gpt-6.1-sol", yield: { id: "y1", data: ACCEPTED } }], false, "ran on openai-codex/gpt-6.1-sol"],
 			["a refused final yield after an accepted one", [{ yield: { id: "y1", data: ACCEPTED } }, { yield: { id: "y2", data: ACCEPTED, result: "refused" } }], false, "refused"],
 			["a final yield without a tool result", [{ yield: { id: "y1", data: ACCEPTED, result: "none" } }], false, "no tool result"],
 			["a final yield carrying section labels", [{ yield: { id: "y1", type: ["findings"], data: ACCEPTED } }], false, "incremental section"],
@@ -1130,7 +1138,7 @@ The system SHALL export records in batches.
 		const home = await fs.mkdtemp(path.join(os.tmpdir(), "consultation-skill-"));
 		roots.push(home);
 		const scripts = path.join(home, "skills", "review-work", "scripts");
-		for (const name of ["validate-openspec-change.mjs", "folder-plan.mjs", "plan-contract.mjs"])
+		for (const name of ["validate-openspec-change.mjs", "folder-plan.mjs", "plan-contract.mjs", "model-name.mjs"])
 			await fs.cp(path.join(import.meta.dir, name), path.join(scripts, name));
 		const template = path.join(home, "skills", "review-work", "openspec", "schemas", "omp-gated", "templates", "consultation.md");
 		await fs.cp(CONSULTATION_TEMPLATE, template);

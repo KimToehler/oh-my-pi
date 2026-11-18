@@ -1,0 +1,191 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/route-neutral-gate-pins",
+  "plan_sha256": "d24ee77960afc199575cdab78a8f916a1766ef3519fd3b537179cd87eecbd277",
+  "reviewed_sha": "ee392ff25dc3f826a2c3bfe13badb5de4ef5e643",
+  "diff_base": "df937965e153c17e99d9cfb987ecb27288e58941",
+  "reviewers_run": [
+    "implementation-audit",
+    "strategic-risk-review"
+  ],
+  "decision_reason": "Depth risky from gate.md (the change alters when plan-review, consultation and F2 dispatches count); wave 1 QA passed with every scenario row carried from F1 and the team-config suite on the reviewed head, both auditor invocations PASS on onara/cx/gpt-6.1-sol at high.",
+  "mandatory_class": "none",
+  "implementation_models": [
+    "onara/cc/claude-opus-5-5"
+  ],
+  "qa": [
+    {
+      "name": "P1 Plan review: Credential fallback to the parent model",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-P1-plan-review-credential-fallback-to-the-parent-mo.md",
+      "artifact_sha256": "58e01d009107c59f73256d16b114ecdcee9e0e4126feaba658cc20530cf6adf0"
+    },
+    {
+      "name": "P2 Plan review: Retry chain switches a reviewer mid-run",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-P2-plan-review-retry-chain-switches-a-reviewer-mid-.md",
+      "artifact_sha256": "8bacd8c1a7601ba65e5129363bf12a66cc043297cec16e2818f8e66005e4d667"
+    },
+    {
+      "name": "P3 Plan review: Pinned model through another provider (bare override, direct; and onara pin with openai-codex turns, seeded)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-P3-plan-review-pinned-model-through-another-provide.md",
+      "artifact_sha256": "b4cdf7a624719a1a5cb20075f2df7c561efab00bdd055d6dfd7e415a029c62ad"
+    },
+    {
+      "name": "P4 Plan review: Substituted verifier",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-P4-plan-review-substituted-verifier.md",
+      "artifact_sha256": "bf2358964460467e6160a23df6663be8bd084e4522f6b5679ee672a902080d15"
+    },
+    {
+      "name": "P5 Plan review: Installation without the pin",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-P5-plan-review-installation-without-the-pin.md",
+      "artifact_sha256": "313203cc103341192a0c6ef2303d9316904035351ce3dfcaaef34fd74a36fdb2"
+    },
+    {
+      "name": "P6 Plan review: Negative control (instruction review)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-P6-plan-review-negative-control-instruction-review.md",
+      "artifact_sha256": "ff33b57049c6fcbc7e2e70c50627570a028aa983dc1145f178c313d95073b88f"
+    },
+    {
+      "name": "C1 Consultation: Installation without the model entry",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-C1-consultation-installation-without-the-model-entr.md",
+      "artifact_sha256": "a9c034addab723a0a4fb032823ce1b846903ce175c7710b32855a29a5c7b86a7"
+    },
+    {
+      "name": "C2 Consultation: Configured override",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-C2-consultation-configured-override.md",
+      "artifact_sha256": "ddd04d9575a3e7f8d3bd5f0a3408643e73183a30b3673d92d5662f9574705564"
+    },
+    {
+      "name": "C3 Consultation: Same model through another provider",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-C3-consultation-same-model-through-another-provider.md",
+      "artifact_sha256": "b0eca6187c36cd42abf34881134eebeb8becaa4aa23a538e694081ea094e3925"
+    },
+    {
+      "name": "C4 Consultation: User skips",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-C4-consultation-user-skips.md",
+      "artifact_sha256": "062f215b295a23da2abc433adb09829668098c2c44d009e261cd761d3a536cf9"
+    },
+    {
+      "name": "C5 Consultation: Negative control (report check code half and instruction half)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-C5-consultation-negative-control-report-check-code-.md",
+      "artifact_sha256": "184da1ce88d61e4ac0c09a6fadd60f1149d7d3e160ba5c937da49fd161b8dcb0"
+    },
+    {
+      "name": "A1 F2: Fallback model",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A1-f2-fallback-model.md",
+      "artifact_sha256": "b5fea157a6ff81fd6153c28e79cd1d8cdbcfa65ef75f720bf4ddf704b1216772"
+    },
+    {
+      "name": "A2 F2: Same model, lower effort",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A2-f2-same-model-lower-effort.md",
+      "artifact_sha256": "c801cedf18da7cf95abc9267f0fec76c4d61261c1c59a02e4d23d6951cc78532"
+    },
+    {
+      "name": "A3 F2: Same model through another provider",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A3-f2-same-model-through-another-provider.md",
+      "artifact_sha256": "9282a8dd486ad8219a20f17a1a9b556824150a1792fdcd0cb2bdc41e7c843cf7"
+    },
+    {
+      "name": "A4 F2: Trailer names another route",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A4-f2-trailer-names-another-route.md",
+      "artifact_sha256": "095319857c7a1fd1706750fad0031d085e669c6b921e67639ec0414b4fdd4abc"
+    },
+    {
+      "name": "A5 F2: Configuration overrides the pin",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A5-f2-configuration-overrides-the-pin.md",
+      "artifact_sha256": "6577411ce1049c09ef13d1760bdb601edd722f9579a40f8c072fba4c495b9f9a"
+    },
+    {
+      "name": "A6 F2: Retry also substituted",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A6-f2-retry-also-substituted.md",
+      "artifact_sha256": "da8c30fae4a8d1b18159cf58fe2b729efdd3e2ba3f6704a8cdcd71d2b0ba9df6"
+    },
+    {
+      "name": "A7 F2: Repair turn substituted",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A7-f2-repair-turn-substituted.md",
+      "artifact_sha256": "a86b7fcae8b10cca00e34088099a4eece47e17646d0faaf9c8a20b0c4cd35730"
+    },
+    {
+      "name": "A8 F2: Negative control (provider-only override dispatches, trailer route held to the session, instruction review)",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A8-f2-negative-control-provider-only-override-dispa.md",
+      "artifact_sha256": "fea338dfbf3d1cfda3acee89abd6b170eac68484117c783c8f710b5cc40e9065"
+    },
+    {
+      "name": "A9 F2 requirement 'all turns on one provider/model': mixed-route session refused",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-A9-f2-requirement-all-turns-on-one-provider-model-m.md",
+      "artifact_sha256": "5e9eba669ea28e8a59a1044b2fe031219908e8e9a7638112403d2e4e85d4a6e1"
+    },
+    {
+      "name": "M1 Minimum: happy path, a member without the router reaches all three reviews with overrides alone",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-M1-minimum-happy-path-a-member-without-the-router-r.md",
+      "artifact_sha256": "f16e8287b6c48b1f5bad83a6bd7f92b3f6c0b0dc4f7bddc37fcab46b1992eabc"
+    },
+    {
+      "name": "M2 Minimum: riskiest edge, one model through two providers in one session",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-M2-minimum-riskiest-edge-one-model-through-two-prov.md",
+      "artifact_sha256": "ddae9a830d6cc2a558fa6c98afd34e147047ff34096ee9ceff69ea1fe0ff42eb"
+    },
+    {
+      "name": "M3 Minimum: adjacent regression, router members unchanged and the team-config suite on the reviewed head",
+      "passed": true,
+      "artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/wave-1/qa-M3-minimum-adjacent-regression-router-members-unchanged.md",
+      "artifact_sha256": "2995e520e77bf0d8d8e259ae9a33d7116d6ec0fe2a1e3d625e08aeed37e4ddb2"
+    }
+  ],
+  "whole_diff": {
+    "run": false,
+    "reason": "whole-diff surface reviewed in F2"
+  },
+  "resolution": [
+    {
+      "invocation": "implementation-audit",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "agent": "auditor",
+      "model": "onara/cx/gpt-6.1-sol",
+      "independence": "cross-provider"
+    }
+  ],
+  "verdicts": [
+    {
+      "invocation": "implementation-audit",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/f2/trailer-implementation-audit.txt",
+      "trailer_sha256": "1bfd74e77b20229c6b6f248d57bda96042382d84581b1b2130f99a9d5dd8cf5c",
+      "note": "No blockers; N1 fix-delta model check carried as README follow-up"
+    },
+    {
+      "invocation": "strategic-risk-review",
+      "verdict": "PASS",
+      "trailer_artifact": ".omp/team-config/evidence/gate/route-neutral-gate-pins/f2/trailer-strategic-risk-review.txt",
+      "trailer_sha256": "810e7adc45bbfc822fa214d4a1c35e97ef164507cb95d984b50dc45619140c74",
+      "note": "No blockers; notes N1 migration-plan installer step, N2 fix-delta model check"
+    }
+  ],
+  "blockers": []
+}

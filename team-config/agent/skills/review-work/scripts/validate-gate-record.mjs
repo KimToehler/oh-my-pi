@@ -6,6 +6,7 @@ import path from "node:path"
 import { parseArgs } from "node:util"
 import { buildBundle, bundleDigest, FolderPlanError, snapshotFolder } from "./folder-plan.mjs"
 import { MAX_ARTIFACT_BYTES, RECORD_SCHEMA } from "./gate-layout.mjs"
+import { bareModelName } from "./model-name.mjs"
 import { abortRuleDefects, CRITERIA_HEADER_PATTERN, criteriaShapeDefect, mergeGateSection, planContent, readRiskTier, scanMarkdown, topLevelField } from "./plan-contract.mjs"
 import { checkTrailer, REQUIRED_SECTIONS, TrailerError, UNRESOLVED_MODEL } from "./trailer.mjs"
 import { validateOpenSpecFiles } from "./validate-openspec-change.mjs"
@@ -178,12 +179,6 @@ const MODEL_VENDORS = [
   [/^minimax-/i, "minimax"],
   [/^mimo-/, "xiaomi"],
 ]
-
-// `openrouter/anthropic/claude-opus-5:thinking` -> `claude-opus-5`. The variant suffix is a
-// reasoning-effort knob on one model, so keeping it would call two efforts different models.
-function bareModelName(modelID) {
-  return modelID.split("/").pop().split(":")[0].trim().toLowerCase()
-}
 
 function modelVendor(modelID) {
   const bare = bareModelName(modelID)

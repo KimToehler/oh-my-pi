@@ -49,6 +49,15 @@ skip-or-stop ask below. Open `risky` OpenSpec changes need a `consultation.md` b
 `--reviewed` passes again: re-run their review, which records the consultation, or a skip you
 approve, without a round unless an adopted finding edits the plan.
 
+The pin checks of the plan review, the architecture consultation and the F2 gate compare model names, not providers:
+`onara/cx/gpt-6.1-sol` and `openai-codex/gpt-6.1-sol` are the same model. The pins themselves name the router. A
+member without the router sets `task.agentModelOverrides` in `~/.omp/agent/config.yml` to their own provider with the
+pinned model and effort: `plan-reviewer: openai-codex/gpt-6.1-sol:high`, `blocker-verifier:
+openai-codex/gpt-6.1-sol:medium`, `auditor: openai-codex/gpt-6.1-sol:high` and `architecture-oracle:
+anthropic/claude-fable-5-2:high`. Prefer this provider-prefixed form: a bare override such as `gpt-6.1-sol:high`
+resolves to any authenticated provider carrying that exact id, API-key providers from the environment included, at
+that provider's price and without a configured fallback chain.
+
 ## What lands where
 
 | Repo path | Target | On every deploy |
@@ -251,8 +260,8 @@ change folder and a `pending` `consultation.md` naming the attempt, then dispatc
 item with a fixed brief: a read-only agent (`read, grep, glob`) pinned in its definition to
 `onara/cc/claude-fable-5-2:high`, a second model family next to the Sol reviewers, at about $4-8 per consultation at
 list price. An attempt counts only when `validate-openspec-change.mjs --consultation-report <session file> <change dir>`
-accepts its session file: the brief names this change, every turn ran on the definition's model (never on a
-`task.agentModelOverrides` entry), and the final `yield` delivered a report matching the agent's output schema. A failed
+accepts its session file: the brief names this change, every turn ran on the definition's model through any provider (an
+override naming another model never counts), and the final `yield` delivered a report matching the agent's output schema. A failed
 attempt gets one retry; after two, you choose between skipping with your reason and stopping. After a Stop you can ask
 the agent to consult again, for example once the model entry is fixed, which allows two more attempts. The counted report is
 copied into `consultation.md` by the report command, never retyped, and the planner marks every finding
@@ -414,3 +423,4 @@ The files under `agent/commands/opsx-*.md` are generated from OpenSpec 1.15.0 (M
 - Host builds a `vm up` starts are not owned by its lease: recovery ends a dead driver's surviving lume mutations but not its build, so a replacement `vm up` can be admitted while the old build still writes the artifact; extend the lease's process-lifetime ownership to builds. `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs:1431`. Source: `app-qa-vm-lane` `.omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/strategic-risk-review-trailer.md`, N2
 - `test:team-config` raises Bun's timeout for the whole suite, while the reported failures were the interruption tests' own 10 s marker wait; a deadline scoped to those tests would address load tolerance without hiding other hangs. `package.json:85`. Source: `app-qa-vm-lane` `.omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/strategic-risk-review-trailer.md`, N3
 - When a foreign VM exhausts the host's macOS guest capacity, `vm up` fails safely but reports an ssh start timeout, which looks like a network or image problem; a capacity check before the start would tell them apart. `team-config/agent/skills/app-qa-drivers/scripts/qa.mjs:2242`. Source: `app-qa-vm-lane` `.omp/team-config/evidence/gate/app-qa-vm-lane/wave-9/strategic-risk-review-trailer.md`, N4
+- The F2 fix-delta step dispatches a `plan-reviewer` with no model check, so `GC delta` records a verdict from a substituted model; give Fix waves step 5 the same check as Phase 3 and a seeded row for it. `team-config/agent/skills/review-work/SKILL.md:495`. Source: `route-neutral-gate-pins` `.omp/team-config/evidence/gate/route-neutral-gate-pins/f1/nc-review.md`

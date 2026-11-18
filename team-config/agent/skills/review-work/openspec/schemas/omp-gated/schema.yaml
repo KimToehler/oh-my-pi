@@ -560,22 +560,30 @@ artifacts:
          whole effort on your focus and work through it exhaustively, requirement by requirement
          and task by task.
 
-         After every reviewer or verifier dispatch, before you use its result, check what it ran
+         After every reviewer or verifier dispatch (`plan-reviewer` or `blocker-verifier`; the
+         architecture consultation is checked by step 2a's report check, never by this one),
+         before you use its result, check what it ran
          on. `read history://<subagent id>` prints the path of that dispatch's session file; take
          the distinct provider and model of its assistant turns from that file with
          `jq -r 'select(.type=="message" and .message.role=="assistant") | .message.provider + "/" + .message.model' <file> | sort -u`
-         and compare them, without a thinking-effort suffix, with the agent's pin: the entry for
-         that agent in `omp config get task.agentModelOverrides`, else the model named in its
-         definition under `$(omp config path)/agents/`. When neither source names a model, this
-         installation has no pin for that agent: write no review.md, tell the user to add
-         `task.agentModelOverrides.<agent>` to the agent configuration, and stop. A dispatch that
-         ran on any other model counts as a dispatch without a structured result, whatever it
-         returned: the runtime substitutes a pinned model silently on a credential or retry
-         fallback, and a verdict from the substitute is not the independent draw this budget
-         assumes. Name no model here; read the pin from the configuration every time.
+         and find the agent's pin: the entry for that agent in
+         `omp config get task.agentModelOverrides`, else the model named in its definition under
+         `$(omp config path)/agents/`. When neither source names a model, this installation has no
+         pin for that agent: write no review.md, tell the user to add
+         `task.agentModelOverrides.<agent>` to the agent configuration, and stop. Compare model
+         names, never routes: pipe that list into
+         `xargs node ~/.omp/agent/skills/review-work/scripts/model-name.mjs | sort -u`, run
+         `node ~/.omp/agent/skills/review-work/scripts/model-name.mjs <pin>`, and the dispatch ran
+         on its pin only when the first prints exactly one line, equal to the second's; the
+         provider takes no part. The pinned model reached through another provider counts, and
+         `- **Models**:` still records each full `provider/model`. A dispatch that ran on any
+         other model counts as a dispatch without a structured result, whatever it returned: the
+         runtime substitutes a pinned model silently on a credential or retry fallback, and a
+         verdict from the substitute is not the independent draw this budget assumes. Name no
+         model here; read the pin from the configuration every time.
 
          A reviewer without a structured verdict (the task failed, its output does not parse, you
-         stopped it because it made no progress, or it ran on another model) gets one fresh retry
+         stopped it because it made no progress, or it ran on another model name) gets one fresh retry
          with the same brief, in a new task call; the other result stands. If the retry also has
          none, the round is incomplete and no verifier runs on it, because an all-refuted triage
          would turn a half-reviewed round into OKAY:
@@ -623,12 +631,13 @@ artifacts:
 
          The result counts only when it holds exactly one entry per index 1 to N and no duplicate
          or other index. Any other result, any task without a structured result, and any task
-         that ran on another model gets one fresh retry with the same brief. Never read a missing
+         that ran on another model name gets one fresh retry with the same brief. Never read a missing
          entry as a refutation. If the retry
          is also missing or incomplete, the round is not incomplete as in step 3: its reviewers
          delivered their verdicts and those verdicts reject. Rewrite the record committed before
-         the dispatch so every untriaged blocker carries `not triaged: the verifier failed twice`
-         instead, keeping Verdict REJECT and Awaiting `triage`, and commit it, so no earlier OKAY
+         the dispatch (step 7) so every untriaged blocker carries
+         `not triaged: the verifier failed twice` instead and `- **Models**:` adds both verifier
+         attempts, keeping Verdict REJECT and Awaiting `triage`, and commit it, so no earlier OKAY
          stays current and `--reviewed` fails. Then tell the user which triage failed and stop:
          dispatch nothing further, ask nothing and edit no artifact. A session resuming a record
          with Awaiting `triage` on the unchanged digest, whichever marker its findings carry,
@@ -692,8 +701,8 @@ artifacts:
              `V <change-dir>` and `V --digest <change-dir>` again — the fixes changed the folder,
              so the delta check's record carries this new digest, not the round's — and dispatch
              one fresh plan-reviewer item with the delta brief below, after step 3's admission.
-             The delta reviewer follows step 3's retry and incomplete-round rule, and its findings
-             go through step 4 and this step like a round.
+             The delta reviewer follows step 3's model check, retry and incomplete-round rule,
+             and its findings go through step 4 and this step like a round.
           - After an exhaustion Fix, or a Fix answer to an exception or scope ask on a spent
             budget, the successor is that one more delta check, whatever the depth: the budget is
             already spent and only the user's answer extended it. Each such answer extends it
@@ -740,8 +749,9 @@ artifacts:
          full round and once per delta check, never per reviewer item of one round and never for a
          retry; a resume continues the recorded round rather
          than opening a new one, so neither it nor a repeated triage dispatch changes the number),
-         `- **Models**:` with one entry per dispatch of this round, retries and attempts that
-         counted as having no result included, as `<subagent id> <provider/model>` with every
+         `- **Models**:` with one entry per dispatch of this round, retries, attempts that counted
+         as having no result and every entry of an earlier record of this round that this one
+         replaces included, as `<subagent id> <provider/model>` with every
          further model that dispatch ran on appended and `(no verdict)` after an attempt whose
          result did not count, and `- **Awaiting**:` naming what is open when you write it
          (`none`, `exception`, `exhaustion`, `incomplete`, `scope` or `triage`). Verdict is OKAY
@@ -753,7 +763,7 @@ artifacts:
          `not triaged: the round is incomplete` when Awaiting is `incomplete`.
          `## Residuals`: every other finding with the verifier's result and reason.
          Override is `none` until the user gives one. Rewrite the record on the same digest when
-         an exception answer changes it.
+         an exception answer changes it, keeping every `- **Models**:` entry it had.
       8. Run `V --reviewed <change-dir>`. After a REJECT it fails; that is what keeps apply
          blocked while an ask is open or the user stopped.
 
