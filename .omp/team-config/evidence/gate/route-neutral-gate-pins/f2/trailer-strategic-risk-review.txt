@@ -1,0 +1,61 @@
+No new blocking defect substantiated.
+
+## 1. Architecture and cross-module seams
+
+The approach holds together:
+
+- `scripts/model-name.mjs:10-12` owns normalization. Both validators import it; the two instruction-driven checks invoke the same implementation. This avoids three subtly different definitions of model identity.
+- `validate-openspec-change.mjs:618-623` changes only the consultation’s model comparison. Its definition-derived pin, all-turn inspection, final-yield acceptance and report-schema checks remain intact.
+- `schema.yaml:563-588` preserves override-first pin selection for plan reviewers and verifiers, while explicitly excluding the consultation from that rule.
+- `SKILL.md:348-356` separates **eligibility** from **provenance**: model-name equality permits another provider, but F2 still requires one exact session route, pinned effort and a trailer naming that route.
+- Extracting `bareModelName` leaves the gate-record validator’s independence calculation unchanged. Keeping the configured pins unchanged also avoids an implicit billing or routing migration.
+
+The important trust seam remains the orchestrator: the record validator checks stored artifacts, not whether the orchestrator actually performed the session inspection. This is an acknowledged architectural boundary, not a newly introduced bypass.
+
+## 2. Consistency, duplication and simplification
+
+The shared helper is proportionate; a catalog dependency or broader identity abstraction would add complexity without serving the specified contract.
+
+**Note N1 — Make the rollout’s second installation boundary explicit.**  
+`design.md`’s Migration Plan mentions deployment and restarting sessions, but existing projects consume a copied schema. `install-openspec-workflow.mjs:134-143` replaces that project copy; deployment alone does not. The existing README already instructs users to run this installer after deployment (`team-config/README.md:147-157`). Referencing that step directly in the change’s Migration Plan would prevent “new validator, old review instruction” installations. **Non-blocking:** the established update instructions already cover it.
+
+**Note N2 — The F2 fix-delta review remains outside model enforcement.**  
+`SKILL.md:495-498` dispatches a `plan-reviewer` and records its structured verdict without checking its session’s model. This leaves a route for a substituted model to approve a fix delta. **Non-blocking for this diff:** the behavior is unchanged, documented in the new README follow-up, and explicitly distinguished from the changed OpenSpec delta-review check.
+
+## 3. Highest-consequence failure mode
+
+The most damaging plausible failure is a falsely counted review: a substituted model, lower-effort run, or misleading trailer supplies an apparently valid gate verdict.
+
+For the changed paths, the safeguards are coherent:
+
+- Consultation checks every assistant turn against the definition’s normalized model name.
+- Plan-review substitutions take the existing missing-result retry path.
+- F2 preserves the effort check and rejects mixed-route sessions even when both routes normalize to the same name.
+- Trailer repair repeats the whole-session model check; a substituted repair answer cannot become the accepted trailer.
+- Non-counting attempts retain separate, dispatch-specific evidence filenames.
+
+The direct-audit capture demonstrates a counted direct-provider dispatch and validating record. The mixed-route capture demonstrates refusal followed by a counting single-route retry. Those captures support the intended distinction rather than merely asserting prompt wording.
+
+## 4. What line-level review could miss
+
+- **Deployment topology:** validators, the installed skill and project-local schemas update through different mechanisms.
+- **Proof strength:** the seeded rows exercise delivered instructions against fixed session files; they do not demonstrate a live retry-chain transition. They provide useful decision-path evidence, but should not be described as live fallback execution.
+- **Identity is a naming contract:** equal normalized names do not independently prove equal weights. That residual is explicitly accepted; retaining full routes preserves attribution.
+- **Coverage asymmetry:** the supplied matrix does not show a positive direct-provider `blocker-verifier` triage run. Its shared check and substituted-verifier coverage reduce uncertainty, but that particular live outcome remains unobserved.
+
+Reviewed the supplied complete non-evidence diff, plan/spec deltas and QA matrix, plus the consultation validator boundary, workflow installer/update instructions, setup capture, direct-audit capture, mixed-route capture and negative-control review. No commands, tests, network requests or modifications were performed.
+
+REVIEW-TRAILER-v1
+invocation: strategic-risk-review
+sections_covered: 1,2,3,4
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Importing the normalizer as a validator dependency must not execute its standalone CLI or contaminate validator output.
+  positive_witness: A valid consultation emits only its accepted JSON report while standalone normalizer execution emits model names.
+  negative_control: Importing the helper prints normalized validator arguments or terminates the validator through the helper's CLI path.
+  observable: Validator exit status and exact stdout distinguish the report protocol from standalone normalizer output.
+  boundary: Node ESM entrypoint detection and validator CLI output.
+END-REVIEW-TRAILER

@@ -1,0 +1,65 @@
+## 1. Goal and behavioural contract
+
+The implementation satisfies the route-neutral pin contract without changing default routes:
+
+- Consultation checks compare every assistant turn against the definition’s model name, not a configured override.
+- Plan-review instructions use the shared normalizer while retaining full routes in `Models`.
+- F2 retains the definition-sourced model and effort pin, permits provider-only overrides, requires one session route, and binds the trailer’s `model_id` exactly to that route.
+- Agent definitions and seed configuration are unchanged in the supplied diff.
+
+Reviewed the complete supplied diff and the immutable plan bundle, including design decisions D1–D5.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No substantiated blocker found.
+
+The shared helper preserves the previous normalization implementation unchanged. Both validators import it, avoiding a second definition or circular dependency. The consultation fixture copier includes the new dependency, and installation recursively includes source files.
+
+Cross-module boundaries remain consistent:
+
+- `validate-openspec-change.mjs:619-622` normalizes both the definition pin and each assistant turn; refusal messages retain the actual full route.
+- `schema.yaml:563-587` applies the instruction check specifically to reviewers and verifiers, leaving consultation admission to its report validator.
+- `SKILL.md:348-356` preserves effort enforcement, exact trailer/session binding, bounded retries, and separate evidence for substituted repair answers.
+- `validate-gate-record.mjs:447-448` still compares trailer and resolved model exactly; normalization does not leak into that wire contract.
+
+**Note N1 — PRE-EXISTING / OUT-OF-SCOPE:** `SKILL.md:495-498` accepts an F2 fix-delta reviewer’s structured verdict without a session-model check. This remains a genuine gap, corroborated by `f1/nc-review.md`, but does not block this change: the affected path is unchanged, the change does not introduce or newly expose it, and the user explicitly retained it as a README follow-up.
+
+## 3. Security and privacy delta
+
+No security delta identified. The changed implementation does not handle credential values, alter authentication or authorization, or introduce third-party personal-data processing.
+
+Route-neutral acceptance deliberately trusts model names across providers. Provider identity remains visible in records; differing weights behind identical names remain an explicitly accepted residual risk.
+
+## 4. Verification adequacy
+
+The changed automated tests exercise real Node CLI execution, not module mocks or prompt-prose assertions:
+
+- Symlinked helper execution, normalization, and empty-argument rejection.
+- Consultation acceptance through router and direct routes.
+- Rejection of an intermediate substituted model and an entirely wrong-model session.
+- Preservation of terminal-yield and report-validation checks.
+
+Inspected F1 setup, direct consultation and F2 audit captures, validator output, substituted-repair evidence, instruction-review evidence, and the retained mixed-route fixture. These support the relevant integration boundaries. Carry explanations distinguish later instruction changes from unaffected earlier observations.
+
+The reviewed-head M3 artifact records **996 passing tests, zero failures**, exit 0. I did not execute checks. Pre-fix automated RED output was not independently established from the artifacts inspected; current acceptance and rejection behavior is supported by the supplied tests and captures.
+
+Independent adversarial criterion: importing the new normalization module must not execute its CLI or contaminate a consuming validator’s stdout. The entry-point guard supports this, and the real CLI tests require exact JSON or status output.
+
+## 5. Final verdict
+
+No blockers substantiated. This assessment covers the supplied implementation and verification evidence, not approval of a subsequently assembled gate record.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: onara/cx/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Importing the normalization module must be silent and must not execute its standalone argument-processing entry point.
+  positive_witness: A validator importing the helper emits only its accepted report JSON or its documented status line.
+  negative_control: An unconditional helper main call prints normalized validator arguments or exits with usage before validation; this MUST fail.
+  observable: Exact stdout and exit-code assertions in the real consultation CLI tests, together with the captured successful gate-validator output; no checks were rerun by this reviewer.
+  boundary: Node ES-module import versus standalone script execution.
+END-REVIEW-TRAILER
