@@ -560,7 +560,9 @@ artifacts:
          whole effort on your focus and work through it exhaustively, requirement by requirement
          and task by task.
 
-         After every reviewer or verifier dispatch, before you use its result, check what it ran
+         After every reviewer or verifier dispatch (`plan-reviewer` or `blocker-verifier`; the
+         architecture consultation is checked by step 2a's report check, never by this one),
+         before you use its result, check what it ran
          on. `read history://<subagent id>` prints the path of that dispatch's session file; take
          the distinct provider and model of its assistant turns from that file with
          `jq -r 'select(.type=="message" and .message.role=="assistant") | .message.provider + "/" + .message.model' <file> | sort -u`
@@ -699,8 +701,8 @@ artifacts:
              `V <change-dir>` and `V --digest <change-dir>` again — the fixes changed the folder,
              so the delta check's record carries this new digest, not the round's — and dispatch
              one fresh plan-reviewer item with the delta brief below, after step 3's admission.
-             The delta reviewer follows step 3's retry and incomplete-round rule, and its findings
-             go through step 4 and this step like a round.
+             The delta reviewer follows step 3's model check, retry and incomplete-round rule,
+             and its findings go through step 4 and this step like a round.
           - After an exhaustion Fix, or a Fix answer to an exception or scope ask on a spent
             budget, the successor is that one more delta check, whatever the depth: the budget is
             already spent and only the user's answer extended it. Each such answer extends it
@@ -761,7 +763,7 @@ artifacts:
          `not triaged: the round is incomplete` when Awaiting is `incomplete`.
          `## Residuals`: every other finding with the verifier's result and reason.
          Override is `none` until the user gives one. Rewrite the record on the same digest when
-         an exception answer changes it.
+         an exception answer changes it, keeping every `- **Models**:` entry it had.
       8. Run `V --reviewed <change-dir>`. After a REJECT it fails; that is what keeps apply
          blocked while an ask is open or the user stopped.
 

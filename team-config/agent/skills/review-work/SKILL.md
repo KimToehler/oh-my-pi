@@ -12,7 +12,7 @@ omp rules for this skill:
 - Dispatch with the `task` tool; one item per reviewer (`agent: "auditor"`). Several items in one `tasks[]` run in parallel. Never use generic `task` workers as reviewers, and never `oracle`.
 - `auditor` has no shell. Put the diff, changed-file list, and QA matrix into the brief itself.
 - Store each reviewer's trailer verbatim at a tracked path whose file name contains `trailer` (e.g. `.omp/team-config/evidence/<plan basename>/f2/trailer-implementation-audit.txt`; under `.omp/team-config/` only `evidence/gate/**` and `*trailer*` files below `evidence/` stay addable, the rest is git-ignored, which is why cited QA artifacts live below the record's evidence directory), compute `trailer_sha256` with `shasum -a 256`, never retype it.
-- `implementation_models`: the models that wrote the diff, from the session (main model and any `task` subagent's model badge), e.g. `onara/cc/claude-opus-5-5`, `onara/cc/claude-sonnet-5-5`. `model_id` comes from the reviewer's own trailer.
+- `implementation_models`: the models that wrote the diff, from the session (main model and any `task` subagent's model badge), e.g. `onara/cc/claude-opus-5-5`, `onara/cc/claude-sonnet-5-5`. `model_id` comes from the reviewer's own trailer, which Phase 3's model check holds to the route its session ran on.
 - Record path: `.omp/team-config/evidence/gate/<plan-basename>.json` or the repo's convention (`docs/evidence/<slug>/merge-gate.json` in onara). The record's evidence directory is the record path without `.json` (default `.omp/team-config/evidence/gate/<plan-basename>/`); QA captures go there. The record, every trailer and every cited QA artifact must be staged before validating.
 
 # Review Work - Gate Review Orchestrator
