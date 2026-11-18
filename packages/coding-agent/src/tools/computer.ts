@@ -12,6 +12,7 @@ import { type ComputerCallStep, isReadOnlyComputerCall, renderComputerCall } fro
 import {
 	type ComputerScreenshot,
 	type ComputerSessionSnapshot,
+	type RunErrorPayload,
 	screenStateNotice,
 	secureInputNotice,
 } from "./computer/protocol";
@@ -103,6 +104,7 @@ interface ComputerPreludeDetails {
 	code?: string;
 	readOnly?: boolean;
 	screenshots: ComputerScreenshot[];
+	error?: RunErrorPayload;
 	value?: unknown;
 	backend?: string;
 	capturePermission?: string;
@@ -243,6 +245,7 @@ function buildComputerSnapshot(session: ToolSession, readOnly: boolean): Compute
 	return {
 		cwd: session.cwd,
 		sessionId: session.getEvalSessionId?.() ?? session.getSessionId?.() ?? "computer",
+		agentId: session.getAgentId?.() ?? undefined,
 		captureMaxWidth: coordinateSafe
 			? Math.min(configuredMaxWidth, COORDINATE_SAFE_MAX_CAPTURE_WIDTH)
 			: configuredMaxWidth,
@@ -275,6 +278,7 @@ async function runComputer(
 		code,
 		readOnly: snapshot.readOnly,
 		screenshots: run.screenshots,
+		error: run.error,
 	};
 	if (run.returnValue !== undefined) details.value = run.returnValue;
 	populateCapabilityDetails(details, run.capabilities);
@@ -295,7 +299,8 @@ async function runComputer(
 	for (const image of run.displays) {
 		if (image.type === "image") content.push({ ...image, detail: "original" });
 	}
-	return { content, details };
+	if (run.error) content.push({ type: "text", text: `${run.error.name}: ${run.error.message}` });
+	return { content, details, ...(run.error ? { isError: true } : {}) };
 }
 
 function stringifyReturnValue(value: unknown): string {

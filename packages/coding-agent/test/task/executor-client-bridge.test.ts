@@ -249,7 +249,6 @@ describe("subagent bridge", () => {
 			id: "EvalChild",
 			agent: settled.policy.agent,
 			message: "Read the note now.",
-			structured: false,
 		});
 
 		expect(followUp.exitCode).toBe(0);

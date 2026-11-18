@@ -15,6 +15,38 @@
 - Removed `SPINNER_ADVANCE_MS`; spinners follow the shared spinner clock (`spinnerInterval()`). `sharedSpinnerFrame` moved from `chat/tool-execution` to `spinner-clock` and reads `Date.now()` by default ([#14240](https://github.com/can1357/oh-my-pi/pull/14240) by [@mccraigmccraig](https://github.com/mccraigmccraig))
 - Removed `formatMeta` (`render/render-utils`); no renderer joins header metadata through it anymore ([#18104](https://github.com/can1357/oh-my-pi/pull/18104) by [@JustasMasiulis](https://github.com/JustasMasiulis))
 - `TranscriptContainer.nativeBlocks()` and `Composer.describeSurface()` take the frame's `DescribeContext` ([#17997](https://github.com/can1357/oh-my-pi/pull/17997) by [@materemias](https://github.com/materemias))
+## [18.22.2] - 2026-11-18
+
+### Added
+
+- `ui.loop-blocked` log records now name what held the event loop (`cause`, `causeShare`, `top`), sampled by an always-on profiler; `PI_LOOP_SAMPLER=0` turns it off
+
+### Changed
+
+- On Windows, terminal output is written off the JS thread, so input and rendering stay responsive while the console drains a large repaint
+
+### Fixed
+
+- On Windows, omp no longer freezes when the terminal stops reading its output (a hung Windows Terminal, a paused ssh client); it keeps running and catches up once the terminal reads again
+
+## [18.22.1] - 2026-11-17
+
+### Added
+
+- Task tool and agent hub rows now use distinct, theme-aware colours for the main agent and subagents; themes can optionally customize the six subagent colours.
+- Added word wrapping for table columns and rows, preserving hard line breaks so long table content remains readable.
+
+### Changed
+
+- Improved terminal UI responsiveness and reduced CPU usage while streaming long responses, monitoring the event loop, and typing with macOS spell checking enabled.
+- Status account identities can now include an optional credential ID, allowing usage to be attributed to API-key accounts and cached usage to refresh when the credential changes.
+
+### Fixed
+
+- Images in Ask forms now render correctly in Kitty-protocol terminals, including Kitty, Ghostty, and herdr.
+- Fixed model mentions followed by punctuation so they become editable chips without consuming the punctuation.
+- Fixed /copy to copy the visible prose from mid-turn out:// replies, including replies sent by commands, instead of the tool's internal result text.
+
 ## [18.22.0] - 2026-11-16
 
 ### Breaking Changes

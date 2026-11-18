@@ -2411,7 +2411,6 @@ describe("cold revival replays the system prompt the last request sent", () => {
 				id: "prompt-blocks",
 				agent: followUpAgent,
 				message: "continue",
-				structured: false,
 			});
 
 		it("persisted revive: task resume of a parked subagent waits for a held relocation lease", async () => {
@@ -2539,7 +2538,6 @@ describe("cold revival replays the system prompt the last request sent", () => {
 				agent: followUpAgent,
 				message: "restore",
 				restore: true,
-				structured: false,
 			});
 			await restoreReturned.promise;
 			await flush();

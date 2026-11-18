@@ -821,3 +821,106 @@ describe("GoalHostController continuation gate", () => {
 		expect(admitted).toEqual(["goal-continuation"]);
 	});
 });
+
+describe("GoalHostController tool roster", () => {
+	test("a tool enabled during goal mode stays available after pause, resume and drop", async () => {
+		const makeGoal = (objective: string, status: "active" | "paused" = "active"): GoalModeState => ({
+			enabled: status === "active",
+			mode: "active",
+			goal: {
+				id: "g1",
+				objective,
+				status,
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+				createdAt: 0,
+				updatedAt: 0,
+			},
+		});
+
+		let goalState: GoalModeState | undefined;
+		let tools: string[] = ["read"];
+		const session = {
+			settings: Settings.isolated({ "goal.continuationModes": [] }),
+			sessionManager: {
+				getSessionId: () => "t1",
+				buildSessionContext: () => ({ mode: "none" }),
+				appendModeChange: () => {},
+				appendCustomEntry: () => {},
+			},
+			isDisposed: false,
+			isSessionTransitioning: false,
+			isStreaming: false,
+			hasAdmittedSubmission: false,
+			queuedMessageCount: 0,
+			getPlanModeState: () => undefined,
+			getGoalModeState: () => goalState,
+			setGoalModeState: (state: GoalModeState | undefined) => {
+				goalState = state;
+			},
+			getEnabledToolNames: () => [...tools],
+			setActiveToolsByName: async (names: string[]) => {
+				tools = [...names];
+			},
+			getTodoPhases: () => [],
+			promptCustomMessage: async () => true,
+			waitForIdle: async () => {},
+			goalRuntime: {
+				buildContinuationPrompt: () => "continue",
+				clearAccounting: () => {},
+				createGoal: async ({ objective }: { objective: string }) => {
+					goalState = makeGoal(objective);
+					return goalState;
+				},
+				resumeGoal: async () => {
+					if (goalState?.goal.status !== "paused") throw new Error("No paused goal.");
+					goalState = makeGoal(goalState.goal.objective);
+					return goalState;
+				},
+				pauseGoal: async () => {
+					if (!goalState) return undefined;
+					goalState = makeGoal(goalState.goal.objective, "paused");
+					return goalState;
+				},
+				dropGoal: async () => {
+					if (!goalState) return undefined;
+					const dropped = { ...goalState.goal, status: "dropped" as const };
+					const droppedState: GoalModeState = { ...goalState, enabled: false, goal: dropped };
+					// Mirror the runtime's goal_updated(dropped): observe() queues #exit,
+					// which handle("drop") then awaits before reporting state.
+					controller.observe({
+						type: "goal_updated",
+						goal: dropped,
+						state: droppedState,
+					} as unknown as AgentSessionEvent);
+					goalState = undefined;
+					return dropped;
+				},
+			},
+		};
+		const controller = new GoalHostController(session as unknown as GoalHostSession, { continuationMode: "rpc" });
+		const toolNames = (): string[] => [...tools];
+
+		expect(toolNames()).not.toContain("goaltest_late_tool");
+		await controller.handle({ op: "create", objective: "keep the late tool" });
+		expect(toolNames()).toContain("goal");
+		expect(toolNames()).not.toContain("goaltest_late_tool");
+
+		// A deferred extension enables its tool only after goal entry.
+		await session.setActiveToolsByName([...session.getEnabledToolNames(), "goaltest_late_tool"]);
+		expect(toolNames()).toContain("goaltest_late_tool");
+		expect(toolNames()).toContain("goal");
+
+		await controller.handle({ op: "pause" });
+		expect(toolNames()).toContain("goaltest_late_tool");
+		expect(toolNames()).not.toContain("goal");
+
+		await controller.handle({ op: "resume" });
+		expect(toolNames()).toContain("goaltest_late_tool");
+		expect(toolNames()).toContain("goal");
+
+		await controller.handle({ op: "drop" });
+		expect(toolNames()).toContain("goaltest_late_tool");
+		expect(toolNames()).not.toContain("goal");
+	});
+});

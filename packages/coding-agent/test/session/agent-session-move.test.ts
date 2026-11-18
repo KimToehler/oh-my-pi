@@ -1100,7 +1100,6 @@ describe("session move", () => {
 			id: "ResumeChild",
 			agent: followUpAgent,
 			message: "continue",
-			structured: false,
 		});
 		await revived.promise;
 		const held = atHold(fx.session, () => {});
@@ -1172,7 +1171,6 @@ describe("session move", () => {
 			agent: followUpAgent,
 			message: "restore",
 			restore: true,
-			structured: false,
 		});
 		await restored.promise;
 		await flushMicrotasks();

@@ -286,7 +286,7 @@ describe("runSubprocess soft request budget", () => {
 		registerRunning(id, handle.session);
 		const parentSessionFile = `${tempDir.path()}/parent.jsonl`;
 
-		const result = await runSubprocess({ ...baseOptions(id), sessionFile: parentSessionFile });
+		const result = await runSubprocess({ ...baseOptions(id), sessionFile: parentSessionFile, outputSchema: {} });
 
 		// The budget stop aborted the free-running turn exactly once before the
 		// wrap-up reminder; the second abort (after the terminal yield) is the
@@ -700,6 +700,7 @@ describe("runSubprocess soft request budget", () => {
 		attachIrcWakeTurnMonitor(handle.session, {
 			id,
 			agent: baseAgent,
+			outputSchema: {},
 			softRequestBudget: 2,
 			softRequestBudgetNotice: true,
 			eventBus,
@@ -847,6 +848,8 @@ describe("runSubprocess soft compaction budget", () => {
 			modelRegistry: { refresh: async () => {} } as unknown as ModelRegistry,
 			enableLsp: false,
 			artifactsDir: tempDir.path(),
+			// Yield-bound unless a test opts out; only a schema gives the child a `yield` tool.
+			outputSchema: {} as unknown,
 		};
 	}
 
@@ -1023,7 +1026,7 @@ describe("runSubprocess soft compaction budget", () => {
 		});
 		start(id, handle);
 
-		const result = await runSubprocess({ ...compactionOptions(id, 1), structured: false });
+		const result = await runSubprocess({ ...compactionOptions(id, 1), outputSchema: undefined });
 
 		expect(compactionNotices(handle)).toHaveLength(1);
 		expect(handle.prompts).toHaveLength(1);
@@ -1049,7 +1052,7 @@ describe("runSubprocess soft compaction budget", () => {
 		});
 		start(id, handle);
 
-		const result = await runSubprocess({ ...compactionOptions(id, 1), structured: false });
+		const result = await runSubprocess({ ...compactionOptions(id, 1), outputSchema: undefined });
 		await Bun.sleep(0);
 
 		expect(compactionNotices(handle)).toHaveLength(0);
@@ -1091,7 +1094,7 @@ describe("runSubprocess soft compaction budget", () => {
 		});
 		start(id, handle);
 
-		const result = await runSubprocess({ ...compactionOptions(id, 1), structured: false });
+		const result = await runSubprocess({ ...compactionOptions(id, 1), outputSchema: undefined });
 
 		expect(handle.prompts).toHaveLength(2);
 		expect(handle.prompts[1]?.options?.toolChoice).toBe("none");

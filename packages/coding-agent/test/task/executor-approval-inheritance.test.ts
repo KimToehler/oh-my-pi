@@ -212,7 +212,6 @@ describe("inherited denial", () => {
 			id: "WarmChild",
 			agent: settled.policy.agent,
 			message: "Run the marker command now.",
-			structured: false,
 		});
 
 		expect(followUp.exitCode).toBe(0);

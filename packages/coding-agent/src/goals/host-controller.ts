@@ -92,8 +92,8 @@ export class GoalHostController {
 	readonly #session: GoalHostSession;
 	readonly #continuationMode: GoalContinuationMode;
 	readonly #canAutoContinue: (() => boolean) | undefined;
-	/** Active tool set before goal mode added `goal`; restored when the goal ends. */
-	#previousTools: string[] | undefined;
+	/** Whether goal mode added `goal` to the live roster; exit strips only that tool. */
+	#goalToolAddedByMode = false;
 	/** Continuation turns submitted whose terminal `agent_end` has not arrived. */
 	#pendingContinuationTurns = 0;
 	#previousContinuationActivity: string | undefined;
@@ -358,16 +358,17 @@ export class GoalHostController {
 	}
 
 	async #enter(start: () => Promise<GoalModeState>, options?: EnterOptions): Promise<void> {
-		// The pre-goal tool set is captured once, when this controller first adds `goal`
-		// (a reattached paused goal already holds it). A `goal` tool the host enabled
-		// before the goal stays enabled afterwards.
-		const previousTools = this.#previousTools ?? this.#session.getEnabledToolNames();
+		// Only a `goal` the controller added belongs to goal mode; ownership already held
+		// (a reattached paused goal) carries over. A `goal` tool the host enabled
+		// beforehand stays enabled when the goal ends.
+		const enabledTools = this.#session.getEnabledToolNames();
+		const goalToolAddedByMode = this.#goalToolAddedByMode || !enabledTools.includes("goal");
 		const state = await start();
 		const stamp = options?.stamp;
-		const entryTools = [...new Set([...previousTools, "goal"])];
+		const entryTools = [...new Set([...enabledTools, "goal"])];
 		if (stamp === undefined) {
 			await this.#session.setActiveToolsByName(entryTools);
-			this.#commitEntry(previousTools, state);
+			this.#commitEntry(goalToolAddedByMode, state);
 		} else {
 			// A fenced entry's whole tool phase is one task of the exit chain: ownership check, swap, re-check,
 			// then commit or undo. A session change or reconcile waits for it, or runs wholly before it, in which
@@ -383,8 +384,8 @@ export class GoalHostController {
 					await this.#session.setActiveToolsByName(before);
 					return;
 				}
-				// `#previousTools` is committed only by an entry whose stamp still owns.
-				this.#commitEntry(previousTools, state);
+				// Goal-tool ownership is committed only by an entry whose stamp still owns.
+				this.#commitEntry(goalToolAddedByMode, state);
 				committed = true;
 			});
 			if (!committed) {
@@ -402,8 +403,8 @@ export class GoalHostController {
 		this.#scheduleContinuation();
 	}
 
-	#commitEntry(previousTools: string[], state: GoalModeState): void {
-		this.#previousTools = previousTools;
+	#commitEntry(goalToolAddedByMode: boolean, state: GoalModeState): void {
+		this.#goalToolAddedByMode = goalToolAddedByMode;
 		this.#session.setGoalModeState(state);
 		this.#resetContinuation();
 	}
@@ -432,12 +433,17 @@ export class GoalHostController {
 		});
 	}
 
-	/** Restore the pre-goal tool set. Idempotent. */
+	/** Undo only goal mode's own tool change, preserving the live roster. Idempotent. */
 	async #exit(): Promise<void> {
-		const previousTools = this.#previousTools;
-		this.#previousTools = undefined;
+		const ownedGoalTool = this.#goalToolAddedByMode;
+		this.#goalToolAddedByMode = false;
 		this.#resetContinuation();
-		if (previousTools) await this.#session.setActiveToolsByName(previousTools);
+		if (ownedGoalTool) {
+			const liveTools = this.#session.getEnabledToolNames();
+			if (liveTools.includes("goal")) {
+				await this.#session.setActiveToolsByName(liveTools.filter(name => name !== "goal"));
+			}
+		}
 	}
 
 	/** Write the completion records into the current transcript and clear goal state. Synchronous. */
@@ -509,9 +515,9 @@ export class GoalHostController {
 		this.#session.setGoalModeState({ enabled: context.mode === "goal", mode: "active", goal });
 		const restored = await runtime.onThreadResumed({ preserveActiveGoal: options?.preserveActiveGoal });
 		if (!restored?.goal) return;
-		const previousTools = this.#session.getEnabledToolNames();
-		this.#previousTools = previousTools;
-		await this.#session.setActiveToolsByName([...new Set([...previousTools, "goal"])]);
+		const enabledTools = this.#session.getEnabledToolNames();
+		this.#goalToolAddedByMode = !enabledTools.includes("goal");
+		await this.#session.setActiveToolsByName([...new Set([...enabledTools, "goal"])]);
 	}
 
 	/**
@@ -525,12 +531,8 @@ export class GoalHostController {
 			return;
 		}
 		if (event.type === "goal_updated") {
-			const status = event.state?.goal.status;
-			if (status === "dropped") {
+			if (event.state?.goal.status === "dropped") {
 				this.#queueExit(() => this.#exit());
-			} else if (event.state?.enabled && this.#previousTools === undefined) {
-				// Created by the agent's `goal` tool rather than this controller.
-				this.#previousTools = this.#session.getEnabledToolNames();
 			}
 			return;
 		}
