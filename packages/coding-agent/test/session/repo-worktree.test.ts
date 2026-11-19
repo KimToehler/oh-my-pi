@@ -99,7 +99,7 @@ describe.skipIf(process.platform === "win32")("repo worktree", () => {
 		expect(await Bun.file(path.join(target, "a.txt")).exists()).toBe(true);
 	});
 
-	it("in-repo target does not copy sibling worktrees", async () => {
+	it("in-repo target clones without copying itself or sibling worktrees", async () => {
 		const settings = Settings.isolated({ "worktree.clone": true });
 		const a = path.join(repo, ".worktrees", "a");
 		const b = path.join(repo, ".worktrees", "b");
@@ -107,11 +107,10 @@ describe.skipIf(process.platform === "win32")("repo worktree", () => {
 		await run(a, { kind: "new-branch", name: "wt-a", from: first, force: false }, settings);
 		await Bun.write(path.join(a, "untracked-a.txt"), "sibling\n");
 		const result = await run(b, { kind: "new-branch", name: "wt-b", from: first, force: false }, settings);
-		expect(result.clonedWith).toBeUndefined();
-		expect(result.cloneError).toContain("inside the source checkout");
+		expect(result.cloneError).toBeUndefined();
 		expect(await Bun.file(path.join(b, "a.txt")).exists()).toBe(true);
-		expect(await fs.readdir(b)).not.toContain(".worktrees");
 		expect(await Bun.file(path.join(b, ".worktrees", "a", "untracked-a.txt")).exists()).toBe(false);
+		expect(await fs.stat(path.join(b, ".worktrees", "b")).catch(() => null)).toBeNull();
 	});
 });
 

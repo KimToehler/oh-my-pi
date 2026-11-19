@@ -6,7 +6,7 @@ import { inspect } from "node:util";
 import { createContext, runInContext } from "node:vm";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { callSessionTool } from "@oh-my-pi/pi-coding-agent/eval/js/tool-bridge";
-import type { EvalPreludeDefinition } from "@oh-my-pi/pi-coding-agent/eval/preludes";
+import type { EvalPreludeDefinition, HostEvalPreludeDefinition } from "@oh-my-pi/pi-coding-agent/eval/preludes";
 import { executeJs } from "@oh-my-pi/pi-coding-agent/eval/js/executor";
 import { disposeAllKernelSessions, executePython } from "@oh-my-pi/pi-coding-agent/eval/py/executor";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
@@ -457,7 +457,7 @@ function toolSession(): ToolSession {
 }
 
 /** Exercise the shipped host approval/call rendering and worker, with only native OS work substituted. */
-function workerPrelude(session: ToolSession, native: NativeDesktopSession): EvalPreludeDefinition {
+function workerPrelude(session: ToolSession, native: NativeDesktopSession): HostEvalPreludeDefinition {
 	const transport = new MemoryTransport();
 	new ComputerWorkerCore(transport, () => native);
 	return createComputerPrelude(session, () => ({
@@ -547,7 +547,8 @@ describe("computer prelude", () => {
 			// The partial output is logged without the failure line the direct result appends; only the thrown error shows it.
 			expect(result.output.split("TypeError: stop after act")).toHaveLength(2);
 			expect(result.displayOutputs).toContainEqual(expect.objectContaining({ type: "image" }));
-			expect(statuses).toContainEqual(expect.objectContaining({ op: "computer", error: "stop after act" }));
+			// The session-file status carries the prelude's fixed statusError; only the cell sees the error text.
+			expect(statuses).toContainEqual({ op: "computer", error: "failed" });
 		} finally {
 			await supervisor.close();
 		}

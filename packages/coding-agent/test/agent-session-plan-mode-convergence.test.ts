@@ -652,14 +652,26 @@ describe("AgentSession.submitPlanProposal", () => {
 		expect(recorder.plans).toEqual([]);
 	});
 
-	it("refuses without an installed handler or an active plan mode", async () => {
+	it("returns the resolved plan for review while plan mode is active without an installed handler", async () => {
 		const target = createSession();
 		target.setPlanModeState({ enabled: true, planFilePath: "local://PLAN.md" });
+		await Bun.write(localPath(target, "local://handlerless-plan.md"), "# Handlerless plan\n\nDo it.\n");
+
+		const result = await target.submitPlanProposal("handlerless");
+
+		expect(result.details).toEqual({
+			planFilePath: "local://handlerless-plan.md",
+			title: "handlerless",
+			planExists: true,
+		});
+	});
+
+	it("refuses while plan mode is not active", async () => {
+		const target = createSession();
 		await expect(target.submitPlanProposal("demo")).rejects.toThrow(/No plan is awaiting approval/);
 
 		const recorder = recordingHandler();
 		target.setPlanProposalHandler(recorder.handler);
-		target.setPlanModeState(undefined);
 		await expect(target.submitPlanProposal("demo")).rejects.toThrow("Plan mode is not active.");
 		expect(recorder.plans).toEqual([]);
 	});
