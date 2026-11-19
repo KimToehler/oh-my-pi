@@ -16,6 +16,10 @@ git worktree add .worktrees/<task-slug> -b <task-slug>
 
 Run every edit, build, test, and QA from inside it. When a workflow offers a `--worktree`
 flag, pass it; for omp `task` subagents that edit concurrently, use `isolated: true`.
+Run `git worktree add` from the main checkout, or give it the main checkout's absolute path
+(`git worktree add /path/to/repo/.worktrees/<task-slug> ...`): a relative `.worktrees/<slug>`
+run from inside another worktree nests the new one under that worktree. Move a misplaced one
+with `git worktree move <old> <absolute new path>` (keeps uncommitted changes).
 
 Exceptions: a trivial single-file fix the user asks to apply in place, read-only
 investigation, or an urgent hotfix the user explicitly wants on the current branch.

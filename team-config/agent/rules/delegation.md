@@ -27,6 +27,10 @@ A `task` subagent's tool cwd is the main checkout, even when the brief names a w
 non-isolated editing brief says so: every read, edit, write and bash call uses the worktree's
 absolute path (or `cwd:` set to it). After each lane returns, run `git status --short` in the
 main checkout.
+`isolated: true` forks each child from the session's own cwd checkout and applies its patch back
+there, not into the worktree the brief names. Before isolated lanes for a worktree, move the
+session into it (`session_move`, refused while a background job runs); if a job blocks the move,
+run non-isolated lanes with absolute paths, disjoint files and no git writes.
 
 **A running subagent owns its files.** Do not edit them until its result arrives (`wait`, or the
 delivered `task-result`). A staged-but-uncommitted tree looks the same as finished work.

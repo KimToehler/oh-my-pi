@@ -71,6 +71,7 @@ const BASH_MUST_NOT_TRIGGER = [
 	"git branch -f topic main",
 	"git reset --soft HEAD~1",
 	"git reset src/a.ts",
+	"git reset -q -- src/a.ts",
 	"git stash list",
 	"git stash show",
 	"git worktree add .worktrees/x -b x main",

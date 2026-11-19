@@ -55,6 +55,7 @@ Nearly every reason to reach for `--hard` has a form that leaves the working tre
 | Drop only YOUR file's changes | `git checkout -- .` | `git checkout -- <path>` only when `git diff <path>` is entirely yours |
 | Revert your own probe/mutation in a file that also holds others' uncommitted edits | `git checkout -- <path>` | `cp <path> /tmp/<name>.bak` before mutating, `cp` it back after; or undo the exact lines with an edit |
 | Get a clean tree to test in | `git clean -fdx` | a fresh `git worktree add` |
+| Unstage a path, keep its changes | `git restore --staged <path>` (this rule's condition matches every `git restore` and interrupts it) | `git reset -q -- <path>` |
 
 **`--soft` was the correct answer both times this rule was written for.** The target was a commit
 pointer; the working tree was never the point.
