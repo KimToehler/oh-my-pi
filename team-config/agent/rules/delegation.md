@@ -23,6 +23,10 @@ Items that are read-only reviewers over the same committed inputs (the `review-w
 **Two or more concurrent editing tasks run isolated.** Pass `isolated: true` on the task item
 (or enable `task.isolation.enabled`), so each child edits its own APFS clone and its changes
 come back as a patch. A real collision then surfaces as a failed apply, not a silent interleave.
+A `task` subagent's tool cwd is the main checkout, even when the brief names a worktree. A
+non-isolated editing brief says so: every read, edit, write and bash call uses the worktree's
+absolute path (or `cwd:` set to it). After each lane returns, run `git status --short` in the
+main checkout.
 
 **A running subagent owns its files.** Do not edit them until its result arrives (`wait`, or the
 delivered `task-result`). A staged-but-uncommitted tree looks the same as finished work.
