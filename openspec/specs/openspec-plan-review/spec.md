@@ -143,12 +143,12 @@ Before round 1 the planner SHALL record `- **Depth**:` in `gate.md` with its rea
 
 ### Requirement: Fixed reviewer briefs on a pinned model
 
-Every full-round plan-reviewer task SHALL carry the brief fixed in the schema verbatim with only the repository and change paths filled in, followed by its depth's fixed scope paragraph and nothing else; a delta check SHALL carry the schema's fixed delta brief with only the paths, the fix entries and the patch path filled in. The team seed SHALL resolve `plan-reviewer` to `onara/cx/gpt-6.1-sol:high` through `task.agentModelOverrides`.
+Every full-round plan-reviewer task SHALL carry the brief fixed in the schema verbatim with only the repository and change paths filled in, followed by its depth's fixed scope paragraph and nothing else; a delta check SHALL carry the schema's fixed delta brief with only the paths, the fix entries and the patch path filled in. The team seed SHALL resolve `plan-reviewer` to `openai-codex/gpt-6.1-sol:high` through `task.agentModelOverrides`.
 
 #### Scenario: Standard dispatch
 
-- **WHEN** a `standard` change starts round 1 in an agent directory seeded from the team config
-- **THEN** the one `plan-reviewer` task carries the fixed brief and the all-scopes paragraph, and its run resolves to `onara/cx/gpt-6.1-sol:high`
+- **WHEN** a `standard` change starts round 1 in an agent directory seeded from the team config and signed in to `openai-codex`
+- **THEN** the one `plan-reviewer` task carries the fixed brief and the all-scopes paragraph, and its run resolves to `openai-codex/gpt-6.1-sol:high`
 
 #### Scenario: Negative control
 
@@ -166,12 +166,12 @@ After every dispatch the instruction SHALL read the `provider/model` of every tu
 
 #### Scenario: Retry chain switches a reviewer mid-run
 
-- **WHEN** scope A's session records its last turns on `onara/cc/claude-opus-5` after the retry chain switched it from its pin, and its fresh retry runs on the pin throughout
+- **WHEN** scope A's session records its last turns on `anthropic/claude-opus-5` after the retry chain switched it from its pin, and its fresh retry runs on the pin throughout
 - **THEN** the round continues with the retry's verdict, the Reviewer field lists the retry's id, and `- **Models**:` lists both attempts, the switched one marked as having no verdict
 
 #### Scenario: Pinned model through another provider
 
-- **WHEN** the configuration pins `plan-reviewer` to `gpt-6.1-sol:high` and every turn of the dispatch ran on `openai-codex/gpt-6.1-sol`, or the pin is `onara/cx/gpt-6.1-sol:high` and every turn ran on `openai-codex/gpt-6.1-sol`
+- **WHEN** the configuration pins `plan-reviewer` to `gpt-6.1-sol:high` and every turn of the dispatch ran on `openai-codex/gpt-6.1-sol`, or the pin is `router/cx/gpt-6.1-sol:high` and every turn ran on `openai-codex/gpt-6.1-sol`
 - **THEN** the dispatch counts, and `- **Models**:` records `openai-codex/gpt-6.1-sol` for it
 
 #### Scenario: Substituted verifier

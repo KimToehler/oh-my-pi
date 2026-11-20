@@ -69,12 +69,12 @@ Both F2 invocations SHALL dispatch the `auditor` agent. Its pin SHALL be the mod
 
 #### Scenario: Same model through another provider
 
-- **WHEN** `task.agentModelOverrides.auditor` is `openai-codex/gpt-6.1-sol:high`, every turn of an `implementation-audit` dispatch ran on `openai-codex/gpt-6.1-sol` at effort `high`, and its trailer `model_id` is `openai-codex/gpt-6.1-sol`
-- **THEN** the gate dispatches, the dispatch counts, and the record carries `openai-codex/gpt-6.1-sol` as the invocation's resolved model
+- **WHEN** `task.agentModelOverrides.auditor` is `router/cx/gpt-6.1-sol:high`, every turn of an `implementation-audit` dispatch ran on `router/cx/gpt-6.1-sol` at effort `high`, and its trailer `model_id` is `router/cx/gpt-6.1-sol`
+- **THEN** the gate dispatches, the dispatch counts, and the record carries `router/cx/gpt-6.1-sol` as the invocation's resolved model
 
 #### Scenario: Trailer names another route
 
-- **WHEN** every turn of a dispatch ran on `openai-codex/gpt-6.1-sol` at the pinned effort and its trailer `model_id` is `onara/cx/gpt-6.1-sol`
+- **WHEN** every turn of a dispatch ran on `openai-codex/gpt-6.1-sol` at the pinned effort and its trailer `model_id` is `router/cx/gpt-6.1-sol`
 - **THEN** the dispatch does not count and the invocation gets the bounded fresh retry
 
 #### Scenario: Configuration overrides the pin
