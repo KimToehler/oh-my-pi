@@ -1,18 +1,24 @@
 # Review
 
-- **Verdict**: OKAY
-- **Reviewed digest**: 4ae044e4f7b6137a91fa2ef939476c800a11919b34bd3c1b10b5fcb804548241
+- **Verdict**: REJECT
+- **Reviewed digest**: 676299ce7773880666bc595368618e8c812b516a24f54c2532e3c62cdc7d9289
 - **Depth**: standard
-- **Reviewer**: plan-reviewer, PlanDeltaR2
+- **Reviewer**: plan-reviewer, PlanReviewR3
 - **Verifier**: blocker-verifier, none
-- **Models**: PlanDeltaR2 openai-codex/gpt-6.1-sol
-- **Round**: 2
-- **Awaiting**: none
+- **Models**: PlanReviewR3 openai-codex/gpt-6.1-sol
+- **Round**: 3
+- **Awaiting**: triage
 - **Override**: none
 
 ## Blockers
 
-none
+### All scopes (PlanReviewR3)
+
+1. **Merge-gate Boundary rule**
+   - Defect: The feature-specific criterion names no concrete code location. This prevents binding its configuration-resolution claim to an identifiable implementation boundary. This is a reversible planning defect.
+   - Evidence: openspec/changes/team-config-reseed-guidance/gate.md:15 says only “the member's edited config files as omp's config resolution reads them”. Actual boundaries include packages/coding-agent/src/config/settings.ts:859-862,4426-4431 and packages/coding-agent/src/config/model-registry.ts:783.
+   - Change: Name the concrete settings-loading and models.yml-loading locations in Boundary, alongside the member-owned files they consume.
+   - Verifier: not triaged: the verifier has not returned
 
 ## Residuals
 
