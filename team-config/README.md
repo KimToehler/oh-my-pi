@@ -1,8 +1,9 @@
 # Team config
 
 Shared omp setup for the team: agents, rules, skills, the merge-gate extension, global
-instructions, and the onara model router. `scripts/deploy-local.sh` builds omp and syncs this
-directory into the omp agent dir (`~/.omp/agent`) from the same commit as the binary.
+instructions, and the model roles and gate pins on omp's built-in `anthropic` and `openai-codex` providers.
+`scripts/deploy-local.sh` builds omp and syncs this directory into the omp agent dir (`~/.omp/agent`) from the same
+commit as the binary.
 
 ## New machine
 
@@ -15,55 +16,35 @@ flake dev shell.
 git clone git@github.com:KimToehler/oh-my-pi.git ~/git/oh-my-pi
 cd ~/git/oh-my-pi
 scripts/deploy-local.sh
-{ [ ! -e ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] || { [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ]; }; } &&
-  ( umask 077; touch ~/.omp/agent/.env ) && chmod 600 ~/.omp/agent/.env &&
-  [ -f ~/.omp/agent/.env ] && [ ! -L ~/.omp/agent/.env ] &&
-  { [ ! -s ~/.omp/agent/.env ] || [ -z "$(tail -c1 ~/.omp/agent/.env)" ] || printf '\n' >> ~/.omp/agent/.env; } &&
-  printf 'Router key: ' && read -rs ONARA_ROUTER_KEY && echo &&
-  printf 'ONARA_ROUTER_KEY=%s\n' "$ONARA_ROUTER_KEY" >> ~/.omp/agent/.env; unset ONARA_ROUTER_KEY
-```
-
-- `scripts/deploy-local.sh` builds omp, installs `~/.local/bin/omp` and syncs this config.
-- The first `{ ... }` guard passes only if `~/.omp/agent/.env` is absent or a regular non-symlink file; otherwise the chain stops before `touch`/`chmod`.
-- `touch` under `umask 077` plus `chmod 600` give mode 600 before any key is written.
-- The second `[ -f ... ]` check stops on a directory or symlink before anything is read.
-- The next `{ ... }` group adds a newline if the last line is unterminated, so the key starts on its own line.
-- `read -rs` takes the next line you type or paste as the key; it neither echoes the key nor stores it in shell history (zsh and bash).
-
-Paste the router key at the `Router key:` prompt, then start omp (`~/.local/bin` must be on `PATH`):
-
-```sh
 omp
 ```
+
+- `scripts/deploy-local.sh` builds omp, installs `~/.local/bin/omp` and syncs this config; `~/.local/bin` must be on `PATH`.
+- In omp, sign in with /login to Anthropic and to OpenAI Codex. The seeded model roles, fallback chains and gate pins
+  use these two providers; without both sign-ins the gate reviewers cannot run on their pinned models.
 
 Update later with `git pull && scripts/deploy-local.sh`. Restart running omp sessions
 (including IntelliJ ACP) afterwards. `seed/config.yml` is copied only when it is missing, so a
 new entry in it never reaches an existing `~/.omp/agent/config.yml`: after an update that adds
 one, merge it by hand. Today that is `task.agentModelOverrides.plan-reviewer`, the model plan
 review is pinned to; without a pin for the agent it dispatches, a plan review stops and asks you
-to add the entry instead of reviewing on whatever model the runtime picks. `seed/models.yml` is
-copied the same way: merge its `cc/claude-fable-5-2` entry into an existing
-`~/.omp/agent/models.yml` by hand (and into each profile or custom `PI_CODING_AGENT_DIR`), or
-every architecture consultation runs on another model, counts as failed and ends in the
-skip-or-stop ask below. Open `risky` OpenSpec changes need a `consultation.md` before
-`--reviewed` passes again: re-run their review, which records the consultation, or a skip you
+to add the entry instead of reviewing on whatever model the runtime picks. Open `risky` OpenSpec changes need a
+`consultation.md` before `--reviewed` passes again: re-run their review, which records the consultation, or a skip you
 approve, without a round unless an adopted finding edits the plan.
 
 The pin checks of the plan review, the architecture consultation and the F2 gate compare model names, not providers:
-`onara/cx/gpt-6.1-sol` and `openai-codex/gpt-6.1-sol` are the same model. The pins themselves name the router. A
-member without the router sets `task.agentModelOverrides` in `~/.omp/agent/config.yml` to their own provider with the
-pinned model and effort: `plan-reviewer: openai-codex/gpt-6.1-sol:high`, `blocker-verifier:
-openai-codex/gpt-6.1-sol:medium`, `auditor: openai-codex/gpt-6.1-sol:high` and `architecture-oracle:
-anthropic/claude-fable-5-2:high`. Prefer this provider-prefixed form: a bare override such as `gpt-6.1-sol:high`
-resolves to any authenticated provider carrying that exact id, API-key providers from the environment included, at
-that provider's price and without a configured fallback chain.
+`router/cx/gpt-6.1-sol` and `openai-codex/gpt-6.1-sol` are the same model. A member who reaches the pinned models
+through another provider sets `task.agentModelOverrides` in `~/.omp/agent/config.yml` to that provider with the pinned
+model and effort, for example `plan-reviewer: <provider>/gpt-6.1-sol:high`. Prefer this provider-prefixed form: a bare
+override such as `gpt-6.1-sol:high` resolves to any authenticated provider carrying that exact id, API-key providers
+from the environment included, at that provider's price and without a configured fallback chain.
 
 ## What lands where
 
 | Repo path | Target | On every deploy |
 |---|---|---|
 | `agent/**` (`AGENTS.md`, `agents/`, `commands/`, `rules/`, `skills/`, `extensions/`) | `~/.omp/agent/**` | Overwritten; files removed here are removed there |
-| `seed/config.yml`, `seed/models.yml` | `~/.omp/agent/` | Copied only if missing; your edits are kept |
+| `seed/config.yml` | `~/.omp/agent/` | Copied only if missing; your edits are kept |
 
 The installer records what it shipped in `~/.omp/agent/.team-config-manifest.json`. Files it did
 not ship are never touched. If a shipped file was edited locally, or a same-named file existed
@@ -225,9 +206,9 @@ The last artifact `/opsx-propose` creates is `review.md`. The review's depth com
 change carries a mandatory class or alters a review, gate or release mechanism, `standard` otherwise. A `standard`
 round dispatches one `plan-reviewer` over the whole change folder with every scope; a `risky` round dispatches two in
 one batch, scope A (correctness, architecture, security, the mechanical checks) and scope B (verification and tests).
-Both run as `onara/cx/gpt-6.1-sol:high`, pinned in the team seed, and the planner adds no focus of its own to the fixed
+Both run as `openai-codex/gpt-6.1-sol:high`, pinned in the team seed, and the planner adds no focus of its own to the fixed
 brief. Every finding the round returns then goes, verbatim and numbered, to one read-only `blocker-verifier`
-(`onara/cx/gpt-6.1-sol:medium`), which checks each against the repository and returns `confirmed`, `refuted` or
+(`openai-codex/gpt-6.1-sol:medium`), which checks each against the repository and returns `confirmed`, `refuted` or
 `undecided` with a reason. Confirmed blocking findings are fixed; a finding that is refuted, below the threshold or
 left undecided without a blocking consequence is recorded under `## Residuals` with the verifier's reason and never
 reviewed again, while a finding awaiting one of the asks below stays under `## Blockers` until you answer. The budget
@@ -258,7 +239,7 @@ Before every `plan-reviewer` dispatch of a `risky` change, a full round or a del
 record, the review runs one architecture consultation (a `standard` change gets one only when you ask). The planner commits the
 change folder and a `pending` `consultation.md` naming the attempt, then dispatches one fresh `architecture-oracle`
 item with a fixed brief: a read-only agent (`read, grep, glob`) pinned in its definition to
-`onara/cc/claude-fable-5-2:high`, a second model family next to the Sol reviewers, at about $4-8 per consultation at
+`anthropic/claude-fable-5-2:high`, a second model family next to the Sol reviewers, at about $4-8 per consultation at
 list price. An attempt counts only when `validate-openspec-change.mjs --consultation-report <session file> <change dir>`
 accepts its session file: the brief names this change, every turn ran on the definition's model through any provider (an
 override naming another model never counts), and the final `yield` delivered a report matching the agent's output schema. A failed
@@ -291,7 +272,7 @@ The post-implementation gate is proportional, like the plan review. Its depth co
 derives it from its class and whether it changes a review, gate or release mechanism; the orchestrator may raise it, never
 lower it). A `standard` gate dispatches one `implementation-audit` at F2; a `risky` gate dispatches it and
 `strategic-risk-review` together in one batch. Both lanes run on `auditor`, pinned in `auditor.md` to
-`onara/cx/gpt-6.1-sol:high`; the gate checks the pin before dispatch and each session file after it, and a dispatch that ran
+`openai-codex/gpt-6.1-sol:high`; the gate checks the pin before dispatch and each session file after it, and a dispatch that ran
 on another model or effort does not count: it gets one fresh retry and is then recorded INCONCLUSIVE. The former F3 whole-diff
 lane is folded into F2, whose reviewers read the whole diff; `integration-review` stays available on demand. Fix rounds are
 bounded by depth (1 for `standard`, 2 for `risky`), each ending in a closing wave that re-runs QA and, when it passes, every

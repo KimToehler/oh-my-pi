@@ -18,7 +18,3 @@ Do not include `Co-Authored-By` lines in commit messages.
 ## UI automation with real accounts
 
 Before driving a browser, simulator, emulator or desktop app that signs in with a real account, read `rule://ui-automation-credentials`. Its core: while a login or password-manager surface shows, take no snapshot, hierarchy, find or textbox read; sign in with one scripted step that echoes nothing; on any credential in tool output, stop and scrub.
-
-## Tool output through the team router
-
-The router (`router.onara.eu`) compresses large `tool_result` blocks (git, grep, find, diff) and prose, so oversized output gets mangled. Keep precision-critical output small: `git --stat`/`--oneline`/path-scoped, tightly scoped grep, test output filtered to failures; when exact bytes matter, write to a file and read the slice you need.

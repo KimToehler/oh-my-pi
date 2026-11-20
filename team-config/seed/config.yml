@@ -1,17 +1,17 @@
 setupVersion: 2
 modelRoles:
-  default: onara/cc/claude-opus-5-5:high
-  slow: onara/cc/claude-opus-5-5:xhigh
-  plan: onara/cc/claude-opus-5-5:xhigh
-  task: onara/cc/claude-sonnet-5-5:medium
-  smol: onara/cx/gpt-6-luna:low
-  tiny: onara/cc/claude-haiku-5-5
-  commit: onara/cc/claude-haiku-5-5
-  judge: onara/cc/claude-haiku-5-5
-  advisor: onara/cx/gpt-6.1-terra:medium
-  oracle: onara/cx/gpt-6.1-sol:xhigh
-  review: onara/cx/gpt-6.1-terra:high
-  deep: onara/cc/claude-opus-5-5:high
+  default: anthropic/claude-opus-5-5:high
+  slow: anthropic/claude-opus-5-5:xhigh
+  plan: anthropic/claude-opus-5-5:xhigh
+  task: anthropic/claude-sonnet-5-5:medium
+  smol: openai-codex/gpt-6-luna:low
+  tiny: anthropic/claude-haiku-5-5
+  commit: anthropic/claude-haiku-5-5
+  judge: anthropic/claude-haiku-5-5
+  advisor: openai-codex/gpt-6.1-terra:medium
+  oracle: openai-codex/gpt-6.1-sol:xhigh
+  review: openai-codex/gpt-6.1-terra:high
+  deep: anthropic/claude-opus-5-5:high
 cycleOrder:
   - task
   - default
@@ -24,25 +24,26 @@ retry:
   # measurement, 9 of 26 pinned dispatches). Pinned reviewer agents depend on it.
   fallbackOn: usage-limit
   fallbackChains:
-    onara/cc/claude-opus-5-5:
-      - onara/cx/gpt-6.1-sol
-    onara/cc/claude-sonnet-5-5:
-      - onara/cx/gpt-6.1-terra
-    onara/cc/claude-fable-5-2:
-      - onara/cc/claude-opus-5-5
-    onara/cc/claude-haiku-5-5:
-      - onara/cx/gpt-6-luna
-    onara/cx/gpt-6.1-sol:
-      - onara/cc/claude-opus-5
-    onara/cx/gpt-6.1-terra:
-      - onara/cc/claude-sonnet-5-5
-    onara/cx/gpt-6-luna:
-      - onara/cc/claude-haiku-5-5
+    anthropic/claude-opus-5-5:
+      - openai-codex/gpt-6.1-sol
+    anthropic/claude-sonnet-5-5:
+      - openai-codex/gpt-6.1-terra
+    anthropic/claude-fable-5-2:
+      - anthropic/claude-opus-5-5
+    anthropic/claude-haiku-5-5:
+      - openai-codex/gpt-6-luna
+    openai-codex/gpt-6.1-sol:
+      - anthropic/claude-opus-5
+    openai-codex/gpt-6.1-terra:
+      - anthropic/claude-sonnet-5-5
+    openai-codex/gpt-6-luna:
+      - anthropic/claude-haiku-5-5
 modelProviderOrder:
-  - onara
+  - anthropic
+  - openai-codex
 enabledModels:
-  - onara/**
-  - onara-bifrost/**
+  - anthropic/**
+  - openai-codex/**
 skills:
   enableClaudeProject: false
   ignoredSkills:
@@ -65,7 +66,7 @@ task:
   showResolvedModelBadge: true
   agentModelOverrides:
     reviewer: "@review"
-    plan-reviewer: onara/cx/gpt-6.1-sol:high
+    plan-reviewer: openai-codex/gpt-6.1-sol:high
 autolearn:
   enabled: true
 memory:
@@ -148,8 +149,8 @@ compaction:
   # A token base per provider makes the 80% policy scale min(window, 256k):
   # every model compacts at min(80% of its window, ~205k).
   modelThresholds:
-    "onara/*": 256000
-    "onara-bifrost/*": 256000
+    "anthropic/*": 256000
+    "openai-codex/*": 256000
 extensionHandlers:
   toolCallTimeoutMs: 420000
 plan:

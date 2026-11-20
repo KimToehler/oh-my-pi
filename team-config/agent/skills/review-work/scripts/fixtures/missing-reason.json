@@ -7,7 +7,7 @@
   "decision_reason": "",
   "mandatory_class": "none",
   "implementation_models": [
-    "onara/cc/claude-opus-5"
+    "anthropic/claude-opus-5"
   ],
   "whole_diff": {
     "run": true,

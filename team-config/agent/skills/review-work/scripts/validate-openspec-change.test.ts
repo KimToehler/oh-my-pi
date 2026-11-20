@@ -580,7 +580,7 @@ The system SHALL export records in batches.
 		Status: "consulted",
 		"Consulted commit": COMMIT,
 		Consultant: `architecture-oracle, ${ATTEMPT}`,
-		Models: `${ATTEMPT} onara/cc/claude-fable-5-2`,
+		Models: `${ATTEMPT} anthropic/claude-fable-5-2`,
 		"Bottom line": "CHANGE APPROACH",
 		"Skip reason": "none",
 		Report: reportSection(REPORT()),
@@ -971,7 +971,7 @@ The system SHALL export records in batches.
 			["a report line that is not JSON", { ...CONSULTED, Report: "```json\n{bottom_line: KEEP}\n```" }, "consultation.md Report"],
 			["a Bottom line other than the report's verdict", { ...CONSULTED, "Bottom line": "KEEP APPROACH" }, "consultation.md Bottom line"],
 			["a record without ## Report", async () => (await consultation(CONSULTED)).replace("## Report\n", ""), "consultation.md Report"],
-			["a consulted record whose Models holds a dispatched entry", { ...CONSULTED, Models: `${ATTEMPT} onara/cc/claude-fable-5-2; ArchConsult012345672 dispatched` }, "consultation.md Models"],
+			["a consulted record whose Models holds a dispatched entry", { ...CONSULTED, Models: `${ATTEMPT} anthropic/claude-fable-5-2; ArchConsult012345672 dispatched` }, "consultation.md Models"],
 			["a pending record with Models none", { ...PENDING, Models: "none" }, "consultation.md Models"],
 			...HEADER_FIELDS.map((field): [string, () => Promise<string>, string] => [
 				`${field} twice`,
@@ -1054,7 +1054,7 @@ The system SHALL export records in batches.
 			},
 		];
 		for (const [index, turn] of turns.entries()) {
-			const [provider, ...model] = (turn.model ?? "onara/cc/claude-fable-5-2").split("/");
+			const [provider, ...model] = (turn.model ?? "anthropic/claude-fable-5-2").split("/");
 			const call = turn.yield
 				? { type: "toolCall", id: turn.yield.id, name: "yield", arguments: { type: turn.yield.type ?? "result", data: turn.yield.data ?? null, error: null } }
 				: { type: "toolCall", id: `read${index}`, name: "read", arguments: { path: "design.md" } };
@@ -1087,7 +1087,7 @@ The system SHALL export records in batches.
 			const file = await attempt(root, root, [{ yield: { id: "y1", data: JSON.stringify(ACCEPTED) } }]);
 			expect(run("--consultation-report", file, root)).toEqual({ exitCode: 0, stdout: `${JSON.stringify(ACCEPTED)}\n`, stderr: "" });
 		});
-		for (const route of ["onara/cc/claude-fable-5-2", "anthropic/claude-fable-5-2"]) {
+		for (const route of ["router/cc/claude-fable-5-2", "anthropic/claude-fable-5-2"]) {
 			it(`counts an attempt whose every turn ran on the pinned model through ${route}`, async () => {
 				const root = await changeFixture();
 				const file = await attempt(root, root, [{ model: route }, { model: route, yield: { id: "y1", data: ACCEPTED } }]);
@@ -1096,7 +1096,7 @@ The system SHALL export records in batches.
 		}
 		for (const [name, turns, other, reason] of [
 			["a brief naming another change directory", [{ yield: { id: "y1", data: ACCEPTED } }], true, "change directory"],
-			["one turn on another model among pinned turns", [{}, { model: "onara/cc/claude-opus-5-5" }, { yield: { id: "y1", data: ACCEPTED } }], false, "assistant turn 2 ran on onara/cc/claude-opus-5-5"],
+			["one turn on another model among pinned turns", [{}, { model: "anthropic/claude-opus-5-5" }, { yield: { id: "y1", data: ACCEPTED } }], false, "assistant turn 2 ran on anthropic/claude-opus-5-5"],
 			["every turn on another model through a direct provider", [{ model: "openai-codex/gpt-6.1-sol" }, { model: "openai-codex/gpt-6.1-sol", yield: { id: "y1", data: ACCEPTED } }], false, "ran on openai-codex/gpt-6.1-sol"],
 			["a refused final yield after an accepted one", [{ yield: { id: "y1", data: ACCEPTED } }, { yield: { id: "y2", data: ACCEPTED, result: "refused" } }], false, "refused"],
 			["a final yield without a tool result", [{ yield: { id: "y1", data: ACCEPTED, result: "none" } }], false, "no tool result"],

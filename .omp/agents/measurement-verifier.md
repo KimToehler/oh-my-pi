@@ -2,7 +2,7 @@
 name: measurement-verifier
 description: "Read-only plan-review triage for omp-gated changes: checks each numbered plan-reviewer blocker against the repository and returns confirmed, refuted or undecided per blocker"
 tools: read, grep, glob
-model: onara/cx/gpt-6.1-sol:medium
+model: openai-codex/gpt-6.1-sol:medium
 structured: true
 output:
   properties:

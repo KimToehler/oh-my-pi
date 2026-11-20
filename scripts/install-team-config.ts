@@ -4,7 +4,7 @@
  *
  * - `team-config/agent/**` is managed: every file is mirrored into the agent dir and recorded in
  *   `<agentDir>/.team-config-manifest.json`. A file that left the repo is removed on the next run.
- * - `team-config/seed/*` is copied only when the target does not exist yet (config.yml, models.yml).
+ * - `team-config/seed/*` is copied only when the target does not exist yet (config.yml).
  * - Files outside the manifest are never touched. Before a file is overwritten or removed, any
  *   content this installer did not write itself (a local edit, or a same-named file that predates
  *   the manifest) is moved to a fresh `<agentDir>/backups/team-config-<timestamp>-<random>/`.
@@ -689,8 +689,5 @@ if (import.meta.main) {
 		if (report.backupDir)
 			console.log(`  previous content of ${report.backedUp.length} file(s) saved in ${report.backupDir}`);
 		for (const notice of report.notices) console.log(`  notice: ${notice}`);
-		if (report.seeded.includes("models.yml")) {
-			console.log(`  next: put ONARA_ROUTER_KEY=<your key> into ${path.join(agentDir, ".env")}`);
-		}
 	}
 }

@@ -21,7 +21,7 @@ afterEach(async () => {
 
 describe("model-name", () => {
 	it("prints one model name per selector, ignoring provider, effort and case", async () => {
-		const result = await run("onara/cx/gpt-6.1-sol", "openai-codex/GPT-6.1-Sol", "gpt-6.1-sol:high", "onara/cc/claude-fable-5-2");
+		const result = await run("router/cx/gpt-6.1-sol", "openai-codex/GPT-6.1-Sol", "gpt-6.1-sol:high", "router/cc/claude-fable-5-2");
 		expect(result).toEqual({ exitCode: 0, stdout: "gpt-6.1-sol\ngpt-6.1-sol\ngpt-6.1-sol\nclaude-fable-5-2\n" });
 	});
 

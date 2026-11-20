@@ -7,7 +7,7 @@
   "decision_reason": "Implementation audit covers this non-mandatory change.",
   "mandatory_class": "nonsense",
   "implementation_models": [
-    "onara/cc/claude-opus-5"
+    "anthropic/claude-opus-5"
   ],
   "whole_diff": {
     "run": true,

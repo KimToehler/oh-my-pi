@@ -10,7 +10,7 @@
   "decision_reason": "Consequence is high, so both invocations ran.",
   "mandatory_class": "none",
   "implementation_models": [
-    "onara/cc/claude-opus-5"
+    "anthropic/claude-opus-5"
   ],
   "whole_diff": {
     "run": true,
@@ -21,13 +21,13 @@
     {
       "invocation": "implementation-audit",
       "agent": "auditor",
-      "model": "onara/auditor",
+      "model": "router/auditor",
       "independence": "unprovable"
     },
     {
       "invocation": "strategic-risk-review",
       "agent": "oracle",
-      "model": "onara/oracle",
+      "model": "router/oracle",
       "independence": "unprovable"
     }
   ],

@@ -166,7 +166,7 @@ function buildTrailer(overrides = {}) {
   const fields = {
     invocation: "implementation-audit",
     sections_covered: "1,2,3,4,5",
-    model_id: "onara/cc/claude-opus-5",
+    model_id: "anthropic/claude-opus-5",
     security_delta: "no",
     verdict: "PASS",
     blockers: null,
@@ -873,8 +873,8 @@ function twoInvocationRecord() {
   record.mandatory_class = "auth-secrets-pii"
   record.reviewers_run = ["implementation-audit", "strategic-risk-review"]
   record.resolution = [
-    { invocation: "implementation-audit", agent: "auditor", model: "onara/cc/claude-opus-5", independence: "same-model" },
-    { invocation: "strategic-risk-review", agent: "oracle", model: "onara/cc/claude-opus-5", independence: "same-model" },
+    { invocation: "implementation-audit", agent: "auditor", model: "anthropic/claude-opus-5", independence: "same-model" },
+    { invocation: "strategic-risk-review", agent: "oracle", model: "anthropic/claude-opus-5", independence: "same-model" },
   ]
   record.verdicts = [
     { invocation: "implementation-audit", verdict: "PASS" },
@@ -1325,7 +1325,7 @@ test("#given a trailer artifact that was never added to the index #when validate
 })
 
 // Independence granularity. Error correlation follows the model vendor, not the routing prefix:
-// openrouter/anthropic/claude-opus-5, github-copilot/claude-opus-5 and onara/cc/claude-opus-5 are
+// openrouter/anthropic/claude-opus-5, github-copilot/claude-opus-5 and router/cc/claude-opus-5 are
 // all Anthropic weights. Exact string comparison called every one of those pairings independent.
 
 function independenceCase(implementationModels, reviewModel, claim) {
@@ -1338,13 +1338,13 @@ function independenceCase(implementationModels, reviewModel, claim) {
 
 const independenceScale = [
   // [implementation models, review model, correct label, why]
-  [["onara/cc/claude-opus-5"], "onara/cc/claude-opus-5", "same-model", "identical string"],
+  [["router/cc/claude-opus-5"], "router/cc/claude-opus-5", "same-model", "identical string"],
   [["openai/gpt-5.6-sol:medium"], "openai/gpt-5.6-sol:xhigh", "same-model", "same model, different variant"],
   [["anthropic/claude-opus-5"], "openrouter/anthropic/claude-opus-5", "same-model", "same model reached through a router"],
   [["openrouter/anthropic/claude-opus-5"], "openrouter/anthropic/claude-fable-5-1", "same-provider", "both Anthropic weights, different model"],
-  [["onara/cc/claude-sonnet-5"], "github-copilot/claude-opus-5", "same-provider", "Anthropic through two different routing prefixes"],
+  [["router/cc/claude-sonnet-5"], "github-copilot/claude-opus-5", "same-provider", "Anthropic through two different routing prefixes"],
   [["openrouter/anthropic/claude-opus-5"], "openrouter/openai/gpt-6-astra", "cross-provider", "genuinely different vendors"],
-  [["onara/cc/claude-opus-5"], "openai/gpt-5.6-sol", "cross-provider", "Anthropic implemented, OpenAI reviewed"],
+  [["anthropic/claude-opus-5"], "openai/gpt-5.6-sol", "cross-provider", "Anthropic implemented, OpenAI reviewed"],
   [["anthropic/claude-opus-5"], "google/gemini-3.1-pro", "cross-provider", "third vendor"],
 ]
 
@@ -1363,19 +1363,19 @@ for (const [implementationModels, reviewModel, expected, why] of independenceSca
 }
 
 test("#given a combo alias that names no known model family #when validated #then independence blocks", () => {
-  // `onara/auditor` is a roster entry, not a model ID. It resolved to `independent` in the incident.
-  const result = runWithTrailer(independenceCase(["onara/cc/claude-opus-5"], "onara/auditor", "cross-provider"), buildTrailer({ model_id: "onara/auditor" }))
+  // `router/auditor` is a roster entry, not a model ID. It resolved to `independent` in the incident.
+  const result = runWithTrailer(independenceCase(["anthropic/claude-opus-5"], "router/auditor", "cross-provider"), buildTrailer({ model_id: "router/auditor" }))
   assert.equal(result.status, 1)
   assert.match(result.stderr, /independence/)
 })
 
 test("#given an unknown model family recorded as unprovable #when validated #then exits zero", () => {
-  const result = runWithTrailer(independenceCase(["onara/cc/claude-opus-5"], "onara/auditor", "unprovable"), buildTrailer({ model_id: "onara/auditor" }))
+  const result = runWithTrailer(independenceCase(["anthropic/claude-opus-5"], "router/auditor", "unprovable"), buildTrailer({ model_id: "router/auditor" }))
   assert.equal(result.status, 0, result.stderr)
 })
 
 test("#given the superseded independent label #when validated #then independence blocks", () => {
-  const result = runWithTrailer(independenceCase(["onara/cc/claude-opus-5"], "openai/gpt-5.6-sol", "independent"), buildTrailer({ model_id: "openai/gpt-5.6-sol" }))
+  const result = runWithTrailer(independenceCase(["anthropic/claude-opus-5"], "openai/gpt-5.6-sol", "independent"), buildTrailer({ model_id: "openai/gpt-5.6-sol" }))
   assert.equal(result.status, 1)
   assert.match(result.stderr, /independence/)
 })
@@ -1932,7 +1932,7 @@ function folderScenario(options = {}) {
       : { run: false, reason: "one module" },
     qa: [{ name: "validator tests", passed: true, artifact: "evidence/qa.txt", artifact_sha256: planDigest(path.join(evidence, "qa.txt")) }],
     reviewers_run: invocations,
-    resolution: invocations.map((invocation) => ({ invocation, agent: invocation === "implementation-audit" ? "auditor" : "oracle", model: "onara/cc/claude-opus-5", independence: "same-model" })),
+    resolution: invocations.map((invocation) => ({ invocation, agent: invocation === "implementation-audit" ? "auditor" : "oracle", model: "anthropic/claude-opus-5", independence: "same-model" })),
     verdicts: invocations.map((invocation) => {
       const file = path.join(evidence, `${invocation}.txt`)
       writeFileSync(file, bodies[invocation])

@@ -1,0 +1,69 @@
+# RED: scripts/install-team-config.test.ts on the unchanged seed, head e83144ed3cd037443997f2443998a9f85f68a9df
+bun test v1.4.4 (5d9cc0f4f)
+
+scripts/install-team-config.test.ts:
+836 | 		const tmp = await TempDir.create("@team-config-providers-");
+837 | 		dirs.push(tmp);
+838 | 		const repoDir = path.join(import.meta.dir, "..");
+839 | 		const agentDir = tmp.path();
+840 | 		const report = await installTeamConfig({ repoDir, agentDir, timestamp: "t1" });
+841 | 		expect(await nonBuiltInSelectors(agentDir, repoDir)).toEqual([]);
+                                                             ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "modelRoles.default: onara/cc/claude-opus-5-5:high",
++   "modelRoles.slow: onara/cc/claude-opus-5-5:xhigh",
++   "modelRoles.plan: onara/cc/claude-opus-5-5:xhigh",
++   "modelRoles.task: onara/cc/claude-sonnet-5-5:medium",
++   "modelRoles.smol: onara/cx/gpt-6-luna:low",
++   "modelRoles.tiny: onara/cc/claude-haiku-5-5",
++   "modelRoles.commit: onara/cc/claude-haiku-5-5",
++   "modelRoles.judge: onara/cc/claude-haiku-5-5",
++   "modelRoles.advisor: onara/cx/gpt-6.1-terra:medium",
++   "modelRoles.oracle: onara/cx/gpt-6.1-sol:xhigh",
++   "modelRoles.review: onara/cx/gpt-6.1-terra:high",
++   "modelRoles.deep: onara/cc/claude-opus-5-5:high",
++   "retry.fallbackChains: onara/cc/claude-opus-5-5",
++   "retry.fallbackChains.onara/cc/claude-opus-5-5: onara/cx/gpt-6.1-sol",
++   "retry.fallbackChains: onara/cc/claude-sonnet-5-5",
++   "retry.fallbackChains.onara/cc/claude-sonnet-5-5: onara/cx/gpt-6.1-terra",
++   "retry.fallbackChains: onara/cc/claude-fable-5-2",
++   "retry.fallbackChains.onara/cc/claude-fable-5-2: onara/cc/claude-opus-5-5",
++   "retry.fallbackChains: onara/cc/claude-haiku-5-5",
++   "retry.fallbackChains.onara/cc/claude-haiku-5-5: onara/cx/gpt-6-luna",
++   "retry.fallbackChains: onara/cx/gpt-6.1-sol",
++   "retry.fallbackChains.onara/cx/gpt-6.1-sol: onara/cc/claude-opus-5",
++   "retry.fallbackChains: onara/cx/gpt-6.1-terra",
++   "retry.fallbackChains.onara/cx/gpt-6.1-terra: onara/cc/claude-sonnet-5-5",
++   "retry.fallbackChains: onara/cx/gpt-6-luna",
++   "retry.fallbackChains.onara/cx/gpt-6-luna: onara/cc/claude-haiku-5-5",
++   "enabledModels: onara/**",
++   "enabledModels: onara-bifrost/**",
++   "compaction.modelThresholds: onara/*",
++   "compaction.modelThresholds: onara-bifrost/*",
++   "task.agentModelOverrides.reviewer: @review",
++   "task.agentModelOverrides.plan-reviewer: onara/cx/gpt-6.1-sol:high",
++   "modelProviderOrder: onara",
++   "agents/architecture-oracle.md: onara/cc/claude-fable-5-2:high",
++   "agents/auditor.md: onara/cx/gpt-6.1-sol:high",
++   "agents/blocker-verifier.md: onara/cx/gpt-6.1-sol:medium",
++   "agents/oracle.md: @oracle",
++   ".omp/agents/measurement-adjudicator.md: onara/cc/claude-opus-5-5:high",
++   ".omp/agents/measurement-sol.md: onara/cx/gpt-6.1-sol:high",
++   ".omp/agents/measurement-terra.md: onara/cx/gpt-6.1-terra:medium",
++   ".omp/agents/measurement-verifier.md: onara/cx/gpt-6.1-sol:medium",
++ ]
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/Users/tim/git/oh-my-pi/.worktrees/team-config-native-models/scripts/install-team-config.test.ts:841:56)
+(fail) team config providers > seed and agent definitions name only built-in providers [227.28ms]
+
+ 60 pass
+ 1 fail
+ 187 expect() calls
+Ran 61 tests across 1 file. [1093.00ms]
+exit: 1

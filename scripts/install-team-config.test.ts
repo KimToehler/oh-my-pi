@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { TempDir } from "@oh-my-pi/pi-utils";
+import { expandRoleAlias, normalizeModelPatternList } from "@oh-my-pi/pi-coding-agent/config/model-resolver";
+import { isEnoent, parseFrontmatter, TempDir } from "@oh-my-pi/pi-utils";
 import { type InstallOptions, installTeamConfig, teamConfigTargets } from "./install-team-config";
 
 const dirs: TempDir[] = [];
@@ -22,7 +23,7 @@ async function setup(files: Record<string, string>) {
 	const repo = (rel: string) => path.join(repoDir, "team-config", rel);
 	const agent = (rel: string) => path.join(agentDir, rel);
 	const read = (file: string) => Bun.file(file).text();
-	return { agentDir, install, repo, agent, read };
+	return { repoDir, agentDir, install, repo, agent, read };
 }
 
 describe("installTeamConfig", () => {
@@ -764,6 +765,96 @@ describe("teamConfigTargets", () => {
 			primary,
 			path.join(root, "agent"),
 			path.join(root, "profiles", "prp", "agent"),
+		]);
+	});
+});
+
+const BUILT_IN_PROVIDERS = ["anthropic", "openai-codex"];
+
+interface SeededModelConfig {
+	modelRoles?: Record<string, string>;
+	retry?: { fallbackChains?: Record<string, string[]> };
+	modelProviderOrder?: string[];
+	enabledModels?: string[];
+	compaction?: { modelThresholds?: Record<string, number> };
+	task?: { agentModelOverrides?: Record<string, string> };
+}
+
+async function agentDefinitions(dir: string): Promise<string[]> {
+	try {
+		return (await fs.readdir(dir)).filter(name => name.endsWith(".md")).sort();
+	} catch (err) {
+		if (isEnoent(err)) return [];
+		throw err;
+	}
+}
+
+/**
+ * Every model selector an installed agent dir names outside the built-in providers, as `<where>: <selector>`.
+ * Role references (`@review`) are expanded through the seeded `modelRoles`, so a role that points at
+ * another provider is reported at every reference.
+ */
+async function nonBuiltInSelectors(agentDir: string, repoDir: string): Promise<string[]> {
+	const config = Bun.YAML.parse(await Bun.file(path.join(agentDir, "config.yml")).text()) as SeededModelConfig;
+	const roles = config.modelRoles ?? {};
+	const lookup = { getModelRole: (role: string) => roles[role] };
+	const found: string[] = [];
+	const check = (where: string, selector: string) => {
+		for (const pattern of normalizeModelPatternList(selector)) {
+			const resolved = expandRoleAlias(pattern, lookup);
+			if (!BUILT_IN_PROVIDERS.some(provider => resolved.startsWith(`${provider}/`)))
+				found.push(`${where}: ${pattern}`);
+		}
+	};
+	for (const [role, selector] of Object.entries(roles)) check(`modelRoles.${role}`, selector);
+	for (const [from, chain] of Object.entries(config.retry?.fallbackChains ?? {})) {
+		check("retry.fallbackChains", from);
+		for (const to of chain) check(`retry.fallbackChains.${from}`, to);
+	}
+	for (const pattern of config.enabledModels ?? []) check("enabledModels", pattern);
+	for (const key of Object.keys(config.compaction?.modelThresholds ?? {})) check("compaction.modelThresholds", key);
+	for (const [agent, selector] of Object.entries(config.task?.agentModelOverrides ?? {})) {
+		check(`task.agentModelOverrides.${agent}`, selector);
+	}
+	for (const provider of config.modelProviderOrder ?? []) {
+		if (!BUILT_IN_PROVIDERS.includes(provider)) found.push(`modelProviderOrder: ${provider}`);
+	}
+	for (const [label, dir] of [
+		["agents", path.join(agentDir, "agents")],
+		[".omp/agents", path.join(repoDir, ".omp", "agents")],
+	]) {
+		for (const name of await agentDefinitions(dir)) {
+			const { frontmatter } = parseFrontmatter(await Bun.file(path.join(dir, name)).text());
+			const model = frontmatter.model;
+			if (model !== undefined) check(`${label}/${name}`, Array.isArray(model) ? model.join(",") : String(model));
+		}
+	}
+	return found;
+}
+
+describe("team config providers", () => {
+	test("seed and agent definitions name only built-in providers", async () => {
+		const tmp = await TempDir.create("@team-config-providers-");
+		dirs.push(tmp);
+		const repoDir = path.join(import.meta.dir, "..");
+		const agentDir = tmp.path();
+		const report = await installTeamConfig({ repoDir, agentDir, timestamp: "t1" });
+		expect(await nonBuiltInSelectors(agentDir, repoDir)).toEqual([]);
+		expect(report.seeded).toEqual(["config.yml"]);
+	});
+
+	test("provider check reports router routes behind literal pins and role references", async () => {
+		const t = await setup({
+			"seed/config.yml": "modelRoles:\n  default: anthropic/claude-opus-5-5:high\n  review: router/cx/gpt-6.1-sol\n",
+			"agent/agents/by-role.md": '---\nname: by-role\nmodel: "@review"\n---\nbody\n',
+			"agent/agents/literal.md": "---\nname: literal\nmodel: router/cc/claude-fable-5-2:high\n---\nbody\n",
+			"agent/agents/native.md": "---\nname: native\nmodel: anthropic/claude-fable-5-2:high\n---\nbody\n",
+		});
+		await t.install();
+		expect(await nonBuiltInSelectors(t.agentDir, t.repoDir)).toEqual([
+			"modelRoles.review: router/cx/gpt-6.1-sol",
+			"agents/by-role.md: @review",
+			"agents/literal.md: router/cc/claude-fable-5-2:high",
 		]);
 	});
 });

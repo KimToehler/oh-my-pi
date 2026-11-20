@@ -1,7 +1,7 @@
 ---
 name: measurement-adjudicator
 description: Read-only blinded adjudication of frozen plan-review findings and target hypotheses for one experiment item
-model: onara/cc/claude-opus-5-5:high
+model: anthropic/claude-opus-5-5:high
 tools: read, grep, glob
 structured: true
 output:

@@ -2,7 +2,7 @@
 name: measurement-terra
 description: "Read-only plan content reviewer: checks a proposed plan or a fix delta (fix entry plus diff) for claims, design, verification and security against the repo and returns an OKAY or REJECT verdict"
 tools: read, grep, glob
-model: onara/cx/gpt-6.1-terra:medium
+model: openai-codex/gpt-6.1-terra:medium
 structured: true
 output:
   properties:

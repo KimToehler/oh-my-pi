@@ -162,7 +162,7 @@ function invocationSet(entries, field) {
 }
 
 // Error correlation follows the weights, not the route. `anthropic/claude-opus-5`,
-// `openrouter/anthropic/claude-opus-5`, `github-copilot/claude-opus-5` and `onara/cc/claude-opus-5`
+// `openrouter/anthropic/claude-opus-5`, `github-copilot/claude-opus-5` and `router/cc/claude-opus-5`
 // are one model behind four prefixes, so the vendor is read from the model NAME and the routing
 // prefix is discarded. This table duplicates `model-family-detectors.ts` on purpose: the validator
 // ships standalone into each harness's skills directory and may not import from the workspace.

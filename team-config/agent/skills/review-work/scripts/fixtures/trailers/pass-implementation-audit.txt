@@ -3,7 +3,7 @@ Findings: no blockers. Section 3 found no new data class leaving the process.
 REVIEW-TRAILER-v1
 invocation: implementation-audit
 sections_covered: 1,2,3,4,5
-model_id: onara/cc/claude-opus-5
+model_id: anthropic/claude-opus-5
 security_delta: no
 verdict: PASS
 adversarial_criteria:
