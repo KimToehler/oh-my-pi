@@ -45,13 +45,20 @@ The definitions name `anthropic/claude-fable-5-2:high` (`architecture-oracle`), 
 
 ### D4. The provider check is an installer test on the real team config
 
-A new test in `scripts/install-team-config.test.ts` runs `installTeamConfig` from the repository's own `team-config/` into a temporary agent directory. It asserts three things:
+One helper in `scripts/install-team-config.test.ts` lists every model selector an installed agent directory names that does not use `anthropic` or `openai-codex`. Two tests call it.
 
-- the seeded files are exactly `config.yml`;
-- every model selector in the seeded `config.yml` starts with `anthropic/` or `openai-codex/` (role values, fallback-chain keys and entries, `enabledModels` patterns, `compaction.modelThresholds` keys, `task.agentModelOverrides` values), and `modelProviderOrder` holds only those providers;
-- every `model:` in the installed `agents/*.md` and in the repository's `.omp/agents/*.md` frontmatter uses one of them.
+The helper reads the seeded `config.yml` and these selectors:
 
-It asserts the installed output, not source text. On the current seed it fails, and that run is the requirement's negative control (RED).
+- role values, fallback-chain keys and entries, `enabledModels` patterns, `compaction.modelThresholds` keys and `task.agentModelOverrides` values;
+- the `modelProviderOrder` entries, which are bare provider names;
+- every `model:` in the installed `agents/*.md` frontmatter, plus the `.omp/agents/*.md` of the repository it installed from.
+
+A role reference (`@review`, `@oracle`) is expanded with the existing `expandRoleAlias` (`packages/coding-agent/src/config/model-resolver.ts:1312`, imported as `@oh-my-pi/pi-coding-agent/config/model-resolver`). Its lookup returns the seeded `modelRoles` entry. A reference that stays unexpanded is reported too. Two role references exist today: `reviewer: "@review"` (`team-config/seed/config.yml:67`) and `model: "@oracle"` (`team-config/agent/agents/oracle.md:5`). The migration leaves both unchanged, because their roles become native.
+
+- Test "seed and agent definitions name only built-in providers" runs `installTeamConfig` from the repository's own `team-config/` into a temporary agent directory. It asserts that the seeded files are exactly `config.yml` and that the helper reports nothing. On the current seed it fails; that run is the requirement's negative control (RED).
+- Test "provider check reports router routes behind literal pins and role references" uses the existing `setup()` fixture repo. Its seed sets `modelRoles.review: router/cx/gpt-6.1-sol`, and it has one agent with `model: "@review"` and one with `model: router/cc/claude-fable-5-2:high`. It asserts that the helper reports exactly those two agent selectors and the role value. So the check's rejection path stays covered after the real seed turns native.
+
+Both tests assert the installed output, not source text.
 
 "Existing installation keeps its own routes" needs no new test. The existing test "seeds once and never overwrites the user's copy" (`scripts/install-team-config.test.ts:29`) covers the one code path that skips a present seed target, whatever the file's name. The F1 install row shows it on `config.yml` and `models.yml` that name a custom provider.
 
