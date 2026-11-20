@@ -115,7 +115,7 @@ The consultation SHALL be one fresh `architecture-oracle` task item that carries
 
 ### Requirement: A consultation counts only on its pinned model
 
-Every consultation attempt SHALL count only when the report check accepts it, which compares every model in its session file with the `model` of the `architecture-oracle` definition, never with a configured `task.agentModelOverrides` entry. A refused attempt SHALL get one fresh retry. If the retry also fails, the user SHALL choose between skipping with a reason in their words and stopping; after a Stop, further attempts follow only as requirement "A consultation survives interruption" allows. No other model's report and no analysis of the author's own SHALL stand in for the consultation.
+Every consultation attempt SHALL count only when the report check accepts it, which compares the model name of every turn in its session file, the last `/` segment of its `provider/model`, with the model name of the `architecture-oracle` definition's `model` without its effort suffix, never with a configured `task.agentModelOverrides` entry; the provider SHALL NOT take part in the comparison. A refused attempt SHALL get one fresh retry. If the retry also fails, the user SHALL choose between skipping with a reason in their words and stopping; after a Stop, further attempts follow only as requirement "A consultation survives interruption" allows. No other model's report and no analysis of the author's own SHALL stand in for the consultation.
 
 #### Scenario: Installation without the model entry
 
@@ -127,6 +127,11 @@ Every consultation attempt SHALL count only when the report check accepts it, wh
 - **WHEN** the agent directory's config sets `task.agentModelOverrides` for `architecture-oracle` to `onara/cx/gpt-6.1-sol`
 - **THEN** both attempts run on that model, neither report is used, and the user is asked to skip with a reason or to stop, quoting those models
 
+#### Scenario: Same model through another provider
+
+- **WHEN** the agent directory's config sets `task.agentModelOverrides` for `architecture-oracle` to `anthropic/claude-fable-5-2:high`, every turn of the attempt ran on `anthropic/claude-fable-5-2`, and its final yield is an accepted report
+- **THEN** the report check accepts the attempt, and Models records `anthropic/claude-fable-5-2` for it
+
 #### Scenario: User skips
 
 - **WHEN** the user answers that ask with skip and a reason
@@ -134,8 +139,8 @@ Every consultation attempt SHALL count only when the report check accepts it, wh
 
 #### Scenario: Negative control
 
-- **WHEN** an instruction applies findings from a dispatch whose session file records a model other than the definition's, takes the expected model from `task.agentModelOverrides`, writes a `skipped` record without the user's answer, or replaces a failed consultation with the author's own architecture review
-- **THEN** review of that instruction MUST fail
+- **WHEN** the report check accepts a session file with a turn on `onara/cc/claude-opus-5-5`, or refuses one whose every turn ran on `anthropic/claude-fable-5-2`; or an instruction applies findings from a dispatch whose session file records a model name other than the definition's, takes the expected model from `task.agentModelOverrides`, writes a `skipped` record without the user's answer, or replaces a failed consultation with the author's own architecture review
+- **THEN** that check or review of that instruction MUST fail
 
 ### Requirement: The author decides every finding before the next round
 
