@@ -1,0 +1,21 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/team-config-reseed-guidance",
+  "plan_sha256": "861d53ad29e9ca6645b7cdd69f4be98e1c8fd6fb8f0a2e3f9cc6e9efa54432ed",
+  "reviewed_sha": "6cd7182d5f4def72c52afb407c5ace6247fb4a61",
+  "diff_base": "18de73870895d4291098606f0e9dcb03553ec6fa",
+  "reviewers_run": ["implementation-audit"],
+  "decision_reason": "gate.md Depth standard, Mandatory class none, Risk tier internal-tooling; the final diff changes only the team README's manual migration paragraph plus the change folder and its evidence, so one implementation-audit",
+  "mandatory_class": "none",
+  "implementation_models": ["anthropic/claude-opus-5-5"],
+  "qa": [
+    { "name": "Feature criterion: manual route clears every router-bound setting; literal old paragraph leaves them", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-reseed-guidance/f1/manual-route.md", "artifact_sha256": "0f520a5a535647ba5b67a80b978f7947aadb3bd872ede80251a534719d7fcff8" },
+    { "name": "Happy path: session under the edited config runs on a native model", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-reseed-guidance/f1/happy-path.md", "artifact_sha256": "9fe8b1dfa8267353c43488005ce5cc26731289c192029105f3e0da3d8abc6247" },
+    { "name": "Riskiest edge: personal entries inside the rewritten settings are kept", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-reseed-guidance/f1/edge-own-settings.md", "artifact_sha256": "d35e7b7c0e3cc7ff71c743e4d285aab1cba92c990a250e390c71b039396824fb" },
+    { "name": "Regression: bun run test:team-config", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-reseed-guidance/f1/regression.md", "artifact_sha256": "ff0635a2e1b0cf97617a993e9c855aa4abacb881f3d2ce0c2f57ad86461c3c0c" }
+  ],
+  "whole_diff": { "run": false, "reason": "whole-diff surface reviewed in F2" },
+  "resolution": [{ "invocation": "implementation-audit", "agent": "auditor", "model": "openai-codex/gpt-6.1-sol", "independence": "cross-provider" }],
+  "verdicts": [{ "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": ".omp/team-config/evidence/gate/team-config-reseed-guidance/f2/trailer-implementation-audit.txt", "trailer_sha256": "d814eb8c3229b013d4d9a1803a1bf8feee81717f0511ee238f745fbdee84778d", "note": "F2 wave 1 DECISION: PASS; no blockers; two non-blocking evidence notes" }],
+  "blockers": []
+}

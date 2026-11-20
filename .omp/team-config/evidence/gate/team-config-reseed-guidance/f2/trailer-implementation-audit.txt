@@ -1,0 +1,43 @@
+## 1. Goal and behavioural contract
+
+The revised guidance covers every identified router-bound setting: model roles, fallback-chain keys and entries, agent overrides, provider ordering, enabled-model patterns, and compaction-threshold keys. It explicitly preserves personal entries and removes both router providers from `models.yml`.
+
+The re-seed instructions remain unchanged. The supplied diff contains documentation and review artifacts only.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+No blockers found across the whole diff.
+
+The instructions match `team-config/seed/config.yml`. The explanation about excluded native models agrees with `packages/coding-agent/src/session/model-controls.ts:527-535`, where `enabledModels` filters available models.
+
+Existing installer tests exercise real file preservation (`scripts/install-team-config.test.ts:30-36`) and installed provider selectors (`:836-865`), rather than merely asserting documentation text. No additional convention, runtime mechanism, or wire-contract change is introduced.
+
+## 3. Security and privacy delta
+
+No security delta identified. The changed instructions do not alter authentication, expose credential values, or weaken access to protected assets.
+
+## 4. Verification adequacy
+
+Reviewed the supplied QA matrix and complete artifact contents embedded in the brief, alongside the seed, configuration-overlay implementation, model-list filtering, provider configuration boundary, and relevant installer tests. No checks were executed.
+
+- **Note 1 — evidence isolation:** The happy-path model matches the operator’s existing default, and the threshold query retains lower-layer router keys through deep merging. These limitations are explicitly disclosed. Non-blocking: the edited-file comparison and discriminating array outputs independently support the requested correction.
+- **Note 2 — unexercised preservation edge:** The fixture does not contain an unrelated custom provider in `models.yml`. Non-blocking: `team-config/README.md:43` instructs deletion of the two router providers, not replacement of the entire file; no incorrect deletion was observed.
+
+## 5. Final verdict
+
+No blocking findings. Residual verification limits are listed above.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: openai-codex/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Removing obsolete router registrations must not remove or modify an unrelated custom provider registration in the same models.yml.
+  positive_witness: A file containing two obsolete router providers and a local-test provider retains the local-test registration unchanged after following the instructions.
+  negative_control: Replacing that mixed file with providers: {} removes local-test and must fail.
+  observable: Parsed provider mappings before and after retain identical local-test configuration, and the resulting ModelRegistry still contains its configured model.
+  boundary: Member-owned models.yml consumed by ModelRegistry, separately from config.yml enabled-model filtering.
+END-REVIEW-TRAILER
