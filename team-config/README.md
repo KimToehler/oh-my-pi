@@ -31,6 +31,10 @@ review is pinned to; without a pin for the agent it dispatches, a plan review st
 to add the entry instead of reviewing on whatever model the runtime picks. Open `risky` OpenSpec changes need a
 `consultation.md` before `--reviewed` passes again: re-run their review, which records the consultation, or a skip you
 approve, without a round unless an adopted finding edits the plan.
+A `~/.omp/agent/config.yml` seeded before the team config switched to the built-in providers still names models through
+the router provider that an earlier seed defined in `~/.omp/agent/models.yml`. If you do not use that router, move both
+files aside and re-run `scripts/deploy-local.sh`, which seeds a fresh `config.yml`, then copy back your own settings; or
+rewrite each model's `<router>/cc/` prefix to `anthropic/` and `<router>/cx/` to `openai-codex/` by hand.
 
 The pin checks of the plan review, the architecture consultation and the F2 gate compare model names, not providers:
 `router/cx/gpt-6.1-sol` and `openai-codex/gpt-6.1-sol` are the same model. A member who reaches the pinned models
