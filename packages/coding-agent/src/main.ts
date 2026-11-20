@@ -894,7 +894,11 @@ async function runInteractiveMode(
 	}
 }
 
-type SessionPromptResult = "accepted" | "declined" | "unavailable";
+/**
+ * `"keep"`: open the session where it is stored, with the launch directory as
+ * its working directory, as `--resume <path>` does.
+ */
+type SessionPromptResult = "accepted" | "declined" | "unavailable" | "keep";
 
 type SessionPrompt = (session: SessionInfo) => Promise<SessionPromptResult>;
 
@@ -913,6 +917,11 @@ async function promptMoveSession(session: SessionInfo): Promise<SessionPromptRes
 		rl.close();
 		resumeStartupWatchdog();
 	}
+}
+
+/** Protocol modes (`rpc`, `rpc-ui`, `acp`) own stdin and stdout, so they never ask. */
+async function keepSessionInPlace(): Promise<SessionPromptResult> {
+	return "keep";
 }
 
 /**
@@ -963,6 +972,7 @@ function isForeignSessionImport(parsed: Pick<Args, "fromClaude" | "fromCodex">):
 type MissingCwdMoveResult =
 	| { status: "not-needed" }
 	| { status: "declined" }
+	| { status: "kept" }
 	| { status: "moved"; manager: SessionManager };
 
 async function moveMissingCwdSessionIfNeeded(
@@ -980,6 +990,9 @@ async function moveMissingCwdSessionIfNeeded(
 	// Filed under this folder (or a removed worktree of it): the session belongs here, no question to ask.
 	if (!(await SessionManager.isStrandedIn(session, cwd, sessionDir))) {
 		const movePromptResult = await askToMoveSession(session);
+		if (movePromptResult === "keep") {
+			return { status: "kept" };
+		}
 		if (movePromptResult === "unavailable") {
 			throw new SessionResolutionError(
 				`Session "${sessionArg}" belongs to a directory that no longer exists (${sourceCwd}); run interactively to move it into the current project.`,
@@ -2234,7 +2247,7 @@ export async function runRootCommand(
 					parsedArgs,
 					cwd,
 					settingsInstance,
-					promptMoveSession,
+					isProtocolMode ? keepSessionInPlace : promptMoveSession,
 					{
 						nativeFlagOwnership: "preliminary",
 						onSessionContinuation: continuation => resumedContinuations.push(continuation),
