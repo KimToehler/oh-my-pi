@@ -42,10 +42,10 @@ Use one VM name for the build, `app-qa-build`, and the golden name `app-qa-golde
 10. **Check the guest's console session**: the guest must show its desktop, not the login window or a Setup Assistant "MiniBuddy" window. Killing that window logs the session out and the VM then stays on the login window; `lume stop` and `lume run` bring autologin back, so leave the window alone and let provisioning's Setup Assistant settings prevent it.
 11. **Pin the host key**, while `app-qa-build` still runs and before any credential has entered a guest. Every clone of the image presents this key, and the driver accepts no other:
    ```
-   ssh-keyscan -t ed25519 ADDRESS 2>/dev/null | awk '{print "app-qa-golden", $2, $3}' > ~/.omp/agent/app-qa-vm_known_hosts
+   ssh-keyscan -t ed25519 ADDRESS 2>/dev/null | awk '$2 == "ssh-ed25519" {print "app-qa-golden", $2, $3}' > ~/.omp/agent/app-qa-vm_known_hosts
    ssh -i KEY -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.omp/agent/app-qa-vm_known_hosts -o HostKeyAlias=app-qa-golden lume@ADDRESS true
    ```
-   The first field is the golden image's name, the lane file's `image`: the driver looks the key up under that name (`HostKeyAlias`), since clone addresses change. The scan trusts the key the build VM presents now, on this Mac's NAT network, at a time no guest holds a credential.
+   The first field is the golden image's name, the lane file's `image`: the driver looks the key up under that name (`HostKeyAlias`), since clone addresses change. The `awk` keeps only the key line: `ssh-keyscan` also prints a `# ADDRESS:22 SSH-2.0-…` banner comment on stdout. The file must hold exactly one line. The scan trusts the key the build VM presents now, on this Mac's NAT network, at a time no guest holds a credential.
 12. **Remove build leftovers**: `ssh ... 'rm -rf /tmp/app-qa-vm /tmp/ios-runtime.dmg ~/.vnc.env'`. A boot with VNC on makes lume write `~/.vnc.env` (port and VNC password) into the guest over SSH, so the SIP step leaves one. Put no repository, credentials file or token into the VM. Then shut the guest down cleanly (`ssh ... 'sudo shutdown -h now'`) and wait until `lume ls` shows it stopped.
 13. **Clone to the golden name**: `lume clone app-qa-build app-qa-golden`. Keep `app-qa-build` for the next image update, or delete it.
 14. **Write the lane file** `~/.omp/agent/app-qa-vm.json`:
