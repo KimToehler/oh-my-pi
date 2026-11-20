@@ -1,5 +1,5 @@
 ---
-description: review-work gate traps that cost a whole wave - trailer shape, re-waves, evidence-only commits, merging main mid-gate, measurement harnesses, counted captures, brief building, blocker triage order, elided patch reads, unverified library claims; read before a GC wave, a fix round or a reviewer dispatch
+description: review-work gate traps that cost a whole wave - re-waves, bound evidence, merging main mid-gate, measurement harnesses, counted captures, brief building, blocker triage order, elided patch reads, unverified library claims; read before a GC wave, a fix round or a reviewer dispatch
 globs:
   - "**/.omp/plans/**"
   - "**/openspec/changes/**"
@@ -11,30 +11,18 @@ globs:
 Each item cost at least one wave. OpenSpec-specific pitfalls (tasks.md row syntax, whole-reply trailers, brief
 size) are in `lesson-openspec-gate-pitfalls`; its "Validate every tasks.md edit at once" applies to plan-file fix rows too.
 
-## Formats the validators enforce late
-
-- **Trailers:** before `GC wave`, check a stored trailer's whole shape at once: `REVIEW-TRAILER-v1`, `invocation`,
-  `sections_covered`, `model_id`, `verdict`, `blockers`, an `adversarial_criteria:` block with all five fields,
-  `END-REVIEW-TRAILER`. `validate-gate-record.mjs` refuses a drifted one (a singular `adversarial_criterion:`) only
-  at Phase 5, after the ledger recorded the wave; trailers are never edited, and the re-run may need a new fix row
-  and a whole wave.
-- Piping a validator through `tail` hides its exit code: `set -o pipefail` before chaining a commit on it.
-
 ## Waves and commits
 
+- Piping a validator through `tail` hides its exit code: `set -o pipefail` before chaining a commit on it.
 - **Re-wave after a committed record:** store the new wave's trailer at a new path (`...-wave2.txt`) and run
   `GC wave` before touching the tracked record or trailer; otherwise GC refuses with "tracked files differ from the
   snapshot".
-- **Evidence-only commits after a PASS** (record, trailer, F1 captures or harness) block `GC ready` as unreviewed fix
-  commits. Record `gate-convergence.mjs exempt --sha <full 40-hex sha> --reason ...` per commit (a short sha fails
-  with "unknown commit"). A plan-reviewer delta over such commits aborts under `ui-automation-credentials` once the
-  brief names QA skills or evidence patches, and a retry aborts the same way: exempt instead of dispatching.
 - **Bound evidence is never edited** once the record binds it by sha256, not even in a post-merge commit; put
   corrections in a new file the record binds, or in unbound notes.
-- **Main moves:** run `git merge-base --is-ancestor main HEAD` before `GC baseline`. Merging main after the baseline
-  puts every main commit into the next delta (`GC patch` writes `git show` per commit of base..head); when that diff
-  is large and disjoint from the plan, run the wave on the unmerged branch and merge the reviewed tree as it stands.
-  Size it first with `git diff --stat $(git merge-base main HEAD) main`.
+- **Main moves:** integrate main before `GC baseline` (review-work, "Fix waves" step 1). Merging it after the baseline puts every main
+  commit into the next delta (`GC patch` writes `git show` per commit of base..head); when main carried large
+  evidence commits, the delta reviewer cannot read them all and returns no verdict. Size the range first with
+  `git diff --stat $(git merge-base main HEAD) main`; when it is large, ask the user how to proceed before merging.
 - **A fix that only needs a measurement** keeps its harness as evidence next to its captures and re-runs from there;
   a reusable runner (image, launcher under `scripts/`, a documented command) is rejected as a new subsystem.
 - **Counted capture runs:** never edit, check out or create a file in the worktree while one captures. Bash reads
