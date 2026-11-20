@@ -1,0 +1,9 @@
+# Gate
+
+- **Mandatory class**: none
+- **Depth**: standard (the class is none; every check rule, brief and counting rule stays as it is, and only the provider prefix of seeded models and gate pins changes, with model names and efforts kept)
+- **Risk tier**: internal-tooling
+- **Author's risk assessment**: The change edits team-config values, agent pins, docs and test fixtures. What could break: (1) a seeded role or pin names a model the native provider does not serve, so a fresh install's sessions or gate dispatches fail to resolve; this is caught by the installer test (D4) and the F1 live rows; (2) a gate agent then runs on another model and its dispatch is refused, which the unchanged name-only checks already handle by refusing and telling the user; (3) a fixture rename changes what a validator test proves, which is caught by the full `test:team-config` run and by keeping every assertion. The worst case is that gate dispatches stop counting until a member signs in or sets an override; no check is weakened and no verdict is produced on the wrong model. The tooling reaches no protected asset: it changes which provider a developer's own session calls, using the developer's own sign-in. That makes it internal-tooling with class none.
+- **Whole-diff review**: not needed (whole-diff surface reviewed in F2)
+- **Accepted residual risks**: `advisor` and `review` (`openai-codex/gpt-6.1-terra`) resolve only after `openai-codex` model discovery, because the bundled catalog does not list that model; existing members keep their own `onara` config until they change it themselves.
+- **Out of scope for blocking**: `packages/metaharness` test fixtures that name `onara` (separate harness, not team config); `onara` mentions in archived changes, `.omp/plans/` and evidence (historical records); the `gate-delta-evidence-elision` change (another lane).
