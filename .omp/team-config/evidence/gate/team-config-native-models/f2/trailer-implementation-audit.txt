@@ -1,0 +1,42 @@
+## 1. Goal and behavioural contract
+
+The supplied diff implements the native-provider cutover consistently: model names and efforts are preserved, router seeding is removed, and existing installations remain untouched.
+
+## 2. Correctness, regressions, architecture, wire contracts
+
+Reviewed the whole diff and traced installer ownership, role expansion, model filtering, fallback validation, consultation admission, and reviewer independence.
+
+No blocking defects found.
+
+**Note:** `team-config/README.md:37` describes prefix replacement as a manual migration alternative, but that alone leaves router-only `enabledModels`, provider order, and compaction patterns. Native models consequently remain excluded from model listings (`packages/coding-agent/src/session/model-controls.ts:531-535`). Mention those settings too. Non-blocking: existing-install migration is explicitly outside the required cutover, and the preceding fresh-reseed alternative is complete.
+
+## 3. Security and privacy delta
+
+No real credentials, authorization logic, or third-party personal data are changed. Provider selection uses existing authentication mechanisms; no protected-asset access is weakened.
+
+## 4. Verification adequacy
+
+Reviewed all nine QA artifacts, setup evidence, and the committed provider-check RED capture. Evidence includes real native dispatches, discovered Terra resolution, rejected substituted sessions, preserved existing files, and a reported **999 passing tests, zero failures**. Tests exercise installed output and actual validators, not only prompt wording.
+
+Residual limits: Terra availability remains account-discovery-dependent; the missing-auditor-model branch was explicitly not exercised (`f1/audit.md:333`). That unchanged branch does not block this provider-only change.
+
+I ran no tests and made no changes.
+
+## 5. Final assessment
+
+No blockers; the documentation note and verification limits above remain non-blocking.
+
+REVIEW-TRAILER-v1
+invocation: implementation-audit
+sections_covered: 1,2,3,4,5
+model_id: openai-codex/gpt-6.1-sol
+security_delta: no
+verdict: PASS
+blockers: none
+adversarial_criteria:
+- invariant: Renaming a fixture model identity must not replace its intended rejection with an unrelated artifact-integrity failure.
+  positive_witness: Correct independence claims validate, while incorrect claims fail specifically on independence after trailer digests are rebound.
+  negative_control: An incorrect claim fails only because its renamed trailer has a stale digest, leaving the intended classifier untested.
+  observable: Paired exit-code assertions and independence-specific stderr assertions at validate-gate-record.test.mjs:1351-1361; the reviewed regression capture reports zero failures.
+  boundary: Actual validator subprocess reading staged sandbox fixtures.
+END-REVIEW-TRAILER

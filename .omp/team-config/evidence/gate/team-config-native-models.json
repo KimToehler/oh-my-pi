@@ -1,0 +1,26 @@
+{
+  "schema": "team-config.merge-gate/v3",
+  "plan": "openspec/changes/team-config-native-models",
+  "plan_sha256": "dfebca4d80fdc4a5795d8f70d58de489c01f6bd58e40523d77911a24c4d84670",
+  "reviewed_sha": "ed49e9e1eb9c9649b623d553c7a480adfd74c04c",
+  "diff_base": "97228532bddbe96dbdd824d8ebb84349de390e4c",
+  "reviewers_run": ["implementation-audit"],
+  "decision_reason": "gate.md Depth standard, Mandatory class none, Risk tier internal-tooling; the final diff changes only provider prefixes of seeded models and pins, docs and fixtures, so one implementation-audit",
+  "mandatory_class": "none",
+  "implementation_models": ["anthropic/claude-opus-5-5", "openai-codex/gpt-6-luna"],
+  "qa": [
+    { "name": "Team config names only built-in providers (team-config-install)", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/install.md", "artifact_sha256": "0bb6fb13f1c550b671fffe0d86ae472d13bd076653df8433bd232d1a5bf2a089" },
+    { "name": "Fixed consultation brief on the pinned agent (plan-architecture-consultation)", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/consultation.md", "artifact_sha256": "f5dedfb229f6c223c42d625f2173c49a71a7b8aa2326d335ec2ebe28379d2cbc" },
+    { "name": "A consultation counts only on its pinned model (plan-architecture-consultation)", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/consultation-count.md", "artifact_sha256": "e646057b00be2f5a1de1ef8cea7ff598ec38a9a861c759a9d2236b4cdb8551b5" },
+    { "name": "Fixed reviewer briefs on a pinned model (openspec-plan-review)", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/plan-review.md", "artifact_sha256": "c71a4b89fd171919479c68ac305409b8fb714c62ecd44773274861c0464a060e" },
+    { "name": "A dispatch counts only on its pinned model (openspec-plan-review)", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/plan-review-count.md", "artifact_sha256": "f0c5fc4eac9088f1fc0a5da5ad473799c6ccb8d02b4a838467211e6608aa0192" },
+    { "name": "Gate reviewers run on their pinned model (post-implementation-review)", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/audit.md", "artifact_sha256": "981692b47ad35db996b4a45e27f3ddb3350a95845692d112cebade167d63f7c0" },
+    { "name": "Happy path: native main session and subagent, every seeded id known", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/happy-path.md", "artifact_sha256": "0dc8ce4a58475214c4384b085ecbdd742d9840d51322bbf824559a4033949b02" },
+    { "name": "Riskiest edge: terra roles resolve outside the bundled catalog", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/edge-terra.md", "artifact_sha256": "930a4b0eb53ea366bea72650b891e5a9586df71c9d0058490e6d95cddaa3f39a" },
+    { "name": "Regression: bun run test:team-config", "passed": true, "artifact": ".omp/team-config/evidence/gate/team-config-native-models/f1/regression.md", "artifact_sha256": "6e2f0a5c1a5dac71fe2b8f159fdd9233d04819ad2591eb3c23127b2b9e8d6b0d" }
+  ],
+  "whole_diff": { "run": false, "reason": "whole-diff surface reviewed in F2" },
+  "resolution": [{ "invocation": "implementation-audit", "agent": "auditor", "model": "openai-codex/gpt-6.1-sol", "independence": "same-provider" }],
+  "verdicts": [{ "invocation": "implementation-audit", "verdict": "PASS", "trailer_artifact": ".omp/team-config/evidence/gate/team-config-native-models/f2/trailer-implementation-audit.txt", "trailer_sha256": "525dc3ef0ce68c4e1b128c9395400e5c60389abade3ed0bc8fba2822cea3fea3", "note": "F2 wave 1 DECISION: PASS; no blockers; README migration note non-blocking" }],
+  "blockers": []
+}
