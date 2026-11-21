@@ -173,7 +173,7 @@ When this review is a plan's merge gate (F2), run Fix waves step 1 first.
 2. **Pick the channel that faithfully exercises the surface** and capture the artifact:
    - HTTP: `curl -i` (or an API request context) - status line, headers, body.
    - CLI / TUI: a real pty - drive the command and keep the transcript; for color or layout evidence render through a browser-based terminal, never a `tmux capture-pane` dump.
-   - Web: the real page in a real browser - omp's `browser` global in the `eval` tool (docs: `xd://eval/browser`) - action log plus screenshot (`read` the PNG to inspect it).
+   - Web: the real page in a real browser - omp's `browser` global in the `eval` tool (docs: `help://eval/browser`) - action log plus screenshot (`read` the PNG to inspect it).
    - Desktop / GUI: OS-level automation against the running app - action log plus screenshot.
    - Library / SDK: a script that imports and exercises the public API - transcript.
    - Model-read instruction text (skills, rules, agent prompts, schema instructions): fresh ordinary agent sessions on disposable fixtures, as `Change verification` describes - retained outputs, written artifacts and the successful tool interactions, judged directly.

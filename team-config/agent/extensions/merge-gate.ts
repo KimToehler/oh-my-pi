@@ -11,7 +11,7 @@
  * Deterministic and stateless: no idle nudges, no continuation counters. A refusal stays in
  * force until the claim is backed or withdrawn; the operator can always interrupt.
  *
- * Plan time: a plan-mode proposal (`write xd://propose`) is refused until the plan passes
+ * Plan time: a plan-mode proposal (the `propose` tool, top-level or as a `bash` command) is refused until the plan passes
  * `validate-gate-record.mjs --plan-only`. The validator owns every plan decision: the opt-out
  * declaration (`- Merge gate: not applicable (<reason>)` as a top-level bullet outside code fences),
  * the `## Merge gate` criteria, the abort-rule fields, the optional Risk tier field, and file-or-directory plan interpretation.
@@ -19,11 +19,12 @@
  *
  * Cross-family plan review is native in omp (`plan.review.enabled`); this extension does not review.
  *
- * omp prepares every call of a message before running any, so this check reads the plan before a
- * same-message write lands. Hence: a message gets at most one proposal checked; a second one in the
- * same message is refused. A proposal must stand alone in its message: one sent
- * with any file-changing call is refused before either check, and file-changing calls after an allowed
- * proposal in the same message are refused, and a proposal whose text names no existing `local://<slug>-plan.md` is
+ * omp prepares every top-level call of a message (firing `tool_call`) before running any, and a command run
+ * inside `bash` fires its own `tool_call` when it runs, so every same-message change has announced itself
+ * before the proposal is checked. Hence: a message gets at most one proposal checked; a second one in the
+ * same message is refused. A proposal must stand alone in its message: one sent while a file-changing call
+ * of the message is still pending is refused before either check, file-changing calls after an allowed
+ * proposal in the same message are refused, and a proposal whose title names no existing `local://<slug>-plan.md` is
  * refused, so the checked plan is the plan on disk that is approved.
  */
 import { existsSync } from "node:fs";
@@ -89,7 +90,7 @@ function lastAssistantText(message: unknown): string {
 
 const PROPOSE_ALONE: ToolCallEventResult = {
 	block: true,
-	reason: "Propose the plan alone: send xd://propose in its own message, after the plan file has been written.",
+	reason: "Propose the plan alone: run `propose <slug>` in its own message, after the plan file has been written.",
 };
 const AFTER_PROPOSE: ToolCallEventResult = {
 	block: true,
@@ -97,16 +98,11 @@ const AFTER_PROPOSE: ToolCallEventResult = {
 		"The plan was proposed earlier in this same message and nothing may change after its check. Send this call in a later message.",
 };
 
-// The host approves the propose text's slug file when it exists, and otherwise falls back to its plan-mode state
+// The host approves the propose title's slug file when it exists, and otherwise falls back to its plan-mode state
 // path or the newest plan, which this hook cannot pin down. So only a proposal whose slug file exists is checked.
 const NO_SLUG_PLAN: ToolCallEventResult = {
 	block: true,
-	reason: "Write the plan to local://<slug>-plan.md, then write exactly that <slug> to xd://propose.",
-};
-const UNCLEAR_SLUG: ToolCallEventResult = {
-	block: true,
-	reason:
-		"Write only the plan slug to xd://propose, without line-number or [path#tag] prefixes copied from read output.",
+	reason: "Write the plan to local://<slug>-plan.md, then run `propose <slug>` with exactly that <slug>.",
 };
 
 /** One assistant message's file-changing calls, whether it proposed already, and the proposal this hook allowed in it. */
@@ -119,10 +115,10 @@ interface MessageCalls {
 export default function mergeGate(pi: ExtensionAPI) {
 	pi.setLabel("Merge gate (review-work record)");
 
-	// omp prepares every tool call of a message (firing `tool_call`) before executing any of them
-	// (agent-loop prepareToolCallDispatch, then executeToolCalls), and `xd://propose` dispatches inside
-	// the write tool with no later hook. So the gate cannot know which same-message changes apply before or
-	// after the approval: a proposal must be the only file-changing call of its message. Calls leave on
+	// omp prepares every top-level tool call of a message (firing `tool_call`) before executing any of them
+	// (agent-loop prepareToolCallDispatch, then executeToolCalls); a `propose` run inside `bash` fires its
+	// `tool_call` only when it runs. The gate cannot know which same-message changes apply before or after
+	// the approval: a proposal must be the only pending file-changing call of its message. Calls leave on
 	// their `tool_result`, everything at `turn_end` (one message and its results); per session id.
 	const messages = new Map<string, MessageCalls>();
 	const messageOf = (sid: string): MessageCalls => {
@@ -192,7 +188,6 @@ export default function mergeGate(pi: ExtensionAPI) {
 		if (calls.proposed) return AFTER_PROPOSE;
 		calls.proposed = true;
 		if (calls.mutations.size > 0) return PROPOSE_ALONE;
-		if (call.body === undefined) return UNCLEAR_SLUG;
 		const result = await checkPlan(call.body, ctx);
 		if (!result?.block) calls.allowedPropose = event.toolCallId;
 		return result;

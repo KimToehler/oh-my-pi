@@ -709,7 +709,7 @@ export interface StreamOptions {
 	 * in the iterator while waiting for the first semantic stream event. Set to
 	 * `0` to disable both layers for this request. After the first semantic
 	 * event arrives, `streamIdleTimeoutMs` governs inter-event stalls. Falls
-	 * back to `PI_STREAM_FIRST_EVENT_TIMEOUT_MS` and then to a 100s default.
+	 * back to `PI_STREAM_FIRST_EVENT_TIMEOUT_MS` and then to a 900s default.
 	 * OpenAI-family transports additionally honor
 	 * `PI_OPENAI_STREAM_FIRST_EVENT_TIMEOUT_MS` as the most-specific override and
 	 * floor the first-event budget at the resolved idle (per-call
@@ -728,7 +728,7 @@ export interface StreamOptions {
 	 * mid-stream stalls (broker dies, half-open socket, model produces no real
 	 * progress for too long). Set to `0` to disable. Falls back to
 	 * `PI_STREAM_IDLE_TIMEOUT_MS` (alias: `PI_OPENAI_STREAM_IDLE_TIMEOUT_MS`)
-	 * and then to a 120s default.
+	 * and then to a 900s default.
 	 */
 	streamIdleTimeoutMs?: number;
 	/**
@@ -1511,9 +1511,10 @@ export interface CursorExecPairing {
 
 /**
  * Provenance for a call the provider runs through a host handler, outside the
- * agent loop. Carried by the write-capable families (`mcp`, `write`,
- * `piWrite`): each can reach the host's `write` tool, whose plan-proposal
- * path needs the exact message that made the call.
+ * agent loop. Carried by the families that can run a plan proposal — `mcp`
+ * (the `propose` tool) and the shell families `shell`, `shellStream`,
+ * `miniSweAgentBash` and `piBash` (a `propose` command) — whose plan review
+ * needs the exact message that made the call.
  */
 export interface CursorExecProvenance {
 	/**
@@ -1544,11 +1545,8 @@ export interface CursorMcpCall extends CursorExecProvenance {
 	approvalOnly?: boolean;
 }
 
-/**
- * A legacy native `writeArgs` frame. Provenance is absent when the write
- * materializes a native StrReplace, whose block is an `edit`, not this write.
- */
-export type CursorWriteCall = WriteArgs & CursorExecProvenance;
+/** A shell frame (`shellArgs`, `shellStreamArgs`, `miniSweAgentBashArgs`) run through the host's `bash`. */
+export type CursorShellCall = ShellArgs & CursorExecProvenance;
 
 export interface CursorTodoSnapshotItem {
 	content: string;
@@ -1615,8 +1613,8 @@ export interface CursorPiCall<TArgs> {
 	toolCallId: string;
 }
 
-/** A modern `piWriteArgs` frame; provenance rides the minted {@link CursorPiCall.toolCallId}. */
-export type CursorPiWriteCall = CursorPiCall<PiWriteExecArgs> & CursorExecProvenance;
+/** A modern `piBashArgs` frame; provenance rides the minted {@link CursorPiCall.toolCallId}. */
+export type CursorPiBashCall = CursorPiCall<PiBashExecArgs> & CursorExecProvenance;
 
 /** One resource a host's MCP servers advertise. */
 export interface CursorMcpResource {
@@ -1666,11 +1664,11 @@ export interface CursorExecHandlers {
 	read?: (args: ReadArgs, frame?: CursorExecFrameContext) => Promise<CursorExecHandlerResult<ReadResult>>;
 	ls?: (args: LsArgs) => Promise<CursorExecHandlerResult<LsResult>>;
 	grep?: (args: GrepArgs) => Promise<CursorExecHandlerResult<GrepResult>>;
-	write?: (args: CursorWriteCall, frame?: CursorExecFrameContext) => Promise<CursorExecHandlerResult<WriteResult>>;
+	write?: (args: WriteArgs, frame?: CursorExecFrameContext) => Promise<CursorExecHandlerResult<WriteResult>>;
 	delete?: (args: DeleteArgs) => Promise<CursorExecHandlerResult<DeleteResult>>;
-	shell?: (args: ShellArgs) => Promise<CursorExecHandlerResult<ShellResult>>;
+	shell?: (args: CursorShellCall) => Promise<CursorExecHandlerResult<ShellResult>>;
 	shellStream?: (
-		args: ShellArgs,
+		args: CursorShellCall,
 		callbacks: CursorShellStreamCallbacks,
 	) => Promise<CursorExecHandlerResult<ShellResult>>;
 	diagnostics?: (args: DiagnosticsArgs) => Promise<CursorExecHandlerResult<DiagnosticsResult>>;
@@ -1705,9 +1703,9 @@ export interface CursorExecHandlers {
 	 * an alias: different args, different result oneofs, and no `tool_call_id`.
 	 */
 	piRead?: (call: CursorPiCall<PiReadExecArgs>) => Promise<CursorExecHandlerResult<PiReadExecResult>>;
-	piBash?: (call: CursorPiCall<PiBashExecArgs>) => Promise<CursorExecHandlerResult<PiBashExecResult>>;
+	piBash?: (call: CursorPiBashCall) => Promise<CursorExecHandlerResult<PiBashExecResult>>;
 	piEdit?: (call: CursorPiCall<PiEditExecArgs>) => Promise<CursorExecHandlerResult<PiEditExecResult>>;
-	piWrite?: (call: CursorPiWriteCall) => Promise<CursorExecHandlerResult<PiWriteExecResult>>;
+	piWrite?: (call: CursorPiCall<PiWriteExecArgs>) => Promise<CursorExecHandlerResult<PiWriteExecResult>>;
 	piGrep?: (call: CursorPiCall<PiGrepExecArgs>) => Promise<CursorExecHandlerResult<PiGrepExecResult>>;
 	piFind?: (call: CursorPiCall<PiFindExecArgs>) => Promise<CursorExecHandlerResult<PiFindExecResult>>;
 	piLs?: (call: CursorPiCall<PiLsExecArgs>) => Promise<CursorExecHandlerResult<PiLsExecResult>>;
@@ -1818,7 +1816,10 @@ export interface Context {
 	systemPrompt?: string[];
 	messages: Message[];
 	tools?: Tool[];
-	/** Definitions of tools the transcript's latest Anthropic request declared but that are no longer in `tools`; only the Anthropic provider reads it. */
+	/**
+	 * Definitions of declared tools that are not in `tools`: those the transcript's latest Anthropic request declared,
+	 * or, before any request declared tools, those that may become active later. Only the Anthropic provider reads it.
+	 */
 	inactiveTools?: Tool[];
 }
 

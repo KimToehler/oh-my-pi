@@ -1,7 +1,7 @@
 # agent-browser setup (Web capture fallback)
 
 Last-resort fallback for the Web capture path in Step 2. Prefer the omp `browser` global
-in an `eval` cell (see `xd://eval/browser`), then a `playwright-core` code cell. Use this only
+in an `eval` cell (see `help://eval/browser`), then a `playwright-core` code cell. Use this only
 when neither is available (no usable Chromium).
 [agent-browser](https://github.com/vercel-labs/agent-browser) is a standalone CLI that
 drives a real Chromium and can screenshot a page at a fixed viewport — exactly what the

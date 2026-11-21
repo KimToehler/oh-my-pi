@@ -1,5 +1,5 @@
 /**
- * Contract: a `write xd://propose` that the model emits and the real agent loop executes
+ * Contract: a `propose` call that the model emits and the real agent loop executes
  * reaches each plan-approval installer (interactive-shaped, plan-yolo, ACP) only through
  * the cross-family review. A REJECT leaves the installer's side effects untouched; an
  * OKAY runs the installer once, with exactly the plan bytes the reviewer was shown.
@@ -28,7 +28,8 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import * as structuredSubagentModule from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
 import type { StructuredSubagentResult } from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { dispatchResolutionDevice } from "@oh-my-pi/pi-coding-agent/tools/resolve";
+import { specialToolCommands } from "@oh-my-pi/pi-coding-agent/tools/resolve";
+import { PROPOSE_COMMAND_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
 import type { SingleResult } from "@oh-my-pi/pi-tui/tools/task";
 import { getConfigRootDir, isEnoent, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 import type {
@@ -127,8 +128,8 @@ describe("plan review through the real agent loop, per approval installer", () =
 	});
 
 	/**
-	 * A real session whose model proposes `demo` through a `write` tool that dispatches
-	 * `xd://propose` from inside the loop, so `#beforeToolCall` records the planner.
+	 * A real session whose model calls the real `propose` tool from inside the loop,
+	 * so `#beforeToolCall` records the planner.
 	 */
 	function createHarness(options: { reviewEnabled?: boolean } = {}): Harness {
 		const model = getBundledModel("anthropic", "claude-sonnet-4-5");
@@ -137,26 +138,14 @@ describe("plan review through the real agent loop, per approval installer", () =
 		const sessionRef: { current?: AgentSession } = {};
 		const toolSession = {
 			cwd,
+			settings: Settings.isolated(),
 			submitPlanProposal: (title, call) => {
 				if (!sessionRef.current) throw new Error("session not ready");
 				return sessionRef.current.submitPlanProposal(title, call);
 			},
-		} as Pick<ToolSession, "cwd" | "submitPlanProposal"> as ToolSession;
-		const writeTool: AgentTool = {
-			name: "write",
-			label: "write",
-			description: "Test write that dispatches xd://propose",
-			parameters: type({ path: "string", content: "string" }),
-			async execute(toolCallId, params, signal) {
-				const args = params as { path: string; content: string };
-				if (args.path !== "xd://propose") return { content: [{ type: "text", text: "ok" }] };
-				const { result, xdev } = await dispatchResolutionDevice(toolSession, "propose", args.content, {
-					toolCallId,
-					signal,
-				});
-				return { content: result.content, details: { xdev } };
-			},
-		};
+		} as Pick<ToolSession, "cwd" | "settings" | "submitPlanProposal"> as ToolSession;
+		const proposeTool = specialToolCommands(toolSession).find(tool => tool.name === PROPOSE_COMMAND_NAME);
+		if (!proposeTool) throw new Error("Expected the propose tool");
 		const readTool: AgentTool = {
 			name: "read",
 			label: "read",
@@ -168,14 +157,12 @@ describe("plan review through the real agent loop, per approval installer", () =
 		};
 		const mock = createMockModel({
 			...PLANNER_MOCK,
-			responses: [
-				{ content: [{ type: "toolCall", name: "write", arguments: { path: "xd://propose", content: "demo" } }] },
-			],
+			responses: [{ content: [{ type: "toolCall", name: PROPOSE_COMMAND_NAME, arguments: { title: "demo" } }] }],
 			handler: () => ({ content: ["done"] }),
 		});
 		const agent = new Agent({
 			getApiKey: () => "test-key",
-			initialState: { model, systemPrompt: ["Test"], tools: [readTool, writeTool], messages: [] },
+			initialState: { model, systemPrompt: ["Test"], tools: [readTool, proposeTool as AgentTool], messages: [] },
 			streamFn: mock.stream,
 		});
 		const created = new AgentSession({
@@ -191,9 +178,9 @@ describe("plan review through the real agent loop, per approval installer", () =
 			modelRegistry: new ModelRegistry(authStorage, tempDir.join("models.yml")),
 			toolRegistry: new Map([
 				["read", readTool],
-				["write", writeTool],
+				[PROPOSE_COMMAND_NAME, proposeTool as AgentTool],
 			]),
-			builtInToolNames: ["read", "write"],
+			builtInToolNames: ["read"],
 		});
 		session = created;
 		sessionRef.current = created;
@@ -234,16 +221,15 @@ describe("plan review through the real agent loop, per approval installer", () =
 
 	function proposeToolResult(harness: Harness): ToolResultMessage {
 		const proposeResult = harness.session.agent.state.messages.find(
-			(message: AgentMessage) => message.role === "toolResult" && message.toolName === "write",
+			(message: AgentMessage) => message.role === "toolResult" && message.toolName === PROPOSE_COMMAND_NAME,
 		);
 		if (!proposeResult || proposeResult.role !== "toolResult") throw new Error("propose produced no tool result");
 		return proposeResult;
 	}
 
-	/** The xdev `inner` details of the loop's propose tool result. */
+	/** The details of the loop's propose tool result. */
 	function proposeInner(harness: Harness): Record<string, unknown> {
-		const details = proposeToolResult(harness).details as { xdev?: { inner?: Record<string, unknown> } } | undefined;
-		return details?.xdev?.inner ?? {};
+		return (proposeToolResult(harness).details as Record<string, unknown> | undefined) ?? {};
 	}
 
 	function autosavePath(harness: Harness): string {
@@ -344,7 +330,7 @@ describe("plan review through the real agent loop, per approval installer", () =
 				getAllToolNames: () => live.getAllToolNames(),
 				getActiveToolNames: () => live.getActiveToolNames(),
 				getEnabledToolNames: () => live.getEnabledToolNames(),
-				getMountedXdevToolNames: () => live.getMountedXdevToolNames(),
+				getMountedToolCommandNames: () => live.getMountedToolCommandNames(),
 				hasBuiltInTool: name => live.hasBuiltInTool(name),
 				getPlanModeState: () => live.getPlanModeState(),
 				setPlanModeState: state => live.setPlanModeState(state),

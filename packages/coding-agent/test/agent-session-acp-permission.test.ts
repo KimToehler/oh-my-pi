@@ -40,8 +40,7 @@ import { approvalTargetKey } from "@oh-my-pi/pi-coding-agent/tools/approval-targ
 import { AskTool } from "@oh-my-pi/pi-coding-agent/tools/ask";
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
 import { EvalTool } from "@oh-my-pi/pi-coding-agent/tools/eval";
-import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
-import { resolveXdevTool, type XdevState } from "@oh-my-pi/pi-coding-agent/tools/xdev";
+import { dispatchToolCommand, type ToolCommandState } from "@oh-my-pi/pi-coding-agent/tools/tool-commands";
 import { SessionMoveTool } from "@oh-my-pi/pi-coding-agent/tools/session-move";
 import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import { getAgentDir, isRecord, setAgentDir, TempDir, withTimeout } from "@oh-my-pi/pi-utils";
@@ -396,43 +395,35 @@ describe("acp approve", () => {
 		expect(fs.existsSync(path.join(cwd, "b.txt"))).toBe(true);
 	});
 
-	it("acp approve: xd wire aliases keep edit's approval tier and cannot bypass an ACP rejection", async () => {
-		const client = acpClient(pick("reject_once"), pick("reject_once"));
+	it("acp approve: edit dispatched as a tool command keeps its approval tier and cannot bypass an ACP rejection", async () => {
+		const client = acpClient(pick("reject_once"));
 		const cwd = workspace({ "keep.txt": "keep\n" });
 		const sessionManager = SessionManager.inMemory(cwd);
 		const runner = acpRunner(sessionManager, cwd, client.request);
 		const session = toolSession(cwd);
 		const edit = new ExtensionToolWrapper(new EditTool(session) as AgentTool, runner);
-		const xdev: XdevState = {
+		const toolCommands: ToolCommandState = {
 			tools: new Map([[edit.name, edit]]),
 			mountedNames: new Set(),
 			builtInNames: new Set(["edit"]),
 			isActive: name => name === edit.name,
-			resolve: name => resolveXdevTool(xdev, name),
 		};
-		session.xdev = xdev;
-		const writeTool = new WriteTool(session);
-		const write = new ExtensionToolWrapper(writeTool as AgentTool, runner);
 		const target = path.join(cwd, "keep.txt");
-		const content = JSON.stringify(patch(`*** Delete File: ${target}`));
 
-		for (const name of ["edit", "apply_patch"]) {
-			const args = { path: `xd://${name}`, content };
-			expect(writeTool.approval(args)).toEqual({ tier: "write", policyKey: "edit" });
-			await expect(
-				write.execute(
-					`xd-${name}`,
-					args,
-					undefined,
-					undefined,
-					toolContext(sessionManager, {
-						"tools.approvalMode": "always-ask",
-					}),
-				),
-			).rejects.toThrow("denied by user");
-			expect(fs.readFileSync(target, "utf8")).toBe("keep\n");
-		}
-		expect(client.requests).toHaveLength(2);
+		const { result, dispatch } = await dispatchToolCommand(
+			toolCommands,
+			"edit",
+			patch(`*** Delete File: ${target}`),
+			"cmd-edit",
+			undefined,
+			undefined,
+			toolContext(sessionManager, { "tools.approvalMode": "always-ask" }),
+		);
+		expect(result.isError).toBe(true);
+		expect(result.content.find(entry => entry.type === "text")?.text).toContain("denied by user");
+		expect(dispatch).toMatchObject({ tool: "edit", mode: "execute", exitCode: 1, tier: "write" });
+		expect(fs.readFileSync(target, "utf8")).toBe("keep\n");
+		expect(client.requests).toHaveLength(1);
 	});
 
 	it("acp approve: a creating session_move asks once as execute and a rejection neither creates nor relocates", async () => {
@@ -769,7 +760,7 @@ function makeEvalToolSession(): ToolSession {
 
 async function createEvalSession(
 	tools: AgentTool[],
-	options?: { xdev?: XdevState; builtInToolNames?: string[] },
+	options?: { toolCommands?: ToolCommandState; builtInToolNames?: string[] },
 ): Promise<AgentSession> {
 	const model = getBundledModel("anthropic", "claude-sonnet-4-5");
 	if (!model) throw new Error("Expected claude-sonnet-4-5 model to exist");
@@ -786,7 +777,7 @@ async function createEvalSession(
 		streamFn: () => new AssistantMessageEventStream(),
 	});
 
-	const toolRegistry = options?.xdev?.tools ?? new Map<string, AgentTool>();
+	const toolRegistry = options?.toolCommands?.tools ?? new Map<string, AgentTool>();
 	for (const tool of tools) toolRegistry.set(tool.name, tool);
 	return new AgentSession({
 		agent,
@@ -794,7 +785,7 @@ async function createEvalSession(
 		settings: Settings.isolated({ "compaction.enabled": false }),
 		modelRegistry: {} as never,
 		toolRegistry,
-		xdev: options?.xdev,
+		toolCommands: options?.toolCommands,
 		builtInToolNames: options?.builtInToolNames,
 	});
 }
@@ -886,30 +877,30 @@ it("eval applies direct-only restrictions to the resolved tool rather than its w
 	expect(tool.executeCalls).toBe(1);
 });
 
-it("eval resolves xd:// and Claude Code MCP spellings over enabled tools only", async () => {
+it("eval resolves canonical and Claude Code MCP spellings over enabled tools only", async () => {
 	const tools = ["read", "mcp__srv_active", "mcp__srv_idle", "lsp", "ast_grep"].map(makeFakeTool);
-	const xdev: XdevState = {
+	const toolCommands: ToolCommandState = {
 		tools: new Map(tools.map(tool => [tool.name, tool])),
 		mountedNames: new Set(),
 		builtInNames: new Set(),
 		isActive: name => evalSession?.getActiveToolNames().includes(name) ?? false,
 	};
-	evalSession = await createEvalSession(tools, { xdev });
+	evalSession = await createEvalSession(tools, { toolCommands });
 	await evalSession.setActiveToolsByName(["read", "mcp__srv_active"]);
-	xdev.mountedNames.add("lsp");
+	toolCommands.mountedNames.add("lsp");
 	const evalToolSession = makeEvalToolSession();
 	evalToolSession.getToolForEvalBridge = name => evalSession!.getToolForEvalBridge(name);
 	evalToolSession.getToolByName = name => evalSession!.getToolByName(name);
 
 	await callSessionTool("mcp__srv__active", {}, { session: evalToolSession });
-	await callSessionTool("xd://lsp", {}, { session: evalToolSession });
-	await callSessionTool("xd://read", {}, { session: evalToolSession });
+	await callSessionTool("lsp", {}, { session: evalToolSession });
+	await callSessionTool("read", {}, { session: evalToolSession });
 	expect(tools.map(tool => tool.executeCalls)).toEqual([1, 1, 0, 1, 0]);
 
 	await expect(callSessionTool("mcp__srv__idle", {}, { session: evalToolSession })).rejects.toThrow(
 		"registered but not available",
 	);
-	await expect(callSessionTool("xd://ast_grep", {}, { session: evalToolSession })).rejects.toThrow(
+	await expect(callSessionTool("ast_grep", {}, { session: evalToolSession })).rejects.toThrow(
 		"registered but not available",
 	);
 	await expect(callSessionTool("nope", {}, { session: evalToolSession })).rejects.toThrow("Unknown tool");
@@ -919,18 +910,18 @@ it("eval leaves a Claude Code MCP spelling unresolved when mounted and active to
 	const emitted = "mcp__foo__bar__foo_bar_baz";
 	const active = makeFakeTool(createMCPToolName("foo__bar", "foo_bar_baz"));
 	const mounted = makeFakeTool(createMCPToolName("foo", "bar__foo_bar_baz"));
-	const xdev: XdevState = {
+	const toolCommands: ToolCommandState = {
 		tools: new Map([active, mounted].map(tool => [tool.name, tool])),
 		mountedNames: new Set(),
 		builtInNames: new Set(),
 		isActive: name => name === active.name,
 	};
-	evalSession = await createEvalSession([active, mounted], { xdev });
+	evalSession = await createEvalSession([active, mounted], { toolCommands });
 	await evalSession.setActiveToolsByName([active.name]);
-	xdev.mountedNames.add(mounted.name);
+	toolCommands.mountedNames.add(mounted.name);
 
 	expect(evalSession.getToolForEvalBridge(emitted)).toBeUndefined();
-	xdev.mountedNames.delete(mounted.name);
+	toolCommands.mountedNames.delete(mounted.name);
 	expect(evalSession.getToolForEvalBridge(emitted)?.name).toBe(active.name);
 });
 

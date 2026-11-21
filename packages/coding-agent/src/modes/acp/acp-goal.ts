@@ -447,10 +447,13 @@ export class AcpGoalActor {
 		}
 		if (transition.modeId === ACP_PLAN_MODE_ID) {
 			transition.installPlan();
-			return;
+		} else {
+			transition.clearPlan();
+			if (transition.modeId === ACP_GOAL_MODE_ID) this.#select();
 		}
-		transition.clearPlan();
-		if (transition.modeId === ACP_GOAL_MODE_ID) this.#select();
+		// Plan mode decides whether `propose` presents top-level while `bash` does not carry it
+		// as a command: re-partition the current selection under the new plan state.
+		await this.#session.setActiveToolsByName(this.#session.getEnabledToolNames());
 	}
 
 	/** The client selected goal mode. A stored goal (active or paused) is kept; none arms the next prompt. */

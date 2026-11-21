@@ -84,8 +84,8 @@ In both branches, never create the root as a side effect: do not run `openspec i
    session's working directory is that worktree. The returned `sourcePath` and every relative path in
    edits and Verify commands resolve against the session's working directory. Working on from another
    checkout ticks the boxes in the wrong `tasks.md` and lands relative edits there. Move the session
-   yourself with the `session_move` tool (written to `xd://session_move` when it is listed as a tool
-   device). Do not ask the user to type `/move` while `session_move` is available.
+   yourself with the `session_move` tool (run as the `session_move` command in `bash` when it is
+   listed as a tool command). Do not ask the user to type `/move` while `session_move` is available.
 
    Resolve the task's worktree path against the primary checkout (the first `worktree` entry of
    `git worktree list --porcelain`) and pass that absolute path to `session_move`. Compare its real

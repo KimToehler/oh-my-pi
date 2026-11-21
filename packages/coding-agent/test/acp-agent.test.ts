@@ -10,7 +10,7 @@ import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import * as oauthFlowModule from "@oh-my-pi/pi-coding-agent/mcp/oauth-flow";
 import { createAcpExtensionUiContext } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
 import { type AgentRef, AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
-import type { AgentSession, AgentSessionEvent, RoleModelCycle } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { AgentSessionEvent, RoleModelCycle } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { SILENT_ABORT_MARKER, USER_INTERRUPT_LABEL } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { TaskTool } from "@oh-my-pi/pi-coding-agent/task";
@@ -219,8 +219,8 @@ describe("ACP agent", () => {
 		expect(currentModeConfig?.currentValue).toBe("plan");
 
 		// Regression for #1869: entering plan mode must wire a plan-proposal
-		// handler so the agent's `xd://propose` write has a gate to dispatch to
-		// instead of erroring with no approval path.
+		// handler so `propose` has a gate to dispatch to instead of erroring
+		// with no approval path.
 		expect(typeof session.planProposalHandler).toBe("function");
 
 		await harness.agent.setSessionMode({ sessionId: created.sessionId, modeId: "default" });
@@ -409,7 +409,10 @@ describe("ACP agent", () => {
 			content: Array<{ type: string; text: string }>;
 		};
 
-		expect(result.content[0]?.text).toMatch(/refinement requested/i);
+		// The agent gets back the reviewed plan to iterate on, not an approval.
+		expect(result).toMatchObject({
+			details: { planFilePath: "local://PLAN.md", title: "words-counter", planExists: true },
+		});
 		// Plan file stays put; no rename, no write-access grant.
 		expect(await Bun.file(planPath).exists()).toBe(true);
 		expect(await Bun.file(resolveLocalUrlToPath("local://words-counter.md", localOptions)).exists()).toBe(false);
@@ -512,7 +515,7 @@ describe("ACP agent", () => {
 		expect(toolCalls[0]).toMatchObject({
 			kind: "read",
 			status: "completed",
-			title: "Plan: words-counter",
+			title: "Plan — words-counter",
 			locations: [{ path: planPath }],
 		});
 

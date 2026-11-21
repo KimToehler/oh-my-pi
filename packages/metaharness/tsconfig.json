@@ -1,5 +1,10 @@
 {
 	"extends": "../tsconfig.workspace.json",
-	"include": ["src"],
+	"compilerOptions": {
+		"jsx": "react-jsx"
+	},
+	"include": [
+		"src"
+	],
 	"exclude": ["src/tb", "src/web"]
 }

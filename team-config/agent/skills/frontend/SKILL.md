@@ -143,7 +143,7 @@ Domains: `product` `style` `typography` `color` `landing` `chart` `ux` `react` `
 | Situation | Load |
 |---|---|
 | Brand/style not among the 70 in `references/design/`, or the user says "Open Design" | Optional external library: https://github.com/nexu-io/open-design (137+ design skills, 150+ design systems); not an omp skill — clone/browse only on request |
-| Driving a browser for the Design QA phase | omp `browser` global in the `eval` tool (`xd://eval/browser`); `agent-browser` only as external fallback |
+| Driving a browser for the Design QA phase | omp `browser` global in the `eval` tool (`help://eval/browser`); `agent-browser` only as external fallback |
 | Pure TypeScript/logic work with zero visual surface | `programming` skill alone — this skill adds nothing there |
 
 ## Activation

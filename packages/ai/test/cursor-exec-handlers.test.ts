@@ -16,8 +16,8 @@ import type {
 	AssistantMessage,
 	Context,
 	CursorExecHandlers,
-	CursorPiWriteCall,
-	CursorWriteCall,
+	CursorPiBashCall,
+	CursorShellCall,
 	Model,
 	ToolResultMessage,
 } from "@oh-my-pi/pi-ai/types";
@@ -35,14 +35,13 @@ import {
 	McpSuccessSchema,
 	McpTextContentSchema,
 	McpToolResultContentItemSchema,
-	PiWriteExecArgsSchema,
+	PiBashExecArgsSchema,
 	ReadArgsSchema,
 	ReadErrorSchema,
 	ReadRejectedSchema,
 	ReadResultSchema,
 	ReadSuccessSchema,
 	ShellArgsSchema,
-	WriteArgsSchema,
 } from "@oh-my-pi/pi-catalog/discovery/cursor-proto";
 import { create, encodeJsonValue } from "@oh-my-pi/pi-catalog/discovery/protobuf";
 import { logger } from "@oh-my-pi/pi-utils";
@@ -1625,11 +1624,11 @@ describe("Cursor exec local-work tracking (issue #4593)", () => {
 						message: {
 							case: "mcpArgs",
 							value: create(McpArgsSchema, {
-								name: "write",
-								toolName: "write",
+								name: "propose",
+								toolName: "propose",
 								toolCallId: "call-propose-1",
 								providerIdentifier: "pi-agent",
-								args: { path: encodeJsonValue("xd://propose") },
+								args: { title: encodeJsonValue("demo") },
 								smartModeApprovalOnly: approvalOnly,
 							}),
 						},
@@ -1680,14 +1679,14 @@ describe("Cursor exec local-work tracking (issue #4593)", () => {
 		expect(seen[0]?.hasBlock).toBe(true);
 	});
 
-	// Native `writeArgs` and modern `piWriteArgs` reach the host's `write` tool too, so
-	// `write xd://propose` through either needs the same proof of its proposing turn.
-	describe("hands write-family handlers the live message holding their write block", () => {
+	// Shell frames reach the host's `bash` tool, which runs `propose` as a tool
+	// command, so each shell family needs the same proof of its proposing turn.
+	describe("hands shell-family handlers the live message holding their bash block", () => {
 		const h2Request = { write: () => true } as unknown as Parameters<typeof handleServerMessage>[5];
-		const writeResult = (toolCallId: string): ToolResultMessage => ({
+		const bashResult = (toolCallId: string): ToolResultMessage => ({
 			role: "toolResult",
 			toolCallId,
-			toolName: "write",
+			toolName: "bash",
 			content: [{ type: "text", text: "ok" }],
 			isError: false,
 			timestamp: 1,
@@ -1714,70 +1713,71 @@ describe("Cursor exec local-work tracking (issue #4593)", () => {
 				{ sawTokenDelta: false },
 				[],
 			);
-		const writeBlock = (message: AssistantMessage | undefined, toolCallId: string) =>
-			message?.content.find(b => b.type === "toolCall" && b.id === toolCallId);
-
-		const recordWrites = (seen: { message: AssistantMessage | undefined; toolCallId: string }[]) => ({
-			async write(call: CursorWriteCall) {
+		type Seen = { message: AssistantMessage | undefined; toolCallId: string }[];
+		const recordShells = (seen: Seen): CursorExecHandlers => ({
+			async shell(call: CursorShellCall) {
 				seen.push({ message: call.message, toolCallId: call.toolCallId });
-				return writeResult(call.toolCallId);
+				return bashResult(call.toolCallId);
 			},
-			async piWrite(call: CursorPiWriteCall) {
+			async piBash(call: CursorPiBashCall) {
 				seen.push({ message: call.message, toolCallId: call.toolCallId });
-				return writeResult(call.toolCallId);
+				return bashResult(call.toolCallId);
 			},
 		});
-
-		it("native writeArgs", async () => {
-			const output = cursorAssistantMessage();
-			const seen: { message: AssistantMessage | undefined; toolCallId: string }[] = [];
-			await dispatch(
-				{
-					case: "writeArgs",
-					value: create(WriteArgsSchema, { path: "xd://propose", fileText: "demo", toolCallId: "call-w-1" }),
-				},
-				output,
-				recordWrites(seen),
-			);
-
-			expect(seen).toEqual([{ message: output, toolCallId: "call-w-1" }]);
-			expect(writeBlock(seen[0]?.message, "call-w-1")).toMatchObject({
-				name: "write",
-				arguments: { path: "xd://propose" },
-			});
-		});
-
-		it("withholds it from a native write that materializes a StrReplace edit", async () => {
-			const output = cursorAssistantMessage();
-			output.content.push({ type: "toolCall", id: "call-edit-1", name: "edit", arguments: { path: "/a.ts" } });
-			const seen: { message: AssistantMessage | undefined; toolCallId: string }[] = [];
-			await dispatch(
-				{
-					case: "writeArgs",
-					value: create(WriteArgsSchema, { path: "/a.ts", fileText: "x", toolCallId: "call-edit-1" }),
-				},
-				output,
-				recordWrites(seen),
-			);
-
-			expect(seen).toEqual([{ message: undefined, toolCallId: "call-edit-1" }]);
-		});
-
-		it("modern piWriteArgs, under the minted id", async () => {
-			const output = cursorAssistantMessage();
-			const seen: { message: AssistantMessage | undefined; toolCallId: string }[] = [];
-			await dispatch(
-				{ case: "piWriteArgs", value: create(PiWriteExecArgsSchema, { path: "xd://propose", content: "demo" }) },
-				output,
-				recordWrites(seen),
-			);
-
+		const expectProven = (seen: Seen, output: AssistantMessage) => {
 			expect(seen.length).toBe(1);
 			expect(seen[0]?.message).toBe(output);
-			expect(writeBlock(seen[0]?.message, seen[0]?.toolCallId ?? "")).toMatchObject({
-				name: "write",
-				arguments: { path: "xd://propose" },
+			const block = seen[0]?.message?.content.find(b => b.type === "toolCall" && b.id === seen[0]?.toolCallId);
+			expect(block).toMatchObject({
+				name: "bash",
+				arguments: { command: "propose demo" },
 			});
+		};
+
+		it("legacy shellArgs and miniSweAgentBashArgs", async () => {
+			for (const frame of ["shellArgs", "miniSweAgentBashArgs"] as const) {
+				const output = cursorAssistantMessage();
+				const seen: Seen = [];
+				await dispatch(
+					{
+						case: frame,
+						value: create(ShellArgsSchema, { command: "propose demo", toolCallId: `call-${frame}` }),
+					},
+					output,
+					recordShells(seen),
+				);
+				expectProven(seen, output);
+			}
+		});
+
+		it("streamed shellStreamArgs", async () => {
+			const output = cursorAssistantMessage();
+			const seen: Seen = [];
+			await dispatch(
+				{
+					case: "shellStreamArgs",
+					value: create(ShellArgsSchema, { command: "propose demo", toolCallId: "call-s" }),
+				},
+				output,
+				{
+					async shellStream(call: CursorShellCall) {
+						seen.push({ message: call.message, toolCallId: call.toolCallId });
+						return bashResult(call.toolCallId);
+					},
+				},
+			);
+			expectProven(seen, output);
+		});
+
+		it("modern piBashArgs, under the minted id", async () => {
+			const output = cursorAssistantMessage();
+			const seen: Seen = [];
+			await dispatch(
+				{ case: "piBashArgs", value: create(PiBashExecArgsSchema, { command: "propose demo" }) },
+				output,
+				recordShells(seen),
+			);
+			expectProven(seen, output);
 		});
 	});
 

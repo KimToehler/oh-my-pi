@@ -8,7 +8,7 @@ A `DESIGN.md` whose every token, interaction state, and motion value was read fr
 
 ## Phase 1 — Extract the runtime truth (never guess a value)
 
-Drive a real browser: the omp `browser` global in the `eval` tool first (see `xd://eval/browser`), otherwise the project's playwright / dev-browser tooling. Do NOT parse CSS files — minification, CORS, CSS-in-JS, and Tailwind utilities make source unreliable. `getComputedStyle` returns what the browser ACTUALLY rendered, so it is the only source of truth.
+Drive a real browser: the omp `browser` global in the `eval` tool first (see `help://eval/browser`), otherwise the project's playwright / dev-browser tooling. Do NOT parse CSS files — minification, CORS, CSS-in-JS, and Tailwind utilities make source unreliable. `getComputedStyle` returns what the browser ACTUALLY rendered, so it is the only source of truth.
 
 Sweep the page and read, for every meaningful element and every repeated pattern:
 

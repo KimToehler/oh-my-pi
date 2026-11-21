@@ -11,7 +11,7 @@
   - `packages/coding-agent/src/session/session-worktree.ts` — `addRepoWorktree`, shared with `omp worktree add` and the `bash` `git worktree add` rewrite.
   - `packages/coding-agent/src/session/headless-relocation.ts` — ACP and RPC relocation, shared with the `/move` and `/wt` builtins.
   - `packages/coding-agent/src/modes/controllers/command-controller.ts` — TUI relocation (`relocateForAgent`), shared with `/move`.
-  - `packages/agent/src/agent-loop.ts` — the `shouldStopAfterBatch` hook (installed by AgentSession while a move is pending) ends the run after the batch without aborting sibling calls, for every call path including `write xd://session_move`.
+  - `packages/agent/src/agent-loop.ts` — the `shouldStopAfterBatch` hook (installed by AgentSession while a move is pending) ends the run after the batch without aborting sibling calls, for every call path including a `session_move` command run inside `bash`.
 
 ## Registration / Visibility
 - Tool metadata: `strict = true`, `loadMode = "discoverable"`; `approval` is decided per call (see Approval).

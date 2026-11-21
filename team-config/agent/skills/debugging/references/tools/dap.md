@@ -1,10 +1,10 @@
-# DAP Debugging (`xd://debug`, `dap.mjs` fallback) — Drive the Debugger's Protocol, Not Its Text
+# DAP Debugging (omp `debug` tool, `dap.mjs` fallback) — Drive the Debugger's Protocol, Not Its Text
 
-**First choice in omp: the native `debug` device.** Write JSON args to `xd://debug` (read `xd://debug` for the full schema). One session at a time. Actions: `launch` / `attach` (with `adapter` = `gdb`, `lldb-dap`, `debugpy`, `dlv`, `rdbg`, or a `dap.json` entry), `set_breakpoint` / `remove_breakpoint` (`file`+`line` or `function`, optional `condition` / `hit_condition`), instruction and data breakpoints, `continue`, `step_over` / `step_in` / `step_out`, `pause`, `evaluate`, `stack_trace`, `threads`, `scopes`, `variables`, `disassemble`, `read_memory` / `write_memory`, `modules`, `custom_request`, `output`, `terminate`, `sessions`. `program` is a target path (Delve also takes a package directory), not a shell command. The same discipline below applies: bounded output, re-read state after every stop, journal every mutation, `terminate` when done.
+**First choice in omp: the native `debug` tool.** Call it directly, or as the `debug` command in `bash` when tool commands are on (`debug --help` prints the full schema). One session at a time. Actions: `launch` / `attach` (with `adapter` = `gdb`, `lldb-dap`, `debugpy`, `dlv`, `rdbg`, or a `dap.json` entry), `set_breakpoint` / `remove_breakpoint` (`file`+`line` or `function`, optional `condition` / `hit_condition`), instruction and data breakpoints, `continue`, `step_over` / `step_in` / `step_out`, `pause`, `evaluate`, `stack_trace`, `threads`, `scopes`, `variables`, `disassemble`, `read_memory` / `write_memory`, `modules`, `custom_request`, `output`, `terminate`, `sessions`. `program` is a target path (Delve also takes a package directory), not a shell command. The same discipline below applies: bounded output, re-read state after every stop, journal every mutation, `terminate` when done.
 
-**Fallback: `dap.mjs`** — use it only in shells where `xd://debug` is unavailable. It carries the same shape (structured debug surface, bounded output, stop snapshots, classified errors) with zero harness registration.
+**Fallback: `dap.mjs`** — use it only in shells where the `debug` tool is unavailable. It carries the same shape (structured debug surface, bounded output, stop snapshots, classified errors) with zero harness registration.
 
-Debuggers already speak the Debug Adapter Protocol (DAP), a machine-readable JSON protocol. Driving DAP beats screen-scraping a PTY for the same reason an API beats OCR: structured stops, structured variables, structured errors. **If the debugger speaks DAP, use `xd://debug` (or this script as fallback) instead of parsing `gdb`/`pdb` output.**
+Debuggers already speak the Debug Adapter Protocol (DAP), a machine-readable JSON protocol. Driving DAP beats screen-scraping a PTY for the same reason an API beats OCR: structured stops, structured variables, structured errors. **If the debugger speaks DAP, use the `debug` tool (or this script as fallback) instead of parsing `gdb`/`pdb` output.**
 
 The rest of this file documents the fallback script at `references/scripts/dap.mjs` — zero dependencies, runs under Bun or Node.
 
@@ -14,7 +14,7 @@ The rest of this file documents the fallback script at `references/scripts/dap.m
 
 | Situation | Use |
 |---|---|
-| Source-level debugging of Python / Go / Node / native code, and you need breakpoints, stepping, variables | `xd://debug` first; `dap.mjs` (below) if the device is unavailable |
+| Source-level debugging of Python / Go / Node / native code, and you need breakpoints, stepping, variables | the `debug` tool first; `dap.mjs` (below) if the tool is unavailable |
 | Browser-served JS, or anything already in Chrome | Scripted CDP — see `references/runtimes/node.md` |
 | Stripped binary, no source, no symbols | Ghidra (static) + Frida (live) — see `references/tools/` |
 | The debugger has no DAP mode (plain gdb on an exotic target) | pwndbg, with the output-budget rule from `references/methodology/00-setup.md` |

@@ -195,6 +195,7 @@ import type {
 	CursorExecPairing,
 	CursorHistoryPayload,
 	CursorMcpCall,
+	CursorShellCall,
 	CursorShellStreamCallbacks,
 	CursorTodoSnapshot,
 	CursorTodoSnapshotItem,
@@ -2637,7 +2638,7 @@ function sanitizeShellExecResult(execResult: ShellResult): ShellResult {
 }
 
 async function handleShellStreamArgs(
-	args: ShellArgs,
+	args: CursorShellCall,
 	execMsg: ExecServerMessage,
 	runTransport: CursorMessageWriter,
 	execHandlers: CursorExecHandlers | undefined,
@@ -2753,7 +2754,9 @@ async function handleShellStreamArgs(
 	// Falls back to the batch shell handler otherwise.
 	const streamHandler = execHandlers?.shellStream?.bind(execHandlers);
 	const batchHandler = execHandlers?.shell?.bind(execHandlers);
-	const handler = streamHandler ? (shellArgs: ShellArgs) => streamHandler(shellArgs, streamCallbacks) : batchHandler;
+	const handler = streamHandler
+		? (shellArgs: CursorShellCall) => streamHandler(shellArgs, streamCallbacks)
+		: batchHandler;
 
 	const { execResult } = await resolveExecHandler(
 		args as any,
@@ -3202,11 +3205,9 @@ async function runExecServerMessage(
 				});
 			}
 			const write = execHandlers?.write?.bind(execHandlers);
-			// An edit-owned write materializes a StrReplace: its block is the
-			// `edit`, so the live message proves nothing about a `write` call.
 			const writeHandler = write
 				? async (writeArgs: typeof args) => {
-						if (!editOwned) return await write({ ...writeArgs, message: output });
+						if (!editOwned) return await write(writeArgs);
 						return remapExecHandlerToolName(await write(writeArgs, EDIT_MATERIALIZATION), "edit");
 					}
 				: undefined;
@@ -3260,7 +3261,7 @@ async function runExecServerMessage(
 				timeout: shellDeadlineSeconds(args),
 			});
 			const { execResult } = await resolveExecHandler(
-				args,
+				{ ...args, message: output },
 				execHandlers?.shell?.bind(execHandlers),
 				onToolResult,
 				toolResult => buildShellResultFromToolResult(normalizedArgs, toolResult),
@@ -3280,7 +3281,7 @@ async function runExecServerMessage(
 				cwd: args.workingDirectory || undefined,
 				timeout: shellDeadlineSeconds(args),
 			});
-			await handleShellStreamArgs(args, execMsg, runTransport, execHandlers, onToolResult);
+			await handleShellStreamArgs({ ...args, message: output }, execMsg, runTransport, execHandlers, onToolResult);
 			return;
 		}
 		case "backgroundShellSpawnArgs": {
@@ -3636,7 +3637,7 @@ async function runExecServerMessage(
 				timeout: piTimeout(args.timeout),
 			});
 			const { execResult } = await resolveExecHandler(
-				{ args, toolCallId },
+				{ args, toolCallId, message: output },
 				execHandlers?.piBash?.bind(execHandlers),
 				onToolResult,
 				buildPiBashResult,
@@ -3679,7 +3680,7 @@ async function runExecServerMessage(
 				content: args.content,
 			});
 			const { execResult } = await resolveExecHandler(
-				{ args, toolCallId, message: output },
+				{ args, toolCallId },
 				execHandlers?.piWrite?.bind(execHandlers),
 				onToolResult,
 				buildPiWriteResult,
@@ -3767,7 +3768,7 @@ async function runExecServerMessage(
 				timeout: shellDeadlineSeconds(args),
 			});
 			const { execResult } = await resolveExecHandler(
-				normalizedArgs,
+				{ ...normalizedArgs, message: output },
 				execHandlers?.shell?.bind(execHandlers),
 				onToolResult,
 				toolResult => buildShellResultFromToolResult(normalizedArgs, toolResult),
@@ -6500,15 +6501,15 @@ export function buildMcpToolDefinitions(
 		return [];
 	}
 
-	// The `write` tool doubles as the xd:// transport: forwarded devices such as
-	// `ast_edit` stage previews finalized only by writing a reason to xd://resolve
-	// or xd://reject. Cursor's native catalog may expose no write path, so
-	// re-include the built-in `write` (dropped as native above) whenever pi-agent
-	// devices are advertised — otherwise a staged preview can never be resolved
-	// and the SoftToolRequirement('write') escalation aborts the turn.
-	const writeTool = tools.find(tool => tool.name === "write");
-	const forwarded =
-		writeTool && !advertisedTools.includes(writeTool) ? [...advertisedTools, writeTool] : advertisedTools;
+	// Staged previews (e.g. from `ast_edit`) are finalized only by `resolve` or
+	// `reject`. Without the bash tool those are ordinary tools, forwarded above;
+	// with it they are commands run through `bash`. Cursor's native catalog may
+	// expose no shell path, so re-include the built-in `bash` (dropped as native
+	// above) whenever pi-agent tools are advertised — otherwise a staged preview
+	// can never be resolved and the SoftToolRequirement('bash') escalation aborts
+	// the turn.
+	const bashTool = tools.find(tool => tool.name === "bash");
+	const forwarded = bashTool && !advertisedTools.includes(bashTool) ? [...advertisedTools, bashTool] : advertisedTools;
 
 	return forwarded.map(tool => {
 		const wireSchema = toolWireSchema(tool);

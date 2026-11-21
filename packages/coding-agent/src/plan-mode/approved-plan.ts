@@ -5,7 +5,7 @@ import { prompt } from "@oh-my-pi/pi-utils";
 import planProposalSupersededPrompt from "../prompts/system/plan-proposal-superseded.md" with { type: "text" };
 
 /** Shape forwarded from the plan-proposal handler to InteractiveMode's
- *  approval popup. Populated by the `xd://propose` dispatch when the agent
+ *  approval popup. Populated by the `propose` tool when the agent
  *  submits a plan for approval. `planFilePath` is the agent-chosen
  *  `local://<slug>-plan.md` artifact — it is never renamed on approval, so
  *  links to it stay valid for the session. */
@@ -217,7 +217,7 @@ export async function resolveApprovedPlan(input: ResolveApprovedPlanInput): Prom
 	);
 }
 
-/** The `xd://propose` result for hosts that open their own approval UI from
+/** The `propose` result for hosts that open their own approval UI from
  *  `PlanApprovalDetails` (the interactive event-controller path). */
 export function planReviewResult(plan: ResolvedApprovedPlan): AgentToolResult<PlanApprovalDetails> {
 	return {
@@ -233,7 +233,7 @@ export interface PlanProposalSupersededDetails {
 	title: string;
 }
 
-/** The `xd://propose` result when a mode or transcript change superseded the proposal; nothing was applied. */
+/** The `propose` result when a mode or transcript change superseded the proposal; nothing was applied. */
 export function planProposalSupersededResult(title: string): AgentToolResult<PlanProposalSupersededDetails> {
 	return {
 		content: [{ type: "text", text: prompt.render(planProposalSupersededPrompt) }],

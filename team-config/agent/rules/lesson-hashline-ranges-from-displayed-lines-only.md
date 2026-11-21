@@ -22,7 +22,7 @@ The tool warned both times ("boundary echo", "no longer parses"); the file had t
   from your own new content, or from a read before an earlier edit, are guesses: re-read first.
 - A body replaces exactly `N..M`. If the body's last line is the text of line `M+1`, the range is wrong:
   either extend the range to `M+1` or drop that line from the body.
-- More than ~3 scattered changes in one structured literal (map, enum, table): use `xd://ast_edit`, or
+- More than ~3 scattered changes in one structured literal (map, enum, table): use the `ast_edit` tool, or
   `write` the whole file and prove it with `git diff --stat` + a content diff of only the intended lines.
 - On a "no longer parses" or "boundary echo" warning: stop, re-read the touched region, fix with one
   correcting edit. Do not chain further numbered edits onto a broken file.

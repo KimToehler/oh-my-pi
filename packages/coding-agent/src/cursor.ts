@@ -51,7 +51,7 @@ import {
 } from "./tools/approval";
 import { approvalTargetKey } from "./tools/approval-targets";
 import { getApprovalGrants } from "./tools/approval-cache";
-import { isProposeToolCall, writeDeviceDispatch } from "./tools/resolve";
+import { isProposeToolCall, proposeDispatchDetails } from "./tools/resolve";
 import {
 	confineToWorkspace,
 	resolveReadPathAsync,
@@ -59,6 +59,7 @@ import {
 	splitPathAndSelPreferringLiteral,
 } from "./tools/path-utils";
 import type { EditToolDetails } from "@oh-my-pi/pi-tui/tools/edit";
+import { PROPOSE_COMMAND_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
 import type { TodoPhase, TodoStatus } from "@oh-my-pi/pi-tui/tools/todo";
 
 /** Phase used for Cursor-owned tasks with no local phase grouping. */
@@ -89,7 +90,7 @@ interface CursorExecBridgeOptions {
 	cwd: string;
 	getCwd?: () => string;
 	tools: Map<string, AgentTool>;
-	/** Resolves execution overrides (mounted-device permission wrappers) before the canonical map. */
+	/** Resolves execution overrides (mounted tool-command permission wrappers) before the canonical map. */
 	getExecutableTool?: (name: string) => AgentTool | undefined;
 	/**
 	 * The `replace`-mode `edit` instance `pi_edit` must run, when the session
@@ -329,7 +330,7 @@ function refuseAbortedCall(signal: AbortSignal, toolCallId: string, toolName: st
 /**
  * Finality of a plan proposal within one provider request.
  *
- * The agent loop runs `xd://propose` only as the last call of a finished
+ * The agent loop runs `propose` only as the last call of a finished
  * message, so nothing the model emitted after it ever executes. Cursor runs
  * calls while the message is still streaming, so the same guarantee needs an
  * explicit gate: once a proposal starts, every later host call of the same
@@ -383,7 +384,9 @@ class ProposalBarrier {
  */
 function awaitsPlanRefinement(result: ToolResultMessage): boolean {
 	if (result.isError) return true;
-	const inner = writeDeviceDispatch(result.toolName, result)?.inner;
+	const inner = proposeDispatchDetails(result.toolName, result);
+	// A `bash` run settles each `propose` record on its own exit status: none succeeded, so nothing was submitted.
+	if (inner === undefined) return result.toolName !== PROPOSE_COMMAND_NAME;
 	if (!inner || typeof inner !== "object" || !("planReview" in inner)) return false;
 	const review = inner.planReview;
 	return !!review && typeof review === "object" && "outcome" in review && review.outcome === "reject";
@@ -861,13 +864,10 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const content = args.fileText ?? new TextDecoder().decode(args.fileBytes ?? new Uint8Array());
 		if (frame?.editMaterialization) return await materializeEdit(this.requestScope, toolCallId, args.path, content);
-		const toolResultMessage = await executeTool(
-			this.requestScope,
-			"write",
-			toolCallId,
-			{ path: args.path, content },
-			{ message: provenMessage(args, toolCallId) },
-		);
+		const toolResultMessage = await executeTool(this.requestScope, "write", toolCallId, {
+			path: args.path,
+			content,
+		});
 		return toolResultMessage;
 	}
 
@@ -891,11 +891,13 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	async shell(args: Parameters<NonNullable<ICursorExecHandlers["shell"]>>[0]) {
 		const toolCallId = decodeToolCallId(args.toolCallId);
 		const timeoutSeconds = shellDeadlineSeconds(args);
-		const toolResultMessage = await executeTool(this.requestScope, "bash", toolCallId, {
-			command: args.command,
-			cwd: args.workingDirectory || undefined,
-			timeout: timeoutSeconds,
-		});
+		const toolResultMessage = await executeTool(
+			this.requestScope,
+			"bash",
+			toolCallId,
+			{ command: args.command, cwd: args.workingDirectory || undefined, timeout: timeoutSeconds },
+			{ message: provenMessage(args, toolCallId) },
+		);
 		return toolResultMessage;
 	}
 
@@ -920,8 +922,12 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			cwd: args.workingDirectory || undefined,
 			timeout: timeoutSeconds,
 		});
+		this.requestScope.barrier.observe(toolCallId, toolName, toolArgs);
 
-		this.options.emitEvent?.({ type: "tool_execution_start", toolCallId, toolName, args: toolArgs });
+		const start: BridgedToolExecutionStart = { type: "tool_execution_start", toolCallId, toolName, args: toolArgs };
+		const proven = provenMessage(args, toolCallId);
+		if (proven) start[kCursorBridgeMessage] = proven;
+		this.options.emitEvent?.(start);
 
 		let result: AgentToolResult<unknown>;
 		let isError = false;
@@ -1007,7 +1013,9 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			result: sanitizedFinalResult,
 			isError,
 		});
-		return bridgeContext.attach(createToolResultMessage(toolCallId, toolName, result, isError));
+		const resultMessage = bridgeContext.attach(createToolResultMessage(toolCallId, toolName, result, isError));
+		this.requestScope.barrier.settle(resultMessage);
+		return resultMessage;
 	}
 
 	async diagnostics(args: Parameters<NonNullable<ICursorExecHandlers["diagnostics"]>>[0]) {
@@ -1047,10 +1055,13 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	}
 
 	async piBash(call: Parameters<NonNullable<ICursorExecHandlers["piBash"]>>[0]) {
-		return await executeTool(this.requestScope, "bash", call.toolCallId, {
-			command: call.args.command,
-			timeout: piTimeout(call.args.timeout),
-		});
+		return await executeTool(
+			this.requestScope,
+			"bash",
+			call.toolCallId,
+			{ command: call.args.command, timeout: piTimeout(call.args.timeout) },
+			{ message: provenMessage(call, call.toolCallId) },
+		);
 	}
 
 	/**
@@ -1074,13 +1085,10 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	}
 
 	async piWrite(call: Parameters<NonNullable<ICursorExecHandlers["piWrite"]>>[0]) {
-		return await executeTool(
-			this.requestScope,
-			"write",
-			call.toolCallId,
-			{ path: call.args.path, content: call.args.content },
-			{ message: provenMessage(call, call.toolCallId) },
-		);
+		return await executeTool(this.requestScope, "write", call.toolCallId, {
+			path: call.args.path,
+			content: call.args.content,
+		});
 	}
 
 	/**

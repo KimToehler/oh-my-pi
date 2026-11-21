@@ -112,7 +112,7 @@ describe("session move", () => {
 			"compaction.enabled": false,
 			"retry.enabled": false,
 			"todo.reminders": false,
-			"tools.xdev": false,
+			"tools.commands": false,
 			...options.settings,
 		});
 		settings.setModelRole("default", `${model.provider}/${model.id}`);
@@ -947,7 +947,7 @@ describe("session move", () => {
 			"compaction.enabled": false,
 			"retry.enabled": false,
 			"todo.reminders": false,
-			"tools.xdev": false,
+			"tools.commands": false,
 		});
 		settings.setModelRole("default", `${model.provider}/${model.id}`);
 		const sessionManager = options.sessionManager ?? SessionManager.create(dir, path.join(dir, "sessions"));
@@ -1235,7 +1235,7 @@ describe("session move", () => {
 	});
 });
 
-describe.skipIf(process.platform === "win32")("session move through xd", () => {
+describe.skipIf(process.platform === "win32")("session move through a bash tool command", () => {
 	let root: string;
 	let authStorage: AuthStorage;
 	let created: AgentSession | undefined;
@@ -1253,7 +1253,7 @@ describe.skipIf(process.platform === "win32")("session move through xd", () => {
 		fs.rmSync(root, { recursive: true, force: true });
 	});
 
-	it("session move: batch stop through write xd://session_move", async () => {
+	it("session move: batch stop through a session_move command run in bash", async () => {
 		const repo = path.join(root, "repo");
 		const worktree = path.join(root, "linked");
 		const git = ["-c", "user.name=Probe", "-c", "user.email=probe@example.invalid", "-c", "commit.gpgsign=false"];
@@ -1276,7 +1276,7 @@ describe.skipIf(process.platform === "win32")("session move through xd", () => {
 				"compaction.enabled": false,
 				"retry.enabled": false,
 				"todo.reminders": false,
-				"tools.xdev": true,
+				"tools.commands": true,
 				"tools.approvalMode": "yolo",
 			}),
 			model: getBundledModel("anthropic", "claude-sonnet-4-5"),
@@ -1288,7 +1288,9 @@ describe.skipIf(process.platform === "win32")("session move through xd", () => {
 			slashCommands: [],
 			enableMCP: false,
 			enableLsp: false,
-			toolNames: ["write", "session_move"],
+			toolNames: ["bash", "session_move"],
+			// Requested names present top-level unless inherited as commands; mount session_move in bash.
+			mountedToolNames: ["session_move"],
 			customTools: [
 				{
 					name: "slow_read",
@@ -1318,7 +1320,7 @@ describe.skipIf(process.platform === "win32")("session move through xd", () => {
 			responses: [
 				{
 					content: [
-						call("w1", "write", { path: "xd://session_move", content: JSON.stringify({ path: worktree }) }),
+						call("b1", "bash", { command: `session_move --json '${JSON.stringify({ path: worktree })}'` }),
 						call("r1", "slow_read", { path: "a.txt" }),
 					],
 				},
@@ -1330,7 +1332,7 @@ describe.skipIf(process.platform === "win32")("session move through xd", () => {
 			return mock.stream(model, context, options);
 		};
 		const unsubscribe = created.subscribe(event => {
-			if (event.type === "tool_execution_end" && event.toolName === "write") release.resolve();
+			if (event.type === "tool_execution_end" && event.toolName === "bash") release.resolve();
 		});
 		await created.prompt("go");
 		await created.waitForIdle();

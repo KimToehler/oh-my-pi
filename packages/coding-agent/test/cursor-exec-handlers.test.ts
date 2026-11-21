@@ -136,19 +136,15 @@ describe("Cursor bridge cancellation", () => {
 
 	it("starts no host call of a request after its plan proposal started, whatever the frame", async () => {
 		const proposal = createProbe();
-		const write: AgentTool = {
-			name: "write",
-			label: "Write",
-			description: "Holds a proposal open.",
-			parameters: type({ path: "string", content: "string" }),
-			execute: (_id, _params, signal) => proposal.run(signal),
-		};
 		const bash: AgentTool = {
 			name: "bash",
 			label: "Bash",
-			description: "Must never run after the proposal.",
+			description: "Holds a `propose` command open; nothing else may run after it.",
 			parameters: type({ command: "string", "cwd?": "string", "timeout?": "number" }),
-			execute: async () => ({ content: [{ type: "text", text: "ran" }] }),
+			execute: async (_id, params, signal) =>
+				(params as { command: string }).command.startsWith("propose ")
+					? proposal.run(signal)
+					: { content: [{ type: "text", text: "ran" }] },
 		};
 		using tempDir = TempDir.createSync("@pi-cursor-proposal-final-");
 		const victim = tempDir.join("keep.txt");
@@ -156,17 +152,14 @@ describe("Cursor bridge cancellation", () => {
 		const started: string[] = [];
 		const root = new CursorExecHandlers({
 			cwd: tempDir.path(),
-			tools: new Map([
-				["write", write],
-				["bash", bash],
-			]),
+			tools: new Map([["bash", bash]]),
 			emitEvent: event => {
 				if (event.type === "tool_execution_start") started.push(event.toolCallId);
 			},
 		});
 		const request = root.withSignal(new AbortController().signal);
 
-		const proposing = request.piWrite({ args: { path: "xd://propose", content: "demo" }, toolCallId: "propose" });
+		const proposing = request.piBash({ args: { command: "propose demo" }, toolCallId: "propose" } as never);
 		await proposal.started;
 		const shell = await request.shell({ command: "echo late", toolCallId: "late-shell" } as never);
 		const streamed = await request.shellStream({ command: "echo late", toolCallId: "late-stream" } as never, {
@@ -189,35 +182,29 @@ describe("Cursor bridge cancellation", () => {
 	});
 
 	it("reopens a request whose plan proposal failed, so the same response can retry", async () => {
-		const write: AgentTool = {
-			name: "write",
-			label: "Write",
-			description: "Fails the first proposal.",
-			parameters: type({ path: "string", content: "string" }),
-			execute: async () => {
-				throw new Error("Plan file not found");
-			},
-		};
 		const bash: AgentTool = {
 			name: "bash",
 			label: "Bash",
-			description: "Runs once the failed proposal settled.",
+			description: "Fails the `propose` command; runs anything else.",
 			parameters: type({ command: "string", "cwd?": "string", "timeout?": "number" }),
-			execute: async () => ({ content: [{ type: "text", text: "ran" }] }),
+			execute: async (_id, params) => {
+				if ((params as { command: string }).command.startsWith("propose ")) throw new Error("Plan file not found");
+				return { content: [{ type: "text", text: "ran" }] };
+			},
 		};
 		const started: string[] = [];
 		const request = new CursorExecHandlers({
 			cwd: ".",
-			tools: new Map([
-				["write", write],
-				["bash", bash],
-			]),
+			tools: new Map([["bash", bash]]),
 			emitEvent: event => {
 				if (event.type === "tool_execution_start") started.push(event.toolCallId);
 			},
 		}).withSignal(new AbortController().signal);
 
-		const failed = await request.piWrite({ args: { path: "xd://propose", content: "demo" }, toolCallId: "propose" });
+		const failed = await request.shellStream({ command: "propose demo", toolCallId: "propose" } as never, {
+			onStdout: () => {},
+			onStderr: () => {},
+		});
 		const retry = await request.piBash({ args: { command: "echo fix" }, toolCallId: "after-failure" } as never);
 
 		expect(failed.isError).toBe(true);

@@ -40,7 +40,7 @@ const NEW_TEXT = "# x v2\n- Merge gate: not applicable (qa)\n";
 
 const PROPOSE_ALONE = {
 	block: true,
-	reason: "Propose the plan alone: send xd://propose in its own message, after the plan file has been written.",
+	reason: "Propose the plan alone: run `propose <slug>` in its own message, after the plan file has been written.",
 };
 const AFTER_PROPOSE = {
 	block: true,
@@ -49,7 +49,7 @@ const AFTER_PROPOSE = {
 };
 const NO_SLUG_PLAN = {
 	block: true,
-	reason: "Write the plan to local://<slug>-plan.md, then write exactly that <slug> to xd://propose.",
+	reason: "Write the plan to local://<slug>-plan.md, then run `propose <slug>` with exactly that <slug>.",
 };
 
 function context(sessionId: string): ExtensionContext {
@@ -103,9 +103,9 @@ const turnEnd = (sessionId = "sess-A") =>
 		sessionId,
 	);
 
-/** A `write xd://propose` prepared inside the current message (no turn end). */
+/** A `propose` call as its `tool_call` fires inside the current message (no turn end). */
 const proposeCall = (toolCallId: string, slug = "x", sessionId = "sess-A") =>
-	write("xd://propose", slug, sessionId, toolCallId);
+	tool("propose", toolCallId, { title: slug }, sessionId);
 
 /** One whole message that only proposes: the propose's `tool_call`, then the turn ends. */
 async function propose(sessionId = "sess-A", slug = "x"): Promise<ToolCallEventResult | undefined> {
@@ -291,7 +291,7 @@ describe("propose-alone rule", () => {
 		expect(
 			await tool("ast_edit", "a1", { ops: [{ pat: "a", out: "b" }], paths: ["local://x-plan.md"] }),
 		).toMatchObject({ block: true });
-		expect(await tool("write", "d1", { path: "xd://resolve", content: "apply" })).toMatchObject({ block: true });
+		expect(await tool("resolve", "d1", { reason: "apply" })).toMatchObject({ block: true });
 		expect(await tool("read", "r1", { path: "local://x-plan.md" })).toBeUndefined();
 	});
 
@@ -301,7 +301,7 @@ describe("propose-alone rule", () => {
 		await proposeCall("p1");
 		await toolResult("read", "r1");
 		expect((await write("local://x-plan.md", NEW_TEXT, "sess-A", "w1"))?.block).toBe(true);
-		await toolResult("write", "p1");
+		await toolResult("propose", "p1");
 		expect(await write("local://x-plan.md", NEW_TEXT, "sess-A", "w2")).toBeUndefined();
 	});
 
@@ -355,40 +355,38 @@ describe("propose-alone rule", () => {
 		expect(await proposeCall("p1")).toEqual(PROPOSE_ALONE);
 	});
 
-	it("refuses a propose sent with an ast_edit, which a later xd://resolve could apply", async () => {
+	it("refuses a propose sent with an ast_edit, which a later resolve could apply", async () => {
 		await planOnDisk(GOOD_PLAN);
 		await tool("ast_edit", "a1", { ops: [{ pat: "a", out: "b" }], paths: ["local://x-plan.md"] });
 		expect(await proposeCall("p1")).toEqual(PROPOSE_ALONE);
 	});
 
-	for (const device of ["xd://write", "xd://edit", "xd://resolve"]) {
-		it(`refuses a propose sent with a write to ${device}`, async () => {
-			await planOnDisk(GOOD_PLAN);
-			await write(device, JSON.stringify({ path: "local://x-plan.md", content: NEW_TEXT }), "sess-A", "d1");
-			expect(await proposeCall("p1")).toEqual(PROPOSE_ALONE);
-		});
-	}
-
-	it("refuses a propose nested in xd://write when the host dispatches it", async () => {
-		// Given: the loop prepares the outer device write; executing it emits the inner write under the same id
+	it("refuses a propose sent with a resolve, which applies a staged preview", async () => {
 		await planOnDisk(GOOD_PLAN);
-		expect(
-			await write("xd://write", JSON.stringify({ path: "xd://propose", content: "x" }), "sess-A", "d1"),
-		).toBeUndefined();
-		// When
-		const inner = await write("xd://propose", "x", "sess-A", "d1");
-		// Then
-		expect(inner).toEqual(PROPOSE_ALONE);
-		expect(validatorRuns()).toBe(0);
+		await tool("resolve", "d1", { reason: "apply" });
+		expect(await proposeCall("p1")).toEqual(PROPOSE_ALONE);
 	});
 
-	for (const target of ["[xd://propose#ABCD]", "XD://propose", "xd://pro\tpose"]) {
-		it(`treats ${JSON.stringify(target)}, which the host dispatches as xd://propose, as a propose`, async () => {
-			await planOnDisk(GOOD_PLAN);
-			await editPlan("e1");
-			expect(await write(target, "x", "sess-A", "p1")).toEqual(PROPOSE_ALONE);
-		});
-	}
+	it("checks a propose run inside bash on its own tool_call, never on the enclosing bash call", async () => {
+		// Given: the loop prepares the bash call; running it emits the propose under its command id
+		await planOnDisk(GOOD_PLAN);
+		expect(await tool("bash", "b1", { command: "propose x" })).toBeUndefined();
+		expect(validatorRuns()).toBe(0);
+		// When
+		const inner = await tool("propose", "b1:cmd:0", { title: "x" });
+		// Then
+		expect(inner).toBeUndefined();
+		expect(validatorRuns()).toBe(1);
+		expect(await editPlan("e1")).toEqual(AFTER_PROPOSE);
+	});
+
+	it("refuses a propose run inside bash while a same-message edit is pending", async () => {
+		await planOnDisk(GOOD_PLAN);
+		await tool("bash", "b1", { command: "propose x" });
+		await editPlan("e1");
+		expect(await tool("propose", "b1:cmd:0", { title: "x" })).toEqual(PROPOSE_ALONE);
+		expect(validatorRuns()).toBe(0);
+	});
 
 	it("allows a propose sent with read-only calls and checks the plan on disk", async () => {
 		const file = await planOnDisk(GOOD_PLAN);
@@ -501,12 +499,6 @@ describe("plan slug resolution", () => {
 		const result = await propose("sess-A", "old/x");
 		// Then
 		expect(result).toEqual(NO_SLUG_PLAN);
-		expect(validatorRuns()).toBe(0);
-	});
-
-	it("refuses a propose whose text the host strips in hashline mode, checking nothing", async () => {
-		await twoPlans();
-		expect((await propose("sess-A", "1:old"))?.block).toBe(true);
 		expect(validatorRuns()).toBe(0);
 	});
 

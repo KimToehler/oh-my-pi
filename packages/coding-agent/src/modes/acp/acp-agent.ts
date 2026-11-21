@@ -3048,7 +3048,7 @@ export class AcpAgent implements Agent {
 					reentry: previous !== undefined,
 				});
 				// Mirror `InteractiveMode.#enterPlanMode`: register the plan-proposal
-				// handler that consumes `xd://propose` writes from plan mode. Without
+				// handler that consumes `propose` submissions from plan mode. Without
 				// this, proposal dispatch falls through and plan mode has no approval
 				// path (issue #1869).
 				session.setPlanProposalHandler?.(
@@ -3065,8 +3065,8 @@ export class AcpAgent implements Agent {
 
 	/**
 	 * Plan-proposal handler installed while ACP plan mode is active. The agent
-	 * submits the finalized plan by writing its `<slug>`/title to
-	 * `xd://propose`; the session resolves the plan file once
+	 * submits the finalized plan by passing its `<slug>`/title to `propose`;
+	 * the session resolves the plan file once
 	 * (`AgentSession.submitPlanProposal`), and this handler asks the ACP client to confirm (via `unstable_createElicitation`
 	 * when supported), and on approval keeps the chosen plan path, exits plan
 	 * mode, switches to the execution model the operator picked, and notifies
@@ -3115,7 +3115,7 @@ export class AcpAgent implements Agent {
 				content: [
 					{
 						type: "text" as const,
-						text: `Plan refinement requested. Update the plan file, then write ${normalizedTitle} to xd://propose again when ready.`,
+						text: `Plan refinement requested. Update the plan file, then submit ${normalizedTitle} with \`propose\` again when ready.`,
 					},
 				],
 				details,
@@ -3237,7 +3237,8 @@ export class AcpAgent implements Agent {
 					toolCallId: crypto.randomUUID(),
 					toolName: "read",
 					args: { path: planPath },
-					intent: `Plan: ${title}`,
+					// No colon-space: an intent's label ends at the first one (`toolIntentLabel`).
+					intent: `Plan — ${title}`,
 					cwd: session.sessionManager.getCwd(),
 					status: "completed",
 				}),

@@ -3052,13 +3052,13 @@ describe("InteractiveMode reviewed-plan byte binding (T5-m)", () => {
 		const toolCall = {
 			type: "toolCall" as const,
 			id: "propose-1",
-			name: "write",
-			arguments: { path: "xd://propose", content: "demo" },
+			name: "propose",
+			arguments: { title: "demo" },
 		};
 		const tool: AgentTool = {
-			name: "write",
-			label: "write",
-			description: "write",
+			name: "propose",
+			label: "propose",
+			description: "propose",
 			parameters: {} as AgentTool["parameters"],
 			execute: async () => ({ content: [] }),
 		};
