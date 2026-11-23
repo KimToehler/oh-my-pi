@@ -397,7 +397,8 @@ async function run(): Promise<void> {
 			process.exitCode = 1;
 			return;
 		}
-		await Bun.write(POOL_PATH, `${JSON.stringify(pool)}\n`);
+		// Same tab-indented layout as the committed pool, so a regeneration diffs only the entries it changed.
+		await Bun.write(POOL_PATH, `${JSON.stringify(pool, null, "\t")}\n`);
 		console.log(`Wrote ${POOL_PATH}`);
 	} finally {
 		storage.close();
