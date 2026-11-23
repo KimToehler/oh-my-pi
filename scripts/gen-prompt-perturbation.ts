@@ -147,47 +147,69 @@ function normalize(value: string): string {
 }
 
 /** Ask the model for rewrites of `entries` and keep only variants that validate. */
+/** One prompt file, as `seed` scans it. */
+export interface PromptFile {
+	relative: string;
+	text: string;
+}
+
 /** Add every static prompt line missing from the pool; returns the added entries. */
 async function seed(pool: Pool): Promise<PoolEntry[]> {
-	const known = new Set(pool.entries.map(entry => entry.source));
-	const byTrim = new Map(pool.entries.map(entry => [entry.source.trim(), entry]));
-	const added: PoolEntry[] = [];
-	const glob = new Bun.Glob("**/*.md");
-	for await (const relative of glob.scan({ cwd: PROMPTS_DIR })) {
-		const text = await Bun.file(path.join(PROMPTS_DIR, relative)).text();
-		let fenced = false;
+	const files: PromptFile[] = [];
+	for await (const relative of new Bun.Glob("**/*.md").scan({ cwd: PROMPTS_DIR })) {
+		files.push({ relative, text: await Bun.file(path.join(PROMPTS_DIR, relative)).text() });
+	}
+	return seedPool(pool, files);
+}
+
+/**
+ * Reconcile the pool with the prompt lines, whatever order the files come in: every prose line
+ * gets exactly one entry, and an entry whose line now appears only in fenced code is removed.
+ * Returns the added entries; their variants are still empty.
+ */
+export function seedPool(pool: Pool, files: readonly PromptFile[]): PoolEntry[] {
+	// A pooled source matches as a substring, so the least-indented prose form of a line also
+	// rewrites its deeper-indented occurrences.
+	const prose = new Map<string, { source: string; origin: string }>();
+	// Fenced code reads worse paraphrased; prose is where fingerprints live.
+	const fenced = new Set<string>();
+	for (const { relative, text } of files) {
+		let inFence = false;
 		for (const raw of text.split("\n")) {
 			if (raw.trimStart().startsWith("```")) {
-				fenced = !fenced;
+				inFence = !inFence;
 				continue;
 			}
 			const source = raw.trimEnd();
 			const trimmed = source.trim();
-			// Fenced code reads worse paraphrased; prose is where fingerprints live.
-			if (fenced) {
-				const existing = byTrim.get(trimmed);
-				if (existing && !existing.manual) {
-					pool.entries = pool.entries.filter(entry => entry !== existing);
-					byTrim.delete(trimmed);
-				}
+			if (inFence) {
+				fenced.add(trimmed);
 				continue;
 			}
 			if (trimmed.length < MIN_SEED_LENGTH || source.includes("{{")) continue;
-			const existing = byTrim.get(trimmed);
-			// Manual entries own their line, including ones that span its line break.
-			if (existing?.source === source || existing?.manual) continue;
-			// A trimmed entry cannot match an indented rendered line; replace it with the verbatim one.
-			if (existing) {
-				pool.entries = pool.entries.filter(entry => entry !== existing);
-				byTrim.delete(trimmed);
-			} else if (known.has(source)) continue;
-			known.add(source);
-			const entry: PoolEntry = { source, origin: relative, variants: [] };
-			byTrim.set(trimmed, entry);
-			added.push(entry);
+			const current = prose.get(trimmed);
+			if (current === undefined || source.length < current.source.length) {
+				prose.set(trimmed, { source, origin: relative });
+			}
 		}
 	}
-	pool.entries.push(...added);
+	// Manual entries own their line, including ones that span its line break.
+	const covered = new Set(pool.entries.filter(entry => entry.manual).map(entry => entry.source.trim()));
+	const kept = pool.entries.filter(entry => {
+		if (entry.manual) return true;
+		const trimmed = entry.source.trim();
+		const line = prose.get(trimmed);
+		if (line === undefined) return !fenced.has(trimmed);
+		// A trimmed entry cannot match an indented rendered line; the line's verbatim form replaces it.
+		if (entry.source !== line.source || covered.has(trimmed)) return false;
+		covered.add(trimmed);
+		return true;
+	});
+	const added: PoolEntry[] = [];
+	for (const [trimmed, line] of prose) {
+		if (!covered.has(trimmed)) added.push({ source: line.source, origin: line.origin, variants: [] });
+	}
+	pool.entries = [...kept, ...added];
 	return added;
 }
 
