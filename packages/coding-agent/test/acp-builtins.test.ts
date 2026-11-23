@@ -24,6 +24,7 @@ import {
 	resolveAcpBuiltinSlashCommand,
 } from "@oh-my-pi/pi-coding-agent/slash-commands/acp-builtins";
 import { lookupBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
+import * as piUtils from "@oh-my-pi/pi-utils";
 import { getProjectDir, removeWithRetries, setProjectDir, TempDir } from "@oh-my-pi/pi-utils";
 import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
@@ -1591,12 +1592,20 @@ describe("wave 4 commands", () => {
 		expect(output[0]).toContain("reload");
 	});
 
-	it("/mcp resources: outputs server list or no-server message", async () => {
-		const { output, runtime } = createRuntime();
-		const result = await executeAcpBuiltinSlashCommand("/mcp resources", runtime);
-		expect(result).toEqual({ consumed: true });
-		// No servers configured in tmp project dir — should report that
-		expect(output[0]).toMatch(/No MCP servers configured|No resources/);
+	it("/mcp resources: reports that no MCP server is configured", async () => {
+		// Both config scopes resolve into an empty directory, so the developer's own mcp.json never leaks in.
+		using configDir = TempDir.createSync("@pi-acp-mcp-resources-");
+		const configPath = spyOn(piUtils, "getMCPConfigPath").mockImplementation(scope =>
+			path.join(configDir.path(), scope, "mcp.json"),
+		);
+		try {
+			const { output, runtime } = createRuntime();
+			const result = await executeAcpBuiltinSlashCommand("/mcp resources", runtime);
+			expect(result).toEqual({ consumed: true });
+			expect(output).toEqual(["No MCP servers configured."]);
+		} finally {
+			configPath.mockRestore();
+		}
 	});
 
 	it("/mcp unknown-verb: returns usage pointing to help", async () => {

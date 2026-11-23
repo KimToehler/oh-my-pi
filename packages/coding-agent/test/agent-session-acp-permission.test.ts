@@ -362,7 +362,8 @@ describe("acp approve", () => {
 		const run = second.bash.execute("x2", { command: "echo hi" }, controller.signal, undefined, second.mode("write"));
 		await hanging.asked;
 		controller.abort();
-		await expect(run).rejects.toThrow("Permission request cancelled");
+		// The gate closes the dialog with the turn's own abort; either abort error marks the call cancelled.
+		await expect(run).rejects.toMatchObject({ name: expect.stringMatching(/^(Tool)?AbortError$/) });
 		expect(second.bashRuns).not.toHaveBeenCalled();
 	});
 

@@ -32,6 +32,7 @@ import type {
 	RoleModelCycle,
 	UsageFallbackConfirmation,
 } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { NewSessionOptions } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import { closeSessionIndex } from "@oh-my-pi/pi-coding-agent/session/session-index";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import type { SessionRelocator } from "@oh-my-pi/pi-coding-agent/session/session-move";
@@ -487,8 +488,11 @@ export class FakeAgentSession {
 
 	async reload(): Promise<void> {}
 
-	async newSession(): Promise<boolean> {
-		await this.sessionManager.newSession();
+	async newSession(options?: NewSessionOptions): Promise<boolean> {
+		// Like AgentSession: `drop` deletes the current file (a failure is only logged) and keeps the successor lazy.
+		const previousFile = this.sessionManager.getSessionFile();
+		if (options?.drop && previousFile) await this.sessionManager.dropSession(previousFile).catch(() => {});
+		await this.sessionManager.newSession(options);
 		this.#adoptDurableSession();
 		return true;
 	}

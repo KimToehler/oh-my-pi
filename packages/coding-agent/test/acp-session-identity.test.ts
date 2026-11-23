@@ -281,22 +281,25 @@ describe.each([1, 2] as const)("ACP /session delete on protocol v%d", surface =>
 		expect(session.promptCalls).not.toContain("after delete");
 	});
 
-	it("keeps the session usable when the delete fails", async () => {
+	it("keeps the session usable on a fresh session when the delete fails", async () => {
 		const rig = await startDeleteRig(surface);
 		const { client, sessionId, session, file } = rig;
 		vi.spyOn(session.sessionManager, "dropSession").mockRejectedValue(new Error("disk is read-only"));
 
 		expect(await startTurn(rig, "/session delete").ended).toBe("end_turn");
 		expect(
-			chunkTexts(client, sessionId).some(text => text.includes("Failed to delete session: disk is read-only")),
+			chunkTexts(client, sessionId).some(text => text.includes(`but failed to delete ${file}: disk is read-only`)),
 		).toBe(true);
 
 		resultOf(await startTurn(rig, "still here").ack);
 		await until(() => session.promptCalls.includes("still here"), "the prompt to run");
 		expect(session.disposed).toBe(false);
-		expect(session.sessionManager.getSessionFile()).toBe(file);
+		// The live agent left the old transcript before the delete; it stays on disk without the new turn.
+		expect(session.sessionManager.getSessionFile()).not.toBe(file);
 		await session.sessionManager.flush();
-		expect(fs.readFileSync(file, "utf8")).toContain("still here");
+		const old = fs.readFileSync(file, "utf8");
+		expect(old).toContain("hello");
+		expect(old).not.toContain("still here");
 	});
 
 	describe("while the delete turn is still finishing", () => {
