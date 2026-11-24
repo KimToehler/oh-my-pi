@@ -65,8 +65,10 @@ export async function compileCodingAgent(options: CodingAgentCompileOptions): Pr
 			format: "esm",
 			bytecode: true,
 			splitting: true,
-			// Discovery entry chunks can share a hash; include their source names to avoid collisions.
-			naming: { chunk: "chunks/[name]-[hash].[ext]" },
+			// Discovery entry chunks can share a hash, and same-named modules in different
+			// directories (tui's painters/input.ts and widgets/input.ts) can share name and hash;
+			// include their source directory and name to avoid collisions.
+			naming: { chunk: "chunks/[dir]/[name]-[hash].[ext]" },
 			minify: {
 				identifiers: options.minifyIdentifiers ?? false,
 				keepNames: true,
