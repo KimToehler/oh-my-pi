@@ -11,7 +11,7 @@ import type {
 import type { VcsGitRepo } from "@oh-my-pi/pi-natives";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { prompt } from "@oh-my-pi/pi-utils";
-import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+import { ToolError } from "./tool-errors";
 import sessionMoveDescription from "../prompts/tools/session-move.md" with { type: "text" };
 import { type AddRepoWorktreeResult, addRepoWorktree } from "../session/session-worktree";
 import { describeRunningSessionWork, findRunningSessionWork, hasRunningSessionWork } from "../session/session-move";

@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vcs from "@oh-my-pi/pi-natives/vcs";
-import { getTerminalId } from "@oh-my-pi/pi-tui/ttyid";
+import { getTerminalId } from "../utils/ttyid";
 import {
 	directoryIsMissing,
 	getCustomSessionFilesDir,

@@ -28,10 +28,10 @@ import {
 	toError,
 	withLoopPhase,
 } from "@oh-my-pi/pi-utils";
-import { isTaskToolDetails, type StructuredSubagentSchemaMode } from "@oh-my-pi/pi-tui/tools/task";
-import type { ConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
-import { isUserRequestEntry } from "@oh-my-pi/pi-tui/chat/transcript-entry";
-import type { SessionTreePosition } from "@oh-my-pi/pi-tui/status-line/host";
+import { isTaskToolDetails, type StructuredSubagentSchemaMode } from "../task/task-details";
+import type { ConfiguredThinkingLevel } from "../utils/render-utils";
+import { isUserRequestEntry } from "./transcript/transcript-entry";
+import type { SessionTreePosition } from "../modes/view-model/status-line/host";
 import * as snapcompact from "@oh-my-pi/snapcompact";
 import type { AgentRegistryApi } from "../registry/agent-registry";
 import { moveFileAcrossDevices } from "../utils/atomic-file";

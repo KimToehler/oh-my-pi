@@ -26,13 +26,13 @@ import {
 import { lookupBuiltinSlashCommand } from "@oh-my-pi/pi-coding-agent/slash-commands/builtin-registry";
 import * as piUtils from "@oh-my-pi/pi-utils";
 import { getProjectDir, removeWithRetries, setProjectDir, TempDir } from "@oh-my-pi/pi-utils";
-import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 import { cfgBrowserEnabled, cfgBrowserHeadless } from "@oh-my-pi/pi-coding-agent/tools/browser/settings";
 import { cfgExtendedContext } from "@oh-my-pi/pi-coding-agent/session/context-settings";
 import { cfgMemoryBackend } from "@oh-my-pi/pi-coding-agent/memory-backend/settings";
 import { cfgOvnfsPath, cfgWorktreeCleanSource } from "@oh-my-pi/pi-coding-agent/task/settings";
 import { makeAssistantMessage } from "./session-manager/helpers";
+import { initTheme } from "../src/ui/theme/service";
 
 interface FakeAcpBuiltinSession {
 	fastMode: boolean;
@@ -571,7 +571,7 @@ describe("ACP builtin slash commands", () => {
 
 	describe("jobs tree", () => {
 		beforeAll(async () => {
-			await initTheme();
+			initTheme();
 		});
 
 		it("nests a subagent's jobs under the task job that runs it, inside one fence", async () => {

@@ -9,8 +9,9 @@
 import { type } from "@oh-my-pi/omptype";
 import type { AssistantMessage, Usage } from "@oh-my-pi/pi-ai";
 import { classifyModel } from "@oh-my-pi/pi-catalog/identity";
-import { replaceTabs, TRUNCATE_LENGTHS, truncateToWidth } from "@oh-my-pi/pi-tui/render/render-utils";
-import type { SingleResult } from "@oh-my-pi/pi-tui/tools/task";
+import type { SingleResult } from "../task/task-details";
+import { TRUNCATE_LENGTHS } from "../utils/render-utils";
+import { replaceTabs, truncateToWidth } from "../utils/text-width";
 import { prompt, sanitizeText } from "@oh-my-pi/pi-utils";
 import type { ModelRegistry } from "../config/model-registry";
 import { getModelMatchPreferences, resolveModelRoleValue } from "../config/model-resolver";

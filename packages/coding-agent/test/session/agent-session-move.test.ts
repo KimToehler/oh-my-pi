@@ -34,7 +34,7 @@ import {
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import { runSubagentFollowUpTurn } from "@oh-my-pi/pi-coding-agent/task/executor";
-import type { IrcMessage } from "@oh-my-pi/pi-tui/tools/irc";
+import type { IrcMessage } from "@oh-my-pi/pi-coding-agent/irc/irc-types";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { Type } from "@sinclair/typebox";
 

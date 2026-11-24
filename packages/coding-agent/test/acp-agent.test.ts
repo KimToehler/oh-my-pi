@@ -40,7 +40,7 @@ import { cfgPlanAutosave, cfgPlanAutosaveDir, cfgPlanEnabled } from "@oh-my-pi/p
 import { cfgGoalEnabled } from "@oh-my-pi/pi-coding-agent/goals/settings";
 import type { GoalHostSession } from "@oh-my-pi/pi-coding-agent/goals/host-controller";
 import { AcpGoalActor } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-goal";
-import type { Goal } from "@oh-my-pi/pi-tui/tools/goal";
+import type { Goal } from "@oh-my-pi/pi-coding-agent/tools/details/goal";
 
 import {
 	advanceBootstrapGuard,

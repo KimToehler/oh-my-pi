@@ -6,7 +6,7 @@
  */
 import { type EditInspection, editInspect } from "@oh-my-pi/pi-natives";
 import { isRecord, Snowflake, stringProperty } from "@oh-my-pi/pi-utils";
-import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+import { ToolError } from "../../tools/tool-errors";
 import type {
 	ExtensionApprovalAnswer,
 	ExtensionApprovalPrompt,

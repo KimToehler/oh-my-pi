@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { lookup } from "@oh-my-pi/pi-coding-agent/config/registry";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { createSettingsHost } from "@oh-my-pi/pi-coding-agent/config/settings-ui";
-import { getSettingsForTab } from "@oh-my-pi/pi-tui/overlays/settings-defs";
+import { getSettingsForTab } from "@oh-my-pi/pi-coding-agent/config/settings-defs";
 
 beforeEach(async () => {
 	resetSettingsForTest();

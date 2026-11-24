@@ -33,8 +33,8 @@ import { type ToolSession, WriteTool } from "@oh-my-pi/pi-coding-agent/tools";
 import { type PlanProposalHandler, specialToolCommands } from "@oh-my-pi/pi-coding-agent/tools/resolve";
 import { toolCommandInvocationId } from "@oh-my-pi/pi-coding-agent/tools/tool-commands";
 import { ToolAbortError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
-import { PROPOSE_COMMAND_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
-import type { SingleResult, StructuredSubagentOutput } from "@oh-my-pi/pi-tui/tools/task";
+import type { SingleResult, StructuredSubagentOutput } from "@oh-my-pi/pi-coding-agent/task/task-details";
+import { PROPOSE_COMMAND_NAME } from "@oh-my-pi/pi-coding-agent/tools/details/resolve";
 import { TempDir } from "@oh-my-pi/pi-utils";
 
 const PLANNER = { provider: "anthropic", model: "claude-sonnet-4-5" } as const;

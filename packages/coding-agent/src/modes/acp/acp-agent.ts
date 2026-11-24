@@ -62,9 +62,7 @@ import type { MCPServerConfig } from "../../mcp/types";
 import { loadAllExtensions } from "../../modes/components/extensions/state-manager";
 import { AgentRegistry } from "../../registry/agent-registry";
 import { registerPersistedSubagents } from "../../registry/persisted-agents";
-import type { AgentCostSnapshot } from "@oh-my-pi/pi-tui/overlays/agent-hub-projection";
-import { SessionObserverRegistry } from "@oh-my-pi/pi-tui/overlays/session-observer-registry";
-import { theme } from "@oh-my-pi/pi-tui/theme";
+import type { AgentCostSnapshot } from "../view-model/overlays/agent-hub-projection";
 import {
 	normalizePlanTitle,
 	type PlanApprovalDetails,
@@ -76,7 +74,7 @@ import type { AgentSession, AgentSessionEvent, ResolvedRoleModel } from "../../s
 import type { SubmissionOutcome } from "../../session/agent-session-types";
 import { cfgCycleOrder } from "../../config/model-settings";
 import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
-import { shortenPath } from "@oh-my-pi/pi-tui/render/render-utils";
+import { shortenPath } from "../../utils/render-utils";
 import { BlobStore, resolveImageDataSync } from "../../session/blob-store";
 import { relocateHeadlessSession } from "../../session/headless-relocation";
 import { isSilentAbort, SKILL_PROMPT_MESSAGE_TYPE, USER_INTERRUPT_LABEL } from "../../session/messages";
@@ -96,7 +94,7 @@ import type { SlashCommandRuntime } from "../../slash-commands/types";
 import { DEFAULT_STT_MODEL_KEY, STT_MODELS } from "../../stt/models";
 import { refreshAgentDiscovery } from "../../task";
 import { sumSubagentTreeCost } from "../agent-hub-runtime";
-import { AUTO_THINKING, parseConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
+import { AUTO_THINKING, parseConfiguredThinkingLevel } from "../../thinking/levels";
 import {
 	choiceValue,
 	defaultFormData,
@@ -107,11 +105,11 @@ import {
 	isArrayChoice,
 	OTHER_LABEL,
 	textValue,
-} from "@oh-my-pi/pi-tui/html-form/data";
-import { type ChoiceField, type HtmlForm, parseHtmlForm, spansText } from "@oh-my-pi/pi-tui/html-form/parse";
+} from "../../tools/html-form/data";
+import { type ChoiceField, type HtmlForm, parseHtmlForm, spansText } from "../../tools/html-form/parse";
 import type { PlanProposalOwnership } from "../../tools/resolve";
 import { resolvePlanFilePath } from "../../plan-mode/plan-files";
-import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+import { ToolError } from "../../tools/tool-errors";
 import {
 	DEFAULT_TTS_SPEED,
 	DEFAULT_TTS_VOICE,
@@ -168,6 +166,9 @@ import { cfgDisabledExtensions, cfgExtensions } from "../../extensibility/settin
 import { cfgGoalEnabled } from "../../goals/settings";
 import { cfgMcpStartupTimeoutMs } from "../../mcp/settings";
 import { cfgPlanEnabled } from "../../plan-mode/settings";
+import { currentTheme } from "@oh-my-pi/pi-tui/theme/runtime";
+import { SessionObserverRegistry } from "../../task/session-observer-registry";
+import { extensionTheme } from "../../ui/extensions/render-output";
 
 const DEFAULT_PLAN_FILE_URL = "local://PLAN.md";
 /** Plan-approval select values: `approve:<role>` per execution tier, or bare `approve` without tiers. */
@@ -1008,10 +1009,8 @@ export function createAcpExtensionUiContext(
 			return typeof value === "string" ? value : undefined;
 		},
 		addAutocompleteProvider: () => {},
-		setEditorComponent: () => {},
-		getEditorComponent: () => undefined,
 		get theme() {
-			return theme;
+			return extensionTheme(currentTheme());
 		},
 		getAllThemes: async () => [],
 		getTheme: async () => undefined,

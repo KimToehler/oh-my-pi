@@ -20,7 +20,7 @@ import { runStructuredSubagent } from "@oh-my-pi/pi-coding-agent/task/structured
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { sessionGrantKey } from "@oh-my-pi/pi-coding-agent/tools/approval";
 import { VibeSessionRegistry } from "@oh-my-pi/pi-coding-agent/vibe/runtime";
-import type { TaskParams } from "@oh-my-pi/pi-tui/tools/task";
+import type { TaskParams } from "@oh-my-pi/pi-coding-agent/task/task-details";
 import { type ChildStep, SubagentSpawnHarness } from "../helpers/subagent-spawn-harness";
 
 const DENIED = "denied by user for this session: bash";

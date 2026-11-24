@@ -29,8 +29,8 @@ import * as structuredSubagentModule from "@oh-my-pi/pi-coding-agent/task/struct
 import type { StructuredSubagentResult } from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { specialToolCommands } from "@oh-my-pi/pi-coding-agent/tools/resolve";
-import { PROPOSE_COMMAND_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
-import type { SingleResult } from "@oh-my-pi/pi-tui/tools/task";
+import type { SingleResult } from "@oh-my-pi/pi-coding-agent/task/task-details";
+import { PROPOSE_COMMAND_NAME } from "@oh-my-pi/pi-coding-agent/tools/details/resolve";
 import { getConfigRootDir, isEnoent, setAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 import type {
 	AgentSideConnection,

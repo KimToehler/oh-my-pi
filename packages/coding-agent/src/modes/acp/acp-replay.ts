@@ -3,7 +3,7 @@
  * Version-neutral builder shared by every ACP surface; v2 converts each
  * notification through the v2 mapper.
  */
-import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
+import { canonicalizeMessage } from "../../session/transcript/thinking-display";
 import type { PromptRequest, SessionNotification } from "@oh-my-pi/pi-utils/acp";
 import type { AgentSession, AgentSessionEvent } from "../../session/agent-session";
 import { type BlobStore, resolveImageDataSync } from "../../session/blob-store";

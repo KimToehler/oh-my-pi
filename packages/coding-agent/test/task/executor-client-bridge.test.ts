@@ -19,7 +19,7 @@ import { restoreSession } from "@oh-my-pi/pi-coding-agent/task/restore";
 import { runStructuredSubagent } from "@oh-my-pi/pi-coding-agent/task/structured-subagent";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { VibeSessionRegistry } from "@oh-my-pi/pi-coding-agent/vibe/runtime";
-import type { TaskParams } from "@oh-my-pi/pi-tui/tools/task";
+import type { TaskParams } from "@oh-my-pi/pi-coding-agent/task/task-details";
 import {
 	type BridgeCalls,
 	type ChildStep,

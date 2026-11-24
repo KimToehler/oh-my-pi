@@ -58,9 +58,9 @@ import {
 	resolveToCwd,
 	splitPathAndSelPreferringLiteral,
 } from "./tools/path-utils";
-import type { EditToolDetails } from "@oh-my-pi/pi-tui/tools/edit";
-import { PROPOSE_COMMAND_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
-import type { TodoPhase, TodoStatus } from "@oh-my-pi/pi-tui/tools/todo";
+import type { EditToolDetails } from "./tools/details/edit";
+import { PROPOSE_COMMAND_NAME } from "./tools/details/resolve";
+import type { TodoPhase, TodoStatus } from "./tools/details/todo";
 
 /** Phase used for Cursor-owned tasks with no local phase grouping. */
 const CURSOR_TODO_PHASE = "Tasks";

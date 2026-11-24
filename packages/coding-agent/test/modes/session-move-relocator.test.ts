@@ -23,7 +23,8 @@ import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { getProjectDir, removeWithRetries, setProjectDir } from "@oh-my-pi/pi-utils";
-import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import { initTheme } from "../../src/ui/theme/service";
+import { createModeTerminal } from "../helpers/mode-terminal";
 import { Type } from "@sinclair/typebox";
 
 setDefaultTimeout(30_000);
@@ -128,10 +129,15 @@ describe("tui session move", () => {
 			responses: [{ content: [call("m1", "session_move")] }, { content: ["moved"] }] as MockResponse[],
 		});
 		session.agent.streamFn = mock.stream;
-		mode = new InteractiveMode(session, "test");
-		mode.ui.requestRender = vi.fn();
-		mode.ui.requestComponentRender = vi.fn();
-		mode.ui.setFocus = vi.fn();
+		mode = new InteractiveMode(
+			session,
+			"test",
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			createModeTerminal().frame,
+		);
 		vi.spyOn(mode, "reloadTodos").mockResolvedValue(undefined);
 		vi.spyOn(mode, "showError").mockImplementation(() => {});
 
@@ -255,13 +261,17 @@ describe("tui session move", () => {
 				return mock.stream(model, context, options);
 			};
 			const setRelocator = vi.spyOn(live, "setSessionRelocator");
-			mode = new InteractiveMode(live, "test");
+			mode = new InteractiveMode(
+				live,
+				"test",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				createModeTerminal().frame,
+			);
 			const installed = setRelocator.mock.calls[0]?.[0];
 			if (!installed) throw new Error("Expected the interactive mode to install a session relocator");
-			mode.ui.requestRender = vi.fn();
-			mode.ui.requestComponentRender = vi.fn();
-			mode.ui.setFocus = vi.fn();
-			vi.spyOn(mode, "present").mockImplementation(() => {});
 			vi.spyOn(mode, "showError").mockImplementation(() => {});
 			vi.spyOn(mode, "reloadTodos").mockImplementation(async () => {
 				events.push("relocation-body-done");

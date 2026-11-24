@@ -1,8 +1,8 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { InternalUrlRouter } from "../internal-urls/router";
-import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import { prompt } from "@oh-my-pi/pi-utils";
 import planProposalSupersededPrompt from "../prompts/system/plan-proposal-superseded.md" with { type: "text" };
+import { ToolError } from "../tools/tool-errors";
 
 /** Shape forwarded from the plan-proposal handler to InteractiveMode's
  *  approval popup. Populated by the `propose` tool when the agent

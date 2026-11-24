@@ -7,8 +7,8 @@ import type {
 	TextContent,
 	Usage,
 } from "@oh-my-pi/pi-ai";
-import type { StructuredSubagentSchemaMode } from "@oh-my-pi/pi-tui/tools/task";
-import type { ConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
+import type { StructuredSubagentSchemaMode } from "../task/task-details";
+import type { ConfiguredThinkingLevel } from "../utils/render-utils";
 import type { CompactionMethod } from "./compaction-methods";
 import type { WorkPoolYieldItem } from "../task/workpool-yield";
 import type { RetryFallbackRole } from "./retry-fallback-chains";
@@ -21,6 +21,9 @@ export const SESSION_TITLE_SLOT_BYTES = 256;
 export const SESSION_TITLE_SLOT_ENTRY_TYPE = "title";
 
 export const TITLE_CHANGE_ENTRY_TYPE = "title_change";
+
+/** Marks the end of a `/tan` session's inherited history; data is the fork's session ID. */
+export const TAN_FORK_BOUNDARY_CUSTOM_TYPE = "tan-fork-boundary";
 
 export type SessionTitleSource = "auto" | "user";
 

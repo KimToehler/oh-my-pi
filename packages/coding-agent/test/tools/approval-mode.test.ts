@@ -321,8 +321,6 @@ describe("approval prompts through a host dialog", () => {
 				getEditorText: () => "",
 				editor: async () => undefined,
 				addAutocompleteProvider: () => {},
-				setEditorComponent: () => {},
-				getEditorComponent: () => undefined,
 				get theme() {
 					return {} as never;
 				},
