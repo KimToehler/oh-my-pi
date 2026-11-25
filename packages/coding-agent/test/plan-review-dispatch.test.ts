@@ -318,12 +318,15 @@ describe("plan review through the real agent loop, per approval installer", () =
 				restoreThinkingLevel: () => {},
 				resolveDefaultPrewalk: () => undefined,
 				resolveAutoPrewalkTarget: () => undefined,
+				resolveAutoPrewalkPlanner: () => "unused",
+				prepareAutoPrewalkPlanner: async () => "unused",
 				classifyAutoPrewalk: async () => undefined,
 				emitNotice: (level, message, source) => live.emitNotice(level, message, source),
 				setModelTemporary: async model => {
 					switches.push(model.id);
 					return true;
 				},
+				setThinkingLevel: () => {},
 				setActiveToolsByName: names => live.setActiveToolsByName(names),
 				restoreNonMCPToolPresentation: (enabled, mounted, registered) =>
 					live.restoreNonMCPToolPresentation(enabled, mounted, registered),

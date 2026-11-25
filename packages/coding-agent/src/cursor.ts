@@ -40,7 +40,8 @@ import {
 } from "@oh-my-pi/pi-ai/providers/cursor-pi-args";
 import { editDiffString } from "@oh-my-pi/pi-natives";
 import { isEnoent, sanitizeText } from "@oh-my-pi/pi-utils";
-import { cursorMcpPrefersReplaceEdit, normalizeCursorReplaceArgs } from "./cursor-bridge-tools";
+import { cursorMcpPrefersReplaceEdit, normalizeCursorReplaceArgs } from "./cursor-replace-args";
+import { type BridgedToolExecutionStart, kCursorBridgeMessage, kCursorExecBridge } from "./cursor-bridge-marks";
 import { normalizeToLF, stripBom } from "./edit/normalize";
 import type { MCPResourceReadResult } from "./mcp/types";
 import {
@@ -170,26 +171,10 @@ interface CursorExecBridgeOptions {
 	 * Bridged calls run outside the agent loop, so the turn's abort reaches the
 	 * tools they run only through this: every executed tool receives it as its
 	 * `execute` signal, and a call arriving after it fired never starts. Bind it
-	 * per request with {@link bindCursorExecSignal}; unset, calls cannot be
-	 * cancelled.
+	 * per request with {@link bindCursorExecSignal} (`./cursor-bridge-marks`);
+	 * unset, calls cannot be cancelled.
 	 */
 	signal?: AbortSignal;
-}
-
-/**
- * Hand a request's bridge to the provider bound to that request's signal.
- *
- * The bridge is built once per session, while each provider request carries
- * its own signal. Stream wrappers call this with the options they forward, so
- * the handlers the provider dispatches into stop with the request they serve
- * and share that request's proposal barrier ({@link ProposalBarrier}).
- * Handlers that are not this bridge pass through unchanged.
- */
-export function bindCursorExecSignal(
-	handlers: ICursorExecHandlers | undefined,
-	signal: AbortSignal | undefined,
-): ICursorExecHandlers | undefined {
-	return handlers instanceof CursorExecHandlers ? handlers.withSignal(signal) : handlers;
 }
 
 /**
@@ -390,21 +375,6 @@ function awaitsPlanRefinement(result: ToolResultMessage): boolean {
 	if (!inner || typeof inner !== "object" || !("planReview" in inner)) return false;
 	const review = inner.planReview;
 	return !!review && typeof review === "object" && "outcome" in review && review.outcome === "reject";
-}
-
-/**
- * Carries the provider's live assistant message on the bridge's own
- * `tool_execution_start`. Bridged calls bypass the agent loop's
- * `beforeToolCall`, so this is how the session learns which message made one.
- */
-const kCursorBridgeMessage = Symbol("cursor.bridge.message");
-
-type ToolExecutionStartEvent = Extract<AgentEvent, { type: "tool_execution_start" }>;
-type BridgedToolExecutionStart = ToolExecutionStartEvent & { [kCursorBridgeMessage]?: AssistantMessage };
-
-/** The provider message a bridged `tool_execution_start` executes under, when the provider proved it. */
-export function cursorBridgeMessage(event: ToolExecutionStartEvent): AssistantMessage | undefined {
-	return (event as BridgedToolExecutionStart)[kCursorBridgeMessage];
 }
 
 /** The provider's message for a call, only when it holds the block filed under `toolCallId`. */
@@ -785,6 +755,7 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 	 * Proxy, with the proxy as `this`, and a Proxy does not forward private fields.
 	 */
 	readonly requestScope: CursorRequestScope;
+	readonly [kCursorExecBridge] = true as const;
 
 	/** `request` marks a bridge bound to one provider request; only those seal on a proposal. */
 	constructor(

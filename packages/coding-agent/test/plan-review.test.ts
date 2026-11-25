@@ -13,7 +13,8 @@ import { createMockModel, type MockResponse } from "@oh-my-pi/pi-ai/providers/mo
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { bindCursorExecSignal, CursorExecHandlers } from "@oh-my-pi/pi-coding-agent/cursor";
+import { CursorExecHandlers } from "@oh-my-pi/pi-coding-agent/cursor";
+import { bindCursorExecSignal } from "@oh-my-pi/pi-coding-agent/cursor-bridge-marks";
 import { resolveLocalUrlToPath } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import {
 	isPlanApprovalDetails,

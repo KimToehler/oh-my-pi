@@ -33,6 +33,7 @@ import type {
 	UsageFallbackConfirmation,
 } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import type { NewSessionOptions } from "@oh-my-pi/pi-coding-agent/session/session-entries";
+import type { CustomMessage } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { closeSessionIndex } from "@oh-my-pi/pi-coding-agent/session/session-index";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import type { SessionRelocator } from "@oh-my-pi/pi-coding-agent/session/session-move";
@@ -167,7 +168,7 @@ export class FakeAgentSession {
 	/** Awaited inside `prompt()` after streaming starts, so a test can hold a turn open. */
 	promptGate: Promise<void> | undefined;
 	contextUsage: { tokens: number | null; contextWindow: number; percent: number } | undefined;
-	customMessages: Array<{ customType: string; content: string; details?: unknown }> = [];
+	customMessages: Array<{ customType: string; content: CustomMessage["content"]; details?: unknown }> = [];
 	customMessageOptions: Array<{ streamingBehavior?: "steer" | "followUp"; queueChipText?: string } | undefined> = [];
 	skillsSettings = { enableSkillCommands: true };
 	skills: Array<{ name: string; description: string; filePath: string; baseDir: string; source: string }> = [];
@@ -401,7 +402,7 @@ export class FakeAgentSession {
 	}
 
 	async promptCustomMessage(
-		message: { customType: string; content: string; details?: unknown },
+		message: { customType: string; content: CustomMessage["content"]; details?: unknown },
 		options?: { streamingBehavior?: "steer" | "followUp"; queueChipText?: string },
 	): Promise<boolean> {
 		this.customMessages.push(message);

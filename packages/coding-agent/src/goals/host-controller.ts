@@ -36,6 +36,7 @@ export type GoalHostSession = Pick<
 	| "getGoalModeState"
 	| "setGoalModeState"
 	| "getPlanModeState"
+	| "restrictToolNames"
 	| "getEnabledToolNames"
 	| "setActiveToolsByName"
 	| "sendGoalModeContext"
@@ -277,6 +278,9 @@ export class GoalHostController {
 		if (this.#session.getPlanModeState()?.enabled) {
 			throw new Error("Exit plan mode before starting a goal.");
 		}
+		if (this.#session.restrictToolNames) {
+			throw new Error("Goal mode is unavailable in a --no-tools session.");
+		}
 	}
 
 	async #create(command: GoalHostCommand, options?: EnterOptions): Promise<GoalHostResult> {
@@ -510,6 +514,11 @@ export class GoalHostController {
 		if (!goal) {
 			runtime.clearAccounting();
 			this.#session.sessionManager.appendModeChange("none");
+			return;
+		}
+		// A --no-tools session cannot run the goal; leave it journaled for a session that can.
+		if (this.#session.restrictToolNames) {
+			runtime.clearAccounting();
 			return;
 		}
 		this.#session.setGoalModeState({ enabled: context.mode === "goal", mode: "active", goal });

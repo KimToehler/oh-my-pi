@@ -13,10 +13,17 @@
 ### Fixed
 
 - ACP connections now accept JSON-RPC batch messages and answer malformed lines with a parse error instead of dropping the connection
+## [19.2.0] - 2026-11-25
+
 ### Fixed
 
-- Fatal interactive errors now print a concise cause and the path to the full log after terminal cleanup. Piped stderr still includes the stack trace.
-- `ptree` child processes spawned without an explicit `env` now inherit `Bun.env`, including values loaded from `.env` files after startup, on every platform rather than only under the Linux subreaper.
+- Fatal interactive errors now display a concise cause and the path to the full log after terminal cleanup, while piped stderr continues to include the stack trace.
+- Fixed HTML parsing so <textarea> and <title> content is treated as text, preserving literal angle-bracket content while still decoding entities.
+- Child processes created by ptree without an explicit environment now inherit the current Bun environment, including values loaded from .env files after startup, on all platforms.
+
+### Removed
+
+- Removed the public getProviderInFlightRoot() API; provider in-flight limits no longer rely on a lease directory.
 
 ## [19.1.0] - 2026-11-21
 

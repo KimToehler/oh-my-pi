@@ -5,12 +5,12 @@
  * which an aborted turn reaches the tool. Covered on the two hosts that build a
  * bridge: the primary session (SDK) and an advisor.
  */
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { type } from "@oh-my-pi/omptype";
 import { Agent, type AgentTool, type StreamFn } from "@oh-my-pi/pi-agent-core";
 import type { Api, AssistantMessage, Model, ModelSpec, SimpleStreamOptions } from "@oh-my-pi/pi-ai";
-import { clearCustomApis, registerCustomApi } from "@oh-my-pi/pi-ai";
 import { createMockModel } from "@oh-my-pi/pi-ai/providers/mock";
+import * as registerBuiltins from "@oh-my-pi/pi-ai/providers/register-builtins";
 import { AssistantMessageEventStream } from "@oh-my-pi/pi-ai/utils/event-stream";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
@@ -40,8 +40,7 @@ function createProbe() {
 }
 
 /** One Cursor-style MCP frame for the probe, issued through the handlers a request received. */
-function dispatchProbe(options: SimpleStreamOptions | undefined, toolCallId: string): void {
-	const handlers = options?.cursorExecHandlers;
+function dispatchProbe(handlers: SimpleStreamOptions["cursorExecHandlers"], toolCallId: string): void {
 	if (!handlers?.mcp) throw new Error("the request carried no Cursor bridge");
 	void handlers.mcp({
 		name: PROBE,
@@ -69,7 +68,7 @@ describe("Cursor bridge cancellation", () => {
 	const disposables: Array<{ dispose(): Promise<void> | void }> = [];
 
 	afterEach(async () => {
-		clearCustomApis();
+		mock.restore();
 		for (const item of disposables.splice(0).reverse()) await item.dispose();
 	});
 
@@ -215,15 +214,16 @@ describe("Cursor bridge cancellation", () => {
 	it("aborts a primary-session bridged tool when the session aborts its turn", async () => {
 		using tempDir = TempDir.createSync("@pi-cursor-bridge-cancel-");
 		const probe = createProbe();
-		const api = "test-cursor-bridge-cancel";
-		registerCustomApi(api, (_model, _context, options) => {
-			dispatchProbe(options, "primary-probe");
+		// The session builds its bridge on the first request dispatched to Cursor,
+		// so the request goes out on `cursor-agent`, answered by a stand-in transport.
+		spyOn(registerBuiltins, "streamCursor").mockImplementation((_model, _context, options) => {
+			dispatchProbe(options?.execHandlers, "primary-probe");
 			return streamUntilAborted(createAssistantMessage(""), options);
 		});
 		const model = buildModel({
 			id: "bridge-cancel",
 			name: "Bridge cancel",
-			api,
+			api: "cursor-agent",
 			provider: "bridge-cancel-provider",
 			baseUrl: "http://127.0.0.1:8080/v1",
 			reasoning: false,
@@ -280,7 +280,8 @@ describe("Cursor bridge cancellation", () => {
 		disposables.push({ dispose: () => authStorage.close() });
 		authStorage.keys.setRuntime("anthropic", "test-key");
 		const primary = createMockModel({ provider: "anthropic", responses: [{ content: ["primary complete"] }] });
-		const advisorModel = createMockModel({ provider: "anthropic" });
+		// The advisor builds its bridge on its first request dispatched to Cursor.
+		const advisorModel: Model = { ...createMockModel({ provider: "anthropic" }), api: "cursor-agent" };
 		const probeTool: AgentTool = {
 			name: PROBE,
 			label: "Slow probe",
@@ -289,7 +290,7 @@ describe("Cursor bridge cancellation", () => {
 			execute: (_id, _params, signal) => probe.run(signal),
 		};
 		const advisorStreamFn: StreamFn = (_model, _context, options) => {
-			dispatchProbe(options, "advisor-probe");
+			dispatchProbe(options?.cursorExecHandlers, "advisor-probe");
 			return streamUntilAborted(createAssistantMessage(""), options);
 		};
 		const settings = Settings.isolated({

@@ -287,6 +287,7 @@ import type {
 import type { TodoItem, TodoPhase } from "../tools/details/todo";
 import type { ConversationPosition } from "./utils/conversation-position";
 import { setImageBlobWriter } from "../ui/transcript/image-links";
+import { followInlineImageLimits } from "../ui/transcript/messages/image";
 import { imageLinksForMessage, UiHelpers } from "./utils/ui-helpers";
 
 import {
@@ -899,7 +900,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		pills.jobsRunning.set(background.size);
 		pills.jobWidgets.set(this.session.getRunningJobWidgets().filter(entry => background.has(entry.id)));
-		this.statusLine.refresh();
+		this.statusLine.refreshJobs();
 	}
 	/** The job widget registry this mode follows, and how to stop listening to it. */
 	#jobWidgetsListener: { registry: JobWidgetRegistry; unsubscribe: () => void } | undefined;
@@ -1045,11 +1046,12 @@ export class InteractiveMode implements InteractiveModeContext {
 	onInputCallback?: (input: SubmittedUserInput) => void;
 	optimisticUserMessageSignature: string | undefined = undefined;
 	locallySubmittedUserSignatures: Set<string> = new Set();
-	#pendingSubmittedInput: SubmittedUserInput | undefined;
+	#pendingSubmittedInput: (SubmittedUserInput & { submittedAt: number }) | undefined;
 	#pendingSubmissionDispose: (() => void) | undefined;
 	#pendingSubmissionPreservesDraft = false;
 	/** Unregisters this mode's transcript-image blob writer (a later mode's registration survives). */
 	#disposeImageBlobWriter: (() => void) | undefined;
+	#disposeInlineImageLimits: (() => void) | undefined;
 	#optimisticUserMessageBlocks: TranscriptBlock[] = [];
 	#optimisticSkillMessageBlocks: TranscriptBlock[] = [];
 	/** True while an optimistically-rendered `/skill:` row awaits its canonical
@@ -1555,6 +1557,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#disposeImageBlobWriter = setImageBlobWriter((data, options) =>
 			this.viewSession.sessionManager.putBlobSync(data, options),
 		);
+		this.#disposeInlineImageLimits = followInlineImageLimits(() => this.shell.size().rows);
 		this.#tray = new TrayFeed(
 			{
 				input: () =>
@@ -1660,9 +1663,11 @@ export class InteractiveMode implements InteractiveModeContext {
 		// The composer hint follows the ask above, running agents and the conversation's start.
 		this.#effect(() => this.composer.setPlaceholder(this.#composerHint()));
 		this.#effect(() => this.composer.setNativePlaceholder(this.#nativeComposerPlaceholder()));
-		// A `/btw` note taking or giving back the composer changes its role and chip.
+		// A `/btw` note taking or giving back the composer changes its role and chip; so does a draft
+		// that starts or stops skipping the ask waiting above (read only while one waits).
 		this.#effect(() => {
 			this.#btwController.isFocused();
+			this.#extensionUiController.composerAsk();
 			untrack(() => this.#syncComposerState());
 		});
 		// Idle, the terminal's status row keeps the working row's trailer (band title with its pin,
@@ -1708,13 +1713,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				"thinking.set": value => this.#inputController.setThinkingFromComposer(value),
 				"dictation.toggle": () => void this.#toggleComposerDictation(),
 			},
-			rate: () => {
-				if (!showRate()) return undefined;
-				// Session events refresh the facts; the rate meter itself is not reactive.
-				this.statusLine.facts();
-				const rate = this.tokenRate.rate();
-				return rate === null ? undefined : Math.round(rate * 10) / 10;
-			},
+			rate: () => (showRate() ? this.statusLine.composerRate() : undefined),
 		});
 	}
 
@@ -1819,6 +1818,11 @@ export class InteractiveMode implements InteractiveModeContext {
 				this.#syncTrayHost();
 			});
 		});
+		// Tern reads and shows this session's checkout itself: nothing to read here while it does.
+		this.#effect(() => {
+			const homed = this.shell.native() && this.shell.host?.checkoutShown() === true;
+			untrack(() => this.statusLine.setCheckoutHomed(homed));
+		});
 		this.#probeProgramStatus();
 	}
 
@@ -1887,17 +1891,15 @@ export class InteractiveMode implements InteractiveModeContext {
 						this.showWarning(`Copy failed: ${error instanceof Error ? error.message : String(error)}`),
 				);
 				return;
-			case "rewind":
-				this.showUserMessageSelector();
-				return;
 			case "edit-turn":
 			case "retry-turn":
 			case "rewind-turn":
 			case "fork-turn":
-				void this.#selectorController.runTurnAction(act.slice(0, -"-turn".length) as TurnAct, {
-					role: "user",
-					at: timestamp,
-				});
+				void this.#selectorController.runTurnAction(
+					act.slice(0, -"-turn".length) as TurnAct,
+					{ role: "user", at: timestamp },
+					this.#pendingSubmittedInput,
+				);
 		}
 	}
 
@@ -2136,7 +2138,6 @@ export class InteractiveMode implements InteractiveModeContext {
 			this.#inputController.enableEnhancedPaste();
 		}
 		this.#bindShellHost();
-		if (!options.suppressWelcomeIntro) this.playWelcomeIntro();
 		pushTerminalTitle();
 		// Claim the terminal title before any session update: this is the one path
 		// that releases the teardown latch, so a late async `setSessionTerminalTitle`
@@ -2144,7 +2145,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		initTerminalTitleState();
 		setTerminalTitleStateEnabled(cfgTuiTitleState.get(this.settings));
 		setTerminalTitleSpinnerStyle(cfgTuiTitleSpinner.get(this.settings));
-		setTerminalTitleSpinnerInterval(cfgMotionResolved.get(this.settings).spinnerInterval);
+		setTerminalTitleSpinnerInterval(cfgMotionResolved.get(this.settings).titleSpinnerInterval);
 		initProgramStatus({ startupRun: options.startupRun });
 		setProgramStatusEnabled(cfgTerminalProgramStatus.get(this.settings));
 		this.#probeProgramStatus();
@@ -2395,7 +2396,12 @@ export class InteractiveMode implements InteractiveModeContext {
 		// other's turn instead of dying.
 		this.composer.setDisableSubmit(false);
 		this.#idleMaintenanceActivity.ready = true;
+		if (!options.suppressWelcomeIntro) this.playWelcomeIntro();
 		this.syncIdleMaintenanceView();
+		// The first alt+p then opens as fast as a reopen.
+		this.#selectorController
+			.warmModelPicker(this.#dialogLifetime.signal)
+			.catch(error => logger.warn("Model picker prewarm failed", { error: String(error) }));
 	}
 
 	/**
@@ -3334,7 +3340,8 @@ export class InteractiveMode implements InteractiveModeContext {
 		},
 		options?: { preserveDraft?: boolean; clearEditor?: boolean },
 	): SubmittedUserInput {
-		const submission: SubmittedUserInput = {
+		const submission = {
+			submittedAt: Date.now(),
 			text: input.text,
 			images: input.images,
 			imageLinks: input.imageLinks,
@@ -3360,15 +3367,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			const imageCount = submission.images?.length ?? 0;
 			this.optimisticUserMessageSignature = `${submission.text}\u0000${imageCount}`;
 			this.#pendingSubmissionDispose = this.recordLocalSubmission(submission.text, imageCount);
-			this.#optimisticUserMessageBlocks = this.addMessageToChat(
-				{
-					role: "user",
-					content: [{ type: "text", text: submission.text }, ...(submission.images ?? [])],
-					attribution: "user",
-					timestamp: Date.now(),
-				},
-				input.imageLinks ? { imageLinks: input.imageLinks } : {},
-			);
+			this.#replayOptimisticUserMessage();
 		} else {
 			this.clearOptimisticUserMessage();
 		}
@@ -3631,7 +3630,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		if (any("tui.titleState")) setTerminalTitleStateEnabled(cfgTuiTitleState.get(this.settings));
 		if (any("tui.titleSpinner")) setTerminalTitleSpinnerStyle(cfgTuiTitleSpinner.get(this.settings));
 		if (any("terminal.programStatus")) setProgramStatusEnabled(cfgTerminalProgramStatus.get(this.settings));
-		if (any("motion")) setTerminalTitleSpinnerInterval(next.motion.spinnerInterval);
+		if (any("motion")) setTerminalTitleSpinnerInterval(next.motion.titleSpinnerInterval);
 
 		if (
 			any(
@@ -3858,10 +3857,14 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#syncComposerState();
 	}
 
-	/** The composer's mode: a turn runs (Stop for Send), the draft is a shell command or a `/btw` question. */
+	/**
+	 * The composer's mode: a turn runs (Stop for Send), the draft is a shell command or a `/btw`
+	 * question, the view is a subagent's (its viewing header), sending the draft skips the ask above.
+	 */
 	#syncComposerState(): void {
 		this.#composerHintRevision.set(this.#composerHintRevision.peek() + 1);
 		const draft = untrack(this.composer.text).trimStart();
+		const viewing = this.#viewingLineage();
 		this.composer.setState({
 			running: this.#working.kind !== undefined || this.session.isStreaming,
 			...(this.isBashMode
@@ -3872,7 +3875,25 @@ export class InteractiveMode implements InteractiveModeContext {
 						? { shell: { kind: "btw", excluded: false } }
 						: {}),
 			...(untrack(() => this.isBtwFocused) ? { btw: true } : {}),
+			...(viewing ? { viewing } : {}),
+			...(untrack(() => this.#extensionUiController.composerAsk()) === "skip" ? { skipsAsk: true } : {}),
 		});
+	}
+
+	/** The focused subagent and its live ancestors below main, outermost first; undefined on the main session. */
+	#viewingLineage(): string[] | undefined {
+		const id = this.focusedAgentId;
+		if (!id) return undefined;
+		const registry = AgentRegistry.global();
+		const lineage = [id];
+		for (
+			let parent = registry.get(id)?.parentId;
+			parent && parent !== MAIN_AGENT_ID && !lineage.includes(parent) && registry.get(parent);
+			parent = registry.get(parent)?.parentId
+		) {
+			lineage.unshift(parent);
+		}
+		return lineage;
 	}
 
 	/**
@@ -4048,7 +4069,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				role: "user",
 				content: [{ type: "text", text: submission.text }, ...(submission.images ?? [])],
 				attribution: "user",
-				timestamp: Date.now(),
+				timestamp: submission.submittedAt,
 			},
 			submission.imageLinks ? { imageLinks: submission.imageLinks } : {},
 		);
@@ -4523,6 +4544,11 @@ export class InteractiveMode implements InteractiveModeContext {
 				this.sessionManager.appendModeChange("none");
 				return;
 			}
+			// A --no-tools session cannot run the goal; leave it journaled for a session that can.
+			if (this.session.restrictToolNames) {
+				this.session.goalRuntime.clearAccounting();
+				return;
+			}
 			this.session.setGoalModeState({
 				enabled: sessionContext.mode === "goal",
 				mode: "active",
@@ -4621,6 +4647,11 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		if (this.vibeModeEnabled) {
 			this.showWarning("Exit vibe mode first.");
+			return;
+		}
+		// Plan mode ends by `propose`, which a --no-tools session does not register.
+		if (this.session.restrictToolNames) {
+			this.showWarning("Plan mode is unavailable in a --no-tools session.");
 			return;
 		}
 
@@ -4762,9 +4793,9 @@ export class InteractiveMode implements InteractiveModeContext {
 		// A mid-turn exit must interrupt the currently streaming turn.
 		// The plan-mode prompt instructs the model to keep planning until it
 		// submits the plan with `propose`, so the live turn must be aborted inside
-		// `runModeExitTeardown` to avoid restarting on the stale toolset.
+		// `withQueueDrainPaused` to avoid restarting on the stale toolset.
 		if (options?.interruptActiveTurn && this.session.isStreaming) {
-			await this.session.runModeExitTeardown(async () => {
+			await this.session.withQueueDrainPaused(async () => {
 				await this.session.abort({ reason: USER_INTERRUPT_LABEL });
 				await this.#tearDownPlanMode(options);
 			});
@@ -4889,6 +4920,11 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		if (this.vibeModeEnabled) {
 			this.showWarning("Exit vibe mode first.");
+			return;
+		}
+		// Goal mode runs through the `goal` tool, which a --no-tools session does not register.
+		if (this.session.restrictToolNames) {
+			this.showWarning("Goal mode is unavailable in a --no-tools session.");
 			return;
 		}
 		const enabledTools = this.session.getEnabledToolNames();
@@ -5946,7 +5982,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		// turn would otherwise let a queued user steer/follow-up restart on the
 		// still-live Vibe tools before this teardown removes them (issue #8326).
 		let killed = 0;
-		await this.session.runModeExitTeardown(async () => {
+		await this.session.withQueueDrainPaused(async () => {
 			if (this.session.isStreaming) {
 				await this.session.abort();
 			}
@@ -6875,6 +6911,8 @@ export class InteractiveMode implements InteractiveModeContext {
 		setCfgApprovalHost(null);
 		this.#disposeImageBlobWriter?.();
 		this.#disposeImageBlobWriter = undefined;
+		this.#disposeInlineImageLimits?.();
+		this.#disposeInlineImageLimits = undefined;
 		this.#hideSessionInfo();
 		if (this.#ownsStartedUi) {
 			void this.shell.stop();

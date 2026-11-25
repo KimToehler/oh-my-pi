@@ -52,6 +52,7 @@ import {
 	type LaunchRequest,
 	type TaskPlatform,
 } from "./launch-args";
+import { BENCH_SETTINGS } from "./bench-settings";
 
 // ────────────────────────────────────────────────────────────────────── config
 
@@ -1724,7 +1725,7 @@ export function buildHarborEnv(
 	if (cfg.thinking) env.OMP_BENCH_THINKING = cfg.thinking;
 	if (cfg.agentArgs.length > 0) env.OMP_BENCH_AGENT_ARGS = JSON.stringify(cfg.agentArgs);
 	if (cfg.tools) env.OMP_BENCH_TOOLS = cfg.tools.join(",");
-	if (Object.keys(cfg.settings).length > 0) env.OMP_BENCH_SETTINGS = JSON.stringify(cfg.settings);
+	env.OMP_BENCH_SETTINGS = JSON.stringify({ ...BENCH_SETTINGS, ...cfg.settings });
 	if (cfg.webSearch) env.OMP_BENCH_WEB_SEARCH = "1";
 	env.OMP_BENCH_GATEWAY = cfg.gateway ? "1" : "0";
 	env.OMP_BENCH_PROVIDER_PROXY = cfg.providerProxy ? "1" : "0";

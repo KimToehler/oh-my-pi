@@ -47,7 +47,7 @@ import {
 	resolveLocalDataset,
 } from "./launch-args";
 import { removeRunData, stageRecordedRunData, verifyRunData } from "./evo/run-data";
-import { type LaunchRecord, type RunRole, type RunRow, RunStore } from "./store";
+import { type BenchmarkKind, type LaunchRecord, type RunRole, type RunRow, RunStore } from "./store";
 
 /** PUT /api/experiments/:id body — goal and per-run role/note/label metadata. */
 export interface ExperimentMetaUpdate {
@@ -66,6 +66,14 @@ import indexHtml from "./web/index.html";
 
 const REPO_ROOT = path.resolve(import.meta.dir, "..", "..", "..");
 const PKG_DIR = path.resolve(import.meta.dir, "..");
+
+/** Dataset recorded for a launch that names none; also the set of launchable benchmarks. */
+const DEFAULT_DATASET: Record<BenchmarkKind, string> = {
+	harbor: "terminal-bench@2.0",
+	edit: "typescript-edit",
+	snapcompact: "squad-dev",
+	scope: "scope",
+};
 const DEFAULT_JOBS_DIR = path.join(REPO_ROOT, "runs", "harbor");
 
 export type { LaunchRequest } from "./launch-args";
@@ -537,14 +545,10 @@ export class ManagerServer {
 	launch(request: LaunchRequest): { jobName: string; pid: number } {
 		if (!request.model) throw new Error("model is required");
 		const benchmark = request.benchmark ?? "harbor";
-		if (benchmark !== "harbor" && benchmark !== "edit" && benchmark !== "snapcompact") {
-			throw new Error(`unsupported benchmark: ${benchmark}`);
-		}
+		if (!Object.hasOwn(DEFAULT_DATASET, benchmark)) throw new Error(`unsupported benchmark: ${benchmark}`);
 		const names = [...new Set(effectiveModelsYaml(request).flatMap(file => readModelsEnvNamesSync(file)))].sort();
 		assertLaunchEnvSafe(request, benchmark, { names, values: credentialValuesFromEnv(names, process.env) });
-		const dataset =
-			request.dataset ??
-			(benchmark === "harbor" ? "terminal-bench@2.0" : benchmark === "edit" ? "typescript-edit" : "squad-dev");
+		const dataset = request.dataset ?? DEFAULT_DATASET[benchmark];
 		const jobName = request.jobName ?? defaultJobName(request.model);
 		const existing = this.#store.getRun(jobName);
 		if (this.#children.has(jobName) || existing?.status === "running") {
@@ -575,6 +579,19 @@ export class ManagerServer {
 			if (request.tasks !== undefined) argv.push("--limit-paras", String(request.tasks));
 			if (request.concurrency !== undefined) argv.push("--workers", String(request.concurrency));
 			if (request.conditions?.length) argv.push("--conditions", request.conditions.join(","));
+		} else if (benchmark === "scope") {
+			cwd = PKG_DIR;
+			argv = [
+				"bun",
+				"adapters/scope/cli.ts",
+				"--model",
+				request.model,
+				"--output",
+				path.join(jobDir, "result.json"),
+			];
+			if (request.include?.length) argv.push("--tasks", request.include.join(","));
+			if (request.attempts !== undefined) argv.push("--runs", String(request.attempts));
+			if (request.concurrency !== undefined) argv.push("--concurrency", String(request.concurrency));
 		} else {
 			cwd = PKG_DIR;
 			argv = ["bun", "src/runner.ts", ...harborRunnerArgs(request, { jobsDir: this.jobsDir, jobName, dataset })];

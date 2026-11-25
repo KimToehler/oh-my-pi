@@ -1463,7 +1463,7 @@ export class AcpAgent implements Agent {
 		// A locally handled command must not end foreground work that is not its own.
 		const ownsForeground = options?.ownsForeground !== false;
 		const onSubmissionOutcome = singleShotOutcome(options?.onSubmissionOutcome);
-		const skillResult = await this.#tryRunSkillCommand(record, text, onSubmissionOutcome);
+		const skillResult = await this.#tryRunSkillCommand(record, text, images, onSubmissionOutcome);
 		if (skillResult || promptTurn?.work.cancelRequested) {
 			// A Stop before `session.prompt` registered an outcome: settle the admission as dropped.
 			if (!skillResult) onSubmissionOutcome?.({ kind: "dropped" });
@@ -1595,6 +1595,7 @@ export class AcpAgent implements Agent {
 	async #tryRunSkillCommand(
 		record: ManagedSessionRecord,
 		text: string,
+		images: AgentImageContent[],
 		onSubmissionOutcome: ((outcome: SubmissionOutcome) => void) | undefined,
 	): Promise<boolean> {
 		if (!record.session.skillsSettings?.enableSkillCommands) {
@@ -1617,7 +1618,7 @@ export class AcpAgent implements Agent {
 		await record.session.promptCustomMessage(
 			{
 				customType: SKILL_PROMPT_MESSAGE_TYPE,
-				content: built.message,
+				content: images.length > 0 ? [{ type: "text", text: built.message }, ...images] : built.message,
 				display: true,
 				details: built.details,
 				attribution: "user",
@@ -3011,14 +3012,16 @@ export class AcpAgent implements Agent {
 
 	#getAvailableModes(session: AgentSession): Array<{ id: string; name: string; description: string }> {
 		const modes = [{ id: ACP_DEFAULT_MODE_ID, name: "Default", description: "Standard ACP headless mode" }];
-		if (cfgPlanEnabled.get(session.settings)) {
+		// Plan mode ends by `propose`, which a --no-tools session does not register.
+		if (cfgPlanEnabled.get(session.settings) && !session.restrictToolNames) {
 			modes.push({
 				id: ACP_PLAN_MODE_ID,
 				name: "Plan",
 				description: "Read-only planning mode that drafts a plan to a markdown file before any code changes",
 			});
 		}
-		if (cfgGoalEnabled.get(session.settings)) {
+		// Goal mode needs the `goal` tool, which a --no-tools session does not register.
+		if (cfgGoalEnabled.get(session.settings) && !session.restrictToolNames) {
 			modes.push({
 				id: ACP_GOAL_MODE_ID,
 				name: "Goal",
