@@ -1,7 +1,15 @@
 import * as path from "node:path";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
-import { getAgentDir, getBlobsDir, isEnoent, logger, type postmortem, untilAborted } from "@oh-my-pi/pi-utils";
+import {
+	errorMessage,
+	getAgentDir,
+	getBlobsDir,
+	isEnoent,
+	logger,
+	type postmortem,
+	untilAborted,
+} from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
 	type AgentV2,
@@ -89,7 +97,6 @@ import {
 	runAcpBuiltinSlashCommand,
 } from "../../slash-commands/acp-builtins";
 import { buildAvailableSlashCommands, toAcpAvailableCommands } from "../../slash-commands/available-commands";
-import { errorMessage } from "../../slash-commands/helpers/parse";
 import type { SlashCommandRuntime } from "../../slash-commands/types";
 import { DEFAULT_STT_MODEL_KEY, STT_MODELS } from "../../stt/models";
 import { refreshAgentDiscovery } from "../../task";

@@ -44,6 +44,7 @@ function createMoveContext(sourceDir: string, settingsFlush?: () => Promise<void
 		},
 		sessionManager: {
 			getCwd: () => state.cwd,
+			getSessionId: () => "session-1",
 			captureState,
 			restoreState,
 			rollbackMove,

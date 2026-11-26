@@ -19,6 +19,7 @@ import type {
 	ToolCall,
 	Usage,
 } from "@oh-my-pi/pi-ai";
+import { SERVICE_TIER_FAMILIES } from "@oh-my-pi/pi-ai/types";
 import { isCursorExecResolved } from "@oh-my-pi/pi-ai/utils/block-symbols";
 import {
 	isRecord,
@@ -55,7 +56,6 @@ import {
 } from "../config/model-resolver";
 import type { PromptTemplate } from "../config/prompt-templates";
 import {
-	buildServiceTierByFamily,
 	isServiceTierForFamily,
 	resolveAgentServiceTierOverride,
 	resolveSubagentServiceTier,
@@ -185,9 +185,7 @@ import {
 } from "./settings";
 import {
 	cfgTierSubagent,
-	cfgTierGoogle,
-	cfgTierAnthropic,
-	cfgTierOpenai,
+	cfgTiers,
 	cfgRetryFallbackChains,
 	cfgDefaultThinkingLevel,
 	cfgPrewalkAutoTarget,
@@ -701,6 +699,8 @@ export interface ExecutorOptions {
 	 * passes its own `getAgentId()`).
 	 */
 	parentAgentId?: string;
+	/** Runtime identity of the spawning session; names alone can collide across roots. */
+	parentSessionKey?: string;
 	/** Same-type siblings share a cache route without sharing conversation state. */
 	parentPromptCacheKey?: string;
 	/**
@@ -1252,14 +1252,10 @@ function inheritedSubagentServiceTiers(
 	inheritedServiceTier?: ServiceTierByFamily | null,
 ): ServiceTierByFamily {
 	if (inheritedServiceTier === undefined) {
-		return buildServiceTierByFamily(
-			cfgTierOpenai.get(baseSettings),
-			cfgTierAnthropic.get(baseSettings),
-			cfgTierGoogle.get(baseSettings),
-		);
+		return cfgTiers.get(baseSettings);
 	}
 	const tiers: ServiceTierByFamily = {};
-	for (const family of ["openai", "anthropic", "google"] as const) {
+	for (const family of SERVICE_TIER_FAMILIES) {
 		const tier = inheritedServiceTier?.[family];
 		if (isServiceTierForFamily(family, tier)) tiers[family] = tier;
 	}
@@ -1346,6 +1342,7 @@ export function createSubagentSettings(
 			"tier.openai": subagentTiers.openai ?? "none",
 			"tier.anthropic": subagentTiers.anthropic ?? "none",
 			"tier.google": subagentTiers.google ?? "none",
+			"tier.devin": subagentTiers.devin ?? "none",
 			// Async jobs and bash/eval auto-backgrounding are inherited from the parent:
 			// background jobs are owner-routed to the subagent's own session, and
 			// the run driver's quiescence barrier + teardown reap guarantee no
@@ -5530,6 +5527,7 @@ async function runSubprocessOnThisThread(options: ExecutorOptions): Promise<Sing
 							: undefined,
 					asyncJobManager: options.asyncJobManager,
 					parentAgentId: options.parentAgentId,
+					parentSessionKey: options.parentSessionKey,
 					agentId: id,
 					agentDisplayName: agent.name,
 					agentName: agent.name,

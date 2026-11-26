@@ -180,6 +180,10 @@ function isAccountingStatus(goal: Goal): boolean {
 	return goal.status === "active" || goal.status === "budget-limited";
 }
 
+function isBudgetExhausted(goal: Goal): boolean {
+	return goal.tokenBudget !== undefined && goal.tokensUsed >= goal.tokenBudget;
+}
+
 export class GoalRuntime {
 	readonly #host: GoalRuntimeHost;
 	#turnSnapshot: GoalTurnSnapshot | undefined;
@@ -461,7 +465,7 @@ export class GoalRuntime {
 			state.goal.updatedAt = this.#now();
 			let shouldSteer = false;
 			let reactivated = false;
-			if (newBudget !== undefined && state.goal.tokensUsed >= newBudget) {
+			if (newBudget !== undefined && isBudgetExhausted(state.goal)) {
 				if (state.goal.status === "active") {
 					state.goal.status = "budget-limited";
 					shouldSteer = true;
@@ -510,10 +514,7 @@ export class GoalRuntime {
 		state.goal.tokensUsed += tokenDelta;
 		state.goal.timeUsedSeconds += wallSeconds;
 		state.goal.updatedAt = this.#now();
-		const flippedToBudgetLimited =
-			state.goal.tokenBudget !== undefined &&
-			state.goal.tokensUsed >= state.goal.tokenBudget &&
-			state.goal.status === "active";
+		const flippedToBudgetLimited = state.goal.status === "active" && isBudgetExhausted(state.goal);
 		if (flippedToBudgetLimited) {
 			state.goal.status = "budget-limited";
 		}
@@ -624,7 +625,8 @@ export class GoalRuntime {
 			state.enabled = true;
 			state.mode = "active";
 			state.reason = undefined;
-			state.goal.status = "active";
+			// A spent budget stays spent across pause/resume: only raising it (`onBudgetMutated`) reactivates.
+			state.goal.status = isBudgetExhausted(state.goal) ? "budget-limited" : "active";
 			state.goal.updatedAt = this.#now();
 			await this.#commitState(op, state, {
 				persist: "goal",

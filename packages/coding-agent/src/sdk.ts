@@ -29,7 +29,7 @@ import type {
 	SimpleStreamOptions,
 	TextContent,
 } from "@oh-my-pi/pi-ai";
-import { resolveApiKeyOnce } from "@oh-my-pi/pi-ai/auth-retry";
+import { resolveApiKeyOnce, withRequestServiceTier } from "@oh-my-pi/pi-ai/auth-retry";
 import type { Dialect } from "@oh-my-pi/pi-ai/dialect";
 import { anthropicHostRunsTool } from "@oh-my-pi/pi-ai/providers/anthropic";
 import { prewarmModelConnection } from "@oh-my-pi/pi-ai/providers/connection-prewarm";
@@ -89,7 +89,6 @@ import {
 } from "./config/model-resolver";
 import { formatModelSelectorValue, parseModelString } from "./config/model-selector";
 import { loadPromptTemplates as loadPromptTemplatesInternal, type PromptTemplate } from "./config/prompt-templates";
-import { buildServiceTierByFamily } from "./config/service-tier";
 import { bindEffects, combine } from "./config/registry";
 import { Settings } from "./config/settings";
 import type { CursorMcpResourceAdapter } from "./cursor";
@@ -433,9 +432,7 @@ import {
 	cfgSampling,
 	cfgSkillful,
 	cfgThinkingBudgets,
-	cfgTierAnthropic,
-	cfgTierGoogle,
-	cfgTierOpenai,
+	cfgTiers,
 	systemPromptTemplatePatterns,
 } from "./session/settings";
 import { cfgInterruptMode } from "./modes/settings";
@@ -1019,6 +1016,8 @@ export interface CreateAgentSessionOptions {
 	 * top-level "Main" session, which has no parent.
 	 */
 	parentAgentId?: string;
+	/** Identity of the live spawning session, recorded alongside its registry id. */
+	parentSessionKey?: string;
 
 	/** Session manager. Default: session stored under the configured agentDir sessions root */
 	sessionManager?: SessionManager;
@@ -2220,7 +2219,13 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 					items: options.rules,
 					warnings: undefined,
 				})
-			: logger.time("discoverTtsrRules", () => loadCapability<Rule>(ruleCapability.id, { cwd, agentDir }));
+			: logger.time("discoverTtsrRules", () =>
+					loadCapability<Rule>(ruleCapability.id, {
+						cwd,
+						agentDir,
+						disabledExtensions: [...disabledExtensionIds],
+					}),
+				);
 	rawRulesPromise.catch(() => {});
 	const customToolPathsPromise =
 		options.restrictToolNames === true
@@ -2780,6 +2785,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			getHindsightSessionState: () => session?.getHindsightSessionState(),
 			getMnemopiSessionState: () => session?.getMnemopiSessionState(),
 			getAgentId: () => resolvedAgentId,
+			getAgentSession: () => session,
 			getPromptCacheKey: () => {
 				if (!session) return undefined;
 				const model = session.agent.state.model;
@@ -4468,20 +4474,26 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			// Sessions handed an explicit rule set (subagents inherit the parent's) keep it
 			// but still re-bucket, so live `ttsr.*` filter changes apply to them too.
 			if (hasSession) {
+				const disabledExtensions = [...cfgDisabledExtensions.get(settings)];
 				// These reads share only the cwd and discovery scope. Start them together:
 				// a slow repository lookup must not delay context files or rules, including
 				// the first refresh after session_start hooks have edited those files.
 				const [repoContext, refreshedContextFiles, ruleItems] = await Promise.all([
 					logger.time("resolveActiveRepoContext", resolveRepoContext, promptCwd),
 					pinnedContextFiles === undefined
-						? logger.time("discoverContextFiles", discoverContextFiles, promptCwd, agentDir, [
-								...cfgDisabledExtensions.get(settings),
-							])
+						? logger.time("discoverContextFiles", discoverContextFiles, promptCwd, agentDir, disabledExtensions)
 						: undefined,
 					options.rules ??
 						logger
 							.time("rediscoverRules", () =>
-								loadCapability<Rule>(ruleCapability.id, { cwd: promptCwd, agentDir }),
+								// Rebuilds run outside the creation-time invocation scope; pass the
+								// session's effective roots so overlay/runtime `extensions:` survive.
+								loadCapability<Rule>(ruleCapability.id, {
+									cwd: promptCwd,
+									agentDir,
+									disabledExtensions,
+									extensionRoots: buildSessionExtensionRoots(),
+								}),
 							)
 							.then(result => result.items),
 				]);
@@ -4804,6 +4816,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			displayName: resolvedAgentDisplayName,
 			kind: agentKind,
 			parentId: options.parentAgentId,
+			parentSessionKey: options.parentSessionKey,
 			session: null,
 			sessionFile: sessionManager.getSessionFile() ?? null,
 			status: "running" as const,
@@ -5027,13 +5040,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		const resolvedServiceTierByFamily = options.resolveServiceTierByFamily?.(model);
 		const configuredServiceTierByFamily =
 			resolvedServiceTierByFamily ??
-			(hasServiceTierEntry
-				? (existingSession.serviceTier ?? {})
-				: buildServiceTierByFamily(
-						cfgTierOpenai.get(settings),
-						cfgTierAnthropic.get(settings),
-						cfgTierGoogle.get(settings),
-					));
+			(hasServiceTierEntry ? (existingSession.serviceTier ?? {}) : cfgTiers.get(settings));
 		const persistInitialServiceTier =
 			options.openAIServiceTier !== undefined || resolvedServiceTierByFamily !== undefined;
 		const initialServiceTierByFamily = { ...configuredServiceTierByFamily };
@@ -5533,9 +5540,11 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			advisorSharedMaxNotesPerUpdate: discoveredAdvisors.sharedMaxNotesPerUpdate,
 			advisorConfigs: discoveredAdvisors.advisors,
 			advisorConfigWarnings: discoveredAdvisors.warnings,
+			advisorConfigDir: agentDir,
 			agent,
 			thinkingLevel: autoThinking ? AUTO_THINKING : effectiveThinkingLevel,
 			thinkingLevelCeiling: options.thinkingLevelCeiling,
+			assertDispatchModel: options.assertDispatchModel,
 			disableModelFallback: options.disableModelFallback,
 			initialRetryFallback,
 			deferRetryFallbackValidation: options.deferRetryFallbackValidation,
@@ -6194,11 +6203,18 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			if (isOpenAICodexWebSocketPreferred(codexModel, { preferWebsockets: session.preferWebsockets })) {
 				void (async () => {
 					try {
-						const codexPrewarmApiKey = options.getApiKey
-							? // `getApiKey` returns a value-or-promise union; unwrap the promise,
-								// then resolve the result if it is itself an ApiKeyResolver.
-								await resolveApiKeyOnce(await options.getApiKey(codexModel))
-							: await modelRegistry.getApiKey(codexModel, providerSessionId);
+						// Resolve as the first request will, tier included, so the
+						// prewarmed socket belongs to the account that request lands on.
+						const serviceTier = session.effectiveServiceTier(codexModel);
+						const codexPrewarmApiKey = await resolveApiKeyOnce(
+							withRequestServiceTier(
+								// `getApiKey` returns a value-or-promise union; unwrap it first.
+								options.getApiKey
+									? await options.getApiKey(codexModel)
+									: modelRegistry.resolver(codexModel, providerSessionId),
+								serviceTier,
+							),
+						);
 						if (!codexPrewarmApiKey) return;
 						// Load the transport only for an actual Codex prewarm, not unrelated session setup.
 						const { prewarmOpenAICodexResponses } =
@@ -6208,7 +6224,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 							sessionId: providerSessionId,
 							preferWebsockets: session.preferWebsockets,
 							providerSessionState: session.providerSessionState,
-							serviceTier: session.effectiveServiceTier(codexModel),
+							serviceTier,
 						});
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : String(error);
