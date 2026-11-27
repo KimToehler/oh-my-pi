@@ -39,7 +39,7 @@ function mount(kind: AgentKind): Mounted {
 		agentId: "Main/agent",
 		registry,
 		lifecycle: () => ({
-			ensureLive: () => Promise.reject(new Error("not revived in this test")),
+			promptLive: () => Promise.reject(new Error("not revived in this test")),
 		}),
 		terminalRows: () => 24,
 		expandKeys: ["ctrl+o"],
