@@ -10,6 +10,7 @@ export const BUILTIN_TOOL_NAMES = [
 	"debug",
 	"eval",
 	"github",
+	"gitlab",
 	"glob",
 	"grep",
 	"find",
@@ -70,6 +71,7 @@ export const BUILTIN_TOOL_HELP: Record<BuiltinToolName, BuiltinToolHelp> = {
 	debug: { summary: "Debug a running process over DAP", defaultState: "on" },
 	ast_grep: { summary: "Search code with AST patterns", defaultState: "off" },
 	github: { summary: "Query and act on GitHub repositories, issues, and PRs", defaultState: "off" },
+	gitlab: { summary: "Query and act on GitLab projects, issues, MRs, and CI pipelines", defaultState: "off" },
 	checkpoint: { summary: "Save a git-based checkpoint of session state", defaultState: "off" },
 	rewind: { summary: "Rewind to a saved checkpoint", defaultState: "off" },
 	session_move: {

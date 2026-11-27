@@ -286,7 +286,7 @@ import type {
 } from "./types";
 import type { TodoItem, TodoPhase } from "../tools/details/todo";
 import type { ConversationPosition } from "./utils/conversation-position";
-import { DEFAULT_FIGURE_CELL, type FigureCell } from "../ui/transcript/figures/svg";
+import { DEFAULT_FIGURE_CELL, type FigureCell, figureMaxRows } from "../ui/transcript/figures/svg";
 import { setImageBlobWriter } from "../ui/transcript/image-links";
 import { followInlineImageLimits } from "../ui/transcript/messages/image";
 import { imageLinksForMessage, UiHelpers } from "./utils/ui-helpers";
@@ -338,6 +338,7 @@ import {
 	cfgTuiAutoGraph,
 	cfgTuiMouse,
 	cfgTuiColorfulMarkdown,
+	cfgTuiShowLinkUrl,
 	cfgTuiRenderMermaid,
 	cfgTuiRenderEmbeds,
 	cfgTuiRenderSvg,
@@ -375,6 +376,7 @@ import { goalContinuationActivity, goalFromModeData } from "../goals/state";
 import { cfgPlanDefaultOnStartup, cfgPlanEnabled } from "../plan-mode/settings";
 import { cfgStreamRedactPatterns } from "../stream/settings";
 import { cfgSttEnabled } from "../stt/settings";
+import { meterValue, voiceEnergy } from "../ui/apps/live-visualizer";
 import { combine, type SettingValueOf } from "../config/registry";
 import { cfgAdvisorEnabled, cfgAdvisorMaxNotesPerUpdate } from "../advisor/settings";
 import { cfgExtensionAssistantTextRenderers, cfgExtensionTranscriptPresenters } from "../extensibility/settings";
@@ -394,6 +396,7 @@ import {
 	type JSXNode,
 	jsx,
 	type KeyEvent,
+	nativeRendering,
 	type PresentedFrame,
 	type Signal,
 	signal,
@@ -496,6 +499,7 @@ const cfgLiveUiSettings = combine({
 	"display.showTokenUsage": cfgDisplayShowTokenUsage,
 	"display.showTurnTime": cfgDisplayShowTurnTime,
 	"tui.colorfulMarkdown": cfgTuiColorfulMarkdown,
+	"tui.showLinkUrl": cfgTuiShowLinkUrl,
 	"tui.renderMermaid": cfgTuiRenderMermaid,
 	"tui.renderSvg": cfgTuiRenderSvg,
 	"tui.renderEmbeds": cfgTuiRenderEmbeds,
@@ -706,6 +710,8 @@ export class InteractiveMode implements InteractiveModeContext {
 		renderSvg: signal(true),
 		renderEmbeds: signal(true),
 		figureCell: signal<FigureCell | undefined>(undefined),
+		// Set with the terminal's rows (see `init`): a signal, so a resize that keeps the share redraws nothing.
+		figureRows: signal<number | undefined>(undefined),
 		tableCharts: () => this.tableChartsVisible,
 		shellVisualization: signal(true),
 		mcpMarkdown: signal(false),
@@ -1623,7 +1629,10 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#effect(() => {
 			const { rows } = this.shell.size();
 			this.shell.native();
+			// Tern lays figures out itself: its rasters keep their full size.
+			const figureRows = nativeRendering() ? undefined : figureMaxRows(rows);
 			untrack(() => {
+				this.#display.figureRows.set(figureRows);
 				this.#syncEditorMaxHeight();
 				// A short terminal folds the plan into the status row.
 				this.hud.todo.compact.set(rows < TODO_COMPACT_ROWS);
@@ -1719,7 +1728,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				"status.usage": showUsage,
 				"status.cache": () => void this.handleSessionCommand(),
 				"status.path": () => openPath(this.sessionManager.getCwd()),
-				"status.tree": () => this.showTreeSelector(),
+				"status.tree": () => void this.showTreeSelector(),
 				"thinking.cycle": () => this.#inputController.cycleThinkingFromComposer(),
 				"thinking.set": value => this.#inputController.setThinkingFromComposer(value),
 				"dictation.toggle": () => void this.#toggleComposerDictation(),
@@ -2264,12 +2273,15 @@ export class InteractiveMode implements InteractiveModeContext {
 
 		// Initialize hooks with TUI-based UI context
 		await logger.time("InteractiveMode.init:hooks", () => this.initHooksAndCustomTools());
-		// A live `disabledExtensions` edit suspends or resumes extensions: drop (or restore) their link
-		// schemes and renderers from the transcript.
+		// A live `disabledExtensions` edit hides or restores widgets, link schemes and renderers.
 		const extensionRunner = this.session.extensionRunner;
 		if (extensionRunner) {
+			const syncWidgets = () =>
+				this.hud.widgets.setOwnerVisibility(owner => !extensionRunner.isExtensionSuspended(owner));
+			syncWidgets();
 			this.#eventBusUnsubscribers.push(
 				extensionRunner.onSuspensionChange(() => {
+					syncWidgets();
 					this.#applyExtensionLinks();
 					this.#redrawExtensionLinks();
 					this.#syncTranscriptPresenters();
@@ -3409,7 +3421,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.clearOptimisticUserMessage();
 		this.#working.setMessage(undefined);
 		if (submission.customType === "goal-continuation") this.#releaseGoalContinuationTurn();
-		this.#working.clear("turn");
+		this.clearWorking("turn");
 		if (!submission.customType && !preserveDraft) {
 			// Enter clears the submitted draft before this cancellation can run.
 			// Keep anything typed or attached since then, after the recovered input.
@@ -3497,9 +3509,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			pendingSubmissionDispose?.();
 			this.#optimisticUserMessageBlocks = [];
 			this.#working.setMessage(undefined);
-			// A run paused on outside work keeps its working row, which names the
-			// wait; the next loop or the run's `agent_end` tears it down.
-			if (!this.#eventController.isAwaitingAsyncWork()) this.clearWorking("turn");
+			this.clearWorking("turn");
 		}
 	}
 
@@ -3546,6 +3556,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		setMarkdownLook({
 			colorful: cfgTuiColorfulMarkdown.get(this.settings),
 			mermaid: cfgTuiRenderMermaid.get(this.settings),
+			linkUrls: cfgTuiShowLinkUrl.get(this.settings),
 		});
 	}
 
@@ -3630,7 +3641,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		) {
 			rebuildChat = true;
 		}
-		if (any("tui.colorfulMarkdown", "tui.renderMermaid", "tui.renderSvg", "tui.renderEmbeds")) {
+		if (any("tui.colorfulMarkdown", "tui.showLinkUrl", "tui.renderMermaid", "tui.renderSvg", "tui.renderEmbeds")) {
 			this.#syncTranscriptDisplaySettings();
 			resetDisplay = true;
 		}
@@ -4060,17 +4071,21 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		this.transcriptBlocks = new WeakMap();
 		this.#frame.welcomeBlock = undefined;
-		transcript.retain(live);
-		this.#headerBlocks = [];
-		const anchor = transcript.blocks()[0];
-		transcript.setInsertionPoint(anchor);
-		try {
-			if (!cfgStartupQuiet.get(settings)) this.#frame.showWelcome();
-			this.#syncHeaderExtras();
-			this.renderSessionContext(context, { preservedLiveToolCallIds });
-		} finally {
-			transcript.setInsertionPoint(undefined);
-		}
+		// One update of the drawn regions for the removal and the whole replay, not one per block: in
+		// Tern each update walks the whole transcript.
+		batch(() => {
+			transcript.retain(live);
+			this.#headerBlocks = [];
+			const anchor = transcript.blocks()[0];
+			transcript.setInsertionPoint(anchor);
+			try {
+				if (!cfgStartupQuiet.get(settings)) this.#frame.showWelcome();
+				this.#syncHeaderExtras();
+				this.renderSessionContext(context, { preservedLiveToolCallIds });
+			} finally {
+				transcript.setInsertionPoint(undefined);
+			}
+		});
 		// `renderSessionContext` clears `pendingTools` at start and end so historical tool blocks
 		// don't leak into live tracking: restore the in-flight entries so the next streamed delta
 		// routes into the preserved block instead of stacking a duplicate below it.
@@ -7077,8 +7092,9 @@ export class InteractiveMode implements InteractiveModeContext {
 	async restart(): Promise<void> {
 		if (this.#isShuttingDown) return;
 		try {
-			// Bun can return a cached process.cwd() after the directory is unlinked.
-			await fs.realpath(".");
+			// Bun can return a cached process.cwd() after the directory is unlinked. Linux fails
+			// `realpath(".")`; macOS still resolves the removed path, so stat what it names.
+			await fs.stat(await fs.realpath("."));
 		} catch (error) {
 			if (!isEnoent(error)) throw error;
 			if (!this.#isShuttingDown) {
@@ -7147,15 +7163,10 @@ export class InteractiveMode implements InteractiveModeContext {
 		return sessionId && sessionFile && this.sessionManager.isSessionOnDisk() ? sessionId : undefined;
 	}
 
-	/**
-	 * Claim the one-shot `shutdown()`/`restart()` close and acknowledge it before
-	 * any await: worktree exit planning, live commands, and BTW history writes can
-	 * all stall, and the user must see a reason for the pause.
-	 */
+	/** Claim the one-shot `shutdown()`/`restart()` close before any await. */
 	#beginClose(): AbortSignal {
 		this.#isShuttingDown = true;
 		this.#closeAttempt = new AbortController();
-		this.showStatus("Closing session…");
 		return this.#closeAttempt.signal;
 	}
 
@@ -7174,8 +7185,8 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#abortLoopCondition();
 		this.#cancelLoopAutoSubmit();
 
-		// `#beginClose()` already acknowledged the close; escalate only once the
-		// teardown itself lingers, so time spent in exit prompts never counts.
+		// Report progress only once the teardown itself lingers, so a fast close
+		// stays silent and time spent in exit prompts never counts.
 		const stillClosingTimer = setTimeout(() => {
 			this.showStatus("Still closing… (flushing memory backend / network)");
 		}, STILL_CLOSING_DELAY_MS);
@@ -7282,7 +7293,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		return this.#presenter.presentAssistant(message, options);
 	}
 
-	createTranscriptReplica(entries: readonly TranscriptEntryLike[]): TranscriptReplica {
+	createTranscriptReplica(entries: readonly TranscriptEntryLike[], clipped: boolean): TranscriptReplica {
 		return new TranscriptReplica(
 			{
 				mode: this,
@@ -7292,6 +7303,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				replaySteps: (target, context) => this.#uiHelpers.replaySteps(target, context),
 			},
 			entries,
+			clipped,
 		);
 	}
 
@@ -7332,6 +7344,9 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	clearWorking(kind?: WorkingKind): boolean {
 		const cleared = this.#working.clear(kind);
+		// Whatever took the row down (the turn's own submission, an error, a maintenance step), a run
+		// that yielded and still waits on outside work gets its row back naming the wait.
+		if (cleared) this.#eventController.restoreAsyncWait();
 		// Synced even when another path took the row down first: the composer's Stop also follows
 		// `session.isStreaming`, which a stopped turn clears only after its submission returned.
 		this.#syncComposerState();
@@ -8074,10 +8089,13 @@ export class InteractiveMode implements InteractiveModeContext {
 		return {
 			showWarning: (msg: string) => this.showWarning(msg),
 			showStatus: (msg: string) => this.showStatus(msg),
+			clearStatus: () => this.#uiHelpers.clearStatus(),
+			onLevel: level => this.#frame.dictationLevel.set(meterValue(voiceEnergy(level))),
 			onStateChange: (state: SttState) => {
 				// Duck assistant speech while the user is talking (push-to-talk); restore after.
 				if (state === "recording") vocalizer.duck();
 				else vocalizer.unduck();
+				if (state !== "recording") this.#frame.dictationLevel.set(0);
 				if (this.#frame.dictation.peek() !== undefined) this.#frame.dictation.set(state);
 				if (state === "recording") {
 					this.#micCursor?.dispose();
@@ -8253,16 +8271,16 @@ export class InteractiveMode implements InteractiveModeContext {
 		return this.#selectorController.showPluginSelector(mode);
 	}
 
-	showUserMessageSelector(startAt?: string): void {
-		this.#selectorController.showUserMessageSelector(startAt);
+	showUserMessageSelector(startAt?: string): Promise<void> {
+		return this.#selectorController.showUserMessageSelector(startAt);
 	}
 
-	showCopySelector(): void {
-		this.#selectorController.showCopySelector();
+	showCopySelector(): Promise<void> {
+		return this.#selectorController.showCopySelector();
 	}
 
-	showTreeSelector(): void {
-		this.#selectorController.showTreeSelector();
+	showTreeSelector(): Promise<void> {
+		return this.#selectorController.showTreeSelector();
 	}
 
 	showThinkingSelector(): void {

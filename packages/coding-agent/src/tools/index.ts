@@ -68,6 +68,7 @@ import { DebugTool } from "./debug";
 import { EvalTool } from "./eval";
 import { resolveEvalBackends } from "./eval-backends";
 import { GithubTool } from "./gh";
+import { GitlabTool } from "./gl";
 import { GlobTool } from "./glob";
 import { GrepTool } from "./grep";
 import { isIrcEnabled } from "../irc/messaging";
@@ -105,6 +106,7 @@ import {
 	cfgCheckpointEnabled,
 	cfgDebugEnabled,
 	cfgGithubEnabled,
+	cfgGitlabEnabled,
 	cfgGlobEnabled,
 	cfgGrepEnabled,
 	cfgLaunchEnabled,
@@ -151,6 +153,7 @@ export * from "./eval-backends";
 export * from "./file-mutation-queue";
 export * from "./file-write-fallback";
 export * from "./gh";
+export * from "./gl";
 export * from "./glob";
 export * from "./grep";
 export * from "./jfind";
@@ -661,6 +664,7 @@ export const BUILTIN_TOOLS: Record<BuiltinToolName, ToolFactory> = {
 	debug: DebugTool.createIf,
 	eval: s => new EvalTool(s),
 	github: GithubTool.createIf,
+	gitlab: GitlabTool.createIf,
 	glob: s => new GlobTool(s, { rootPathAlias: true }),
 	grep: s => new GrepTool(s),
 	find: s => new FindTool(s),
@@ -851,6 +855,7 @@ export async function resolveBuiltinToolPlan(session: ToolSession, toolNames?: s
 		if (name === "grep") return cfgGrepEnabled.get(session.settings);
 		if (name === "find") return isFindEnabled(session);
 		if (name === "github") return cfgGithubEnabled.get(session.settings);
+		if (name === "gitlab") return cfgGitlabEnabled.get(session.settings);
 		if (name === "ast_grep") return cfgAstGrepEnabled.get(session.settings);
 		if (name === "ast_edit") return cfgAstEditEnabled.get(session.settings);
 		if (name === "web_search") return cfgWebSearchEnabled.get(session.settings);
@@ -1043,3 +1048,11 @@ export type {
 	GhRunWatchFailedLogDetails,
 	GhRunWatchViewDetails,
 } from "./details/github";
+
+export type {
+	GlToolDetails,
+	GlMrCheckoutSummary,
+	GlPipelineWatchJobDetails,
+	GlPipelineWatchFailedLogDetails,
+	GlPipelineWatchViewDetails,
+} from "./details/gitlab";
